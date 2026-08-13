@@ -60,6 +60,7 @@ export interface AppSettings {
   autoConnectVpn: boolean;
   lastVpnProfileId: string | null;
   vpnInboundPort: number;
+  vpnMode: 'proxy' | 'tun';
 }
 
 export const DEFAULT_SETTINGS: AppSettings = {
@@ -69,6 +70,7 @@ export const DEFAULT_SETTINGS: AppSettings = {
   autoConnectVpn: false,
   lastVpnProfileId: null,
   vpnInboundPort: 10808,
+  vpnMode: 'proxy',
 };
 
 export interface VpnLinkParams {

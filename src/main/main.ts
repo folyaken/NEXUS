@@ -43,6 +43,7 @@ async function readSettings(): Promise<AppSettings> {
       autoConnectVpn: Boolean(raw.autoConnectVpn),
       lastVpnProfileId: typeof raw.lastVpnProfileId === 'string' ? raw.lastVpnProfileId : null,
       vpnInboundPort: Number(raw.vpnInboundPort) > 0 ? Number(raw.vpnInboundPort) : 10808,
+      vpnMode: raw.vpnMode === 'tun' ? 'tun' : 'proxy',
     };
   } catch {
     return { ...DEFAULT_SETTINGS };
@@ -57,6 +58,7 @@ async function saveSettings(next: AppSettings): Promise<AppSettings> {
     autoConnectVpn: Boolean(next.autoConnectVpn),
     lastVpnProfileId: next.lastVpnProfileId ?? null,
     vpnInboundPort: Number(next.vpnInboundPort) > 0 ? Number(next.vpnInboundPort) : 10808,
+    vpnMode: next.vpnMode === 'tun' ? 'tun' : 'proxy',
   };
   await fs.mkdir(path.dirname(settingsPath()), { recursive: true });
   await fs.writeFile(settingsPath(), `${JSON.stringify(settings, null, 2)}\n`, 'utf8');
@@ -236,7 +238,7 @@ function wireIpc(): void {
       mainWindow?.webContents.send('logs:append', { id: 'jey2ray', level: 'info', message: 'Скачиваем Xray-core…', timestamp: new Date().toISOString() });
       await updater.ensure('jey2ray');
     }
-    const runtime = await vpn.connect(String(id ?? ''), settings.vpnInboundPort);
+    const runtime = await vpn.connect(String(id ?? ''), settings.vpnInboundPort, settings.vpnMode);
     await saveSettings({ ...settings, lastVpnProfileId: String(id ?? '') });
     return runtime;
   });

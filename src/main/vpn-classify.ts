@@ -44,7 +44,17 @@ export function countryByCode(code: string): { code: string; name: string; flag:
 }
 
 export function looksLikeIp(value: string): boolean {
-  return /^\d{1,3}(?:\.\d{1,3}){3}$/.test(value) || value.includes(':');
+  return /^\d{1,3}(?:\.\d{1,3}){3}$/.test(value) || /^[0-9a-f:]+$/i.test(value);
+}
+
+export function looksLikeHost(value: string): boolean {
+  return looksLikeIp(value) || (/^[a-z0-9.-]+\.[a-z]{2,}$/i.test(value) && !/[а-яё]/i.test(value));
+}
+
+export function displayName(profile: VpnProfile): string {
+  if (!looksLikeHost(profile.name) && profile.name.trim()) return profile.name;
+  if (profile.countryName && profile.countryName !== 'Другие') return profile.countryName;
+  return profile.name;
 }
 
 export function detectCountry(...hints: Array<string | undefined>): { code: string; name: string; flag: string } {

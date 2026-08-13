@@ -53,7 +53,7 @@ function outbound(params: VpnLinkParams): Record<string, unknown> {
           users: [{
             id: params.uuid,
             encryption: params.encryption || 'none',
-            flow: params.flow || '',
+            flow: (params.network || 'tcp').toLowerCase() === 'grpc' ? '' : (params.flow || ''),
           }],
         }],
       },
@@ -128,23 +128,38 @@ function outbound(params: VpnLinkParams): Record<string, unknown> {
   };
 }
 
-export function buildXrayConfig(params: VpnLinkParams, inboundPort: number): Record<string, unknown> {
+export function buildXrayConfig(params: VpnLinkParams, inboundPort: number, mode: 'proxy' | 'tun' = 'proxy'): Record<string, unknown> {
+  const inbounds: Record<string, unknown>[] = [{
+    tag: 'socks-in',
+    port: inboundPort,
+    listen: '127.0.0.1',
+    protocol: 'socks',
+    settings: { auth: 'noauth', udp: true },
+    sniffing: { enabled: true, destOverride: ['http', 'tls', 'quic'] },
+  }, {
+    tag: 'http-in',
+    port: inboundPort + 1,
+    listen: '127.0.0.1',
+    protocol: 'http',
+    settings: { allowTransparent: false },
+  }];
+  if (mode === 'tun') {
+    inbounds.push({
+      tag: 'tun-in',
+      protocol: 'tun',
+      settings: {
+        mtu: 1500,
+        name: 'jey2ray',
+        stack: 'gvisor',
+        autoRoute: true,
+        strictRoute: true,
+      },
+      sniffing: { enabled: true, destOverride: ['http', 'tls', 'quic'] },
+    });
+  }
   return {
     log: { loglevel: 'warning' },
-    inbounds: [{
-      tag: 'socks-in',
-      port: inboundPort,
-      listen: '127.0.0.1',
-      protocol: 'socks',
-      settings: { auth: 'noauth', udp: true },
-      sniffing: { enabled: true, destOverride: ['http', 'tls', 'quic'] },
-    }, {
-      tag: 'http-in',
-      port: inboundPort + 1,
-      listen: '127.0.0.1',
-      protocol: 'http',
-      settings: { allowTransparent: false },
-    }],
+    inbounds,
     outbounds: [
       { tag: 'proxy', ...outbound(params) },
       { tag: 'direct', protocol: 'freedom', settings: {} },

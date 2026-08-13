@@ -9,6 +9,7 @@ import { fetchSubscriptionMaterial } from './subscription';
 import { enrichProfile, isServiceNode } from './vpn-classify';
 import { applyGeo } from './vpn-geo';
 import { buildXrayConfig } from './xray-config';
+import { clearSystemProxy, setSystemProxy } from './system-proxy';
 import type { ModuleLog, VpnProfile, VpnRuntime, VpnStatus, VpnSubscriptionInfo } from './types';
 import { waitForExit } from './process-watch';
 
@@ -22,6 +23,7 @@ export class VpnManager extends EventEmitter {
   private inboundPort = 10808;
   private hwid = 'NX-LOCAL';
   private subscriptions = new Map<string, VpnSubscriptionInfo>();
+  private mode: 'proxy' | 'tun' = 'proxy';
 
   constructor(private readonly modulesDir: string) {
     super();
@@ -204,7 +206,7 @@ export class VpnManager extends EventEmitter {
     this.emit('changed', this.snapshot());
   }
 
-  async connect(id: string, preferredPort = 10808): Promise<VpnRuntime> {
+  async connect(id: string, preferredPort = 10808, mode: 'proxy' | 'tun' = 'proxy'): Promise<VpnRuntime> {
     const profile = this.profiles.get(id);
     if (!profile) throw new Error('Профиль не найден');
     if (profile.kind === 'notice' || isServiceNode(profile)) {
@@ -218,15 +220,17 @@ export class VpnManager extends EventEmitter {
     }
     if (this.child) await this.disconnect();
 
+    this.mode = mode;
     this.setState('connecting', id, null);
     const port = await this.pickPort(preferredPort);
     this.inboundPort = port;
-    const config = buildXrayConfig(profile.params, port);
+    const config = buildXrayConfig(profile.params, port, mode);
     await fs.mkdir(this.configsDir(), { recursive: true });
     await fs.writeFile(this.generatedPath(), `${JSON.stringify(config, null, 2)}\n`, 'utf8');
 
     mkdirSync(path.dirname(this.logPath()), { recursive: true });
     const logStream = createWriteStream(this.logPath(), { flags: 'a' });
+    let lastErr = '';
     const child = spawn(xray, ['-config', this.generatedPath()], {
       cwd: path.dirname(xray),
       windowsHide: true,
@@ -239,6 +243,7 @@ export class VpnManager extends EventEmitter {
     const write = (chunk: Buffer, level: ModuleLog['level']) => {
       const text = chunk.toString().trim();
       if (!text) return;
+      if (level === 'error') lastErr = text.slice(-300);
       logStream.write(`[${new Date().toISOString()}] ${text}\n`);
       this.emitLog(level, text);
     };
@@ -253,17 +258,29 @@ export class VpnManager extends EventEmitter {
       logStream.end();
       this.child = null;
       this.pid = null;
+      void clearSystemProxy();
       void fs.rm(this.generatedPath(), { force: true });
       if (this.status === 'connecting' || this.status === 'connected') {
         const failed = code !== 0 && code !== null;
-        this.setState(failed ? 'error' : 'disconnected', failed ? id : null, null, failed ? `Xray завершился с кодом ${code}` : undefined);
+        this.setState(failed ? 'error' : 'disconnected', failed ? id : null, null, failed ? (lastErr || `Xray завершился с кодом ${code}`) : undefined);
       }
     });
 
-    await new Promise((resolve) => setTimeout(resolve, 400));
-    if (!this.child) throw new Error(this.error || 'Xray не запустился');
+    await new Promise((resolve) => setTimeout(resolve, 1200));
+    if (!this.child) {
+      const hint = mode === 'tun' ? ' TUN часто требует запуск NEXUS от администратора. Попробуй режим Proxy.' : '';
+      throw new Error((this.error || lastErr || 'Xray не запустился') + hint);
+    }
+    if (mode === 'proxy') {
+      try {
+        await setSystemProxy('127.0.0.1', port + 1);
+        this.emitLog('info', `Системный прокси: 127.0.0.1:${port + 1}`);
+      } catch (error) {
+        this.emitLog('warn', `Не удалось выставить системный прокси: ${error instanceof Error ? error.message : 'ошибка'}`);
+      }
+    }
     this.setState('connected', id, child.pid ?? null);
-    this.emitLog('success', `Подключено: ${profile.name} · SOCKS 127.0.0.1:${port} · PID ${child.pid ?? '—'}`);
+    this.emitLog('success', `Включено: ${profile.name} · ${mode.toUpperCase()} · HTTP 127.0.0.1:${port + 1}`);
     return this.runtime();
   }
 
