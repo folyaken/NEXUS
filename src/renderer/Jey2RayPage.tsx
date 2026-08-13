@@ -96,6 +96,13 @@ export function Jey2RayPage({
     });
   }, [onToast]);
 
+  useEffect(() => {
+    if (!desktop || runtime.xrayReady) return;
+    void window.nexus?.ensureVpnCore().then(() => window.nexus?.getVpn()).then((snapshot) => {
+      if (snapshot) setRuntime(snapshot.runtime);
+    }).catch((error: Error) => onToast(error.message));
+  }, [desktop, runtime.xrayReady, onToast]);
+
   const nodes = useMemo(() => profiles.filter((item) => item.kind !== 'notice'), [profiles]);
   const tabs = useMemo(() => ['all', ...new Set(nodes.map(subscriptionKey))], [nodes]);
   const visible = useMemo(() => tab === 'all' ? nodes : nodes.filter((item) => subscriptionKey(item) === tab), [nodes, tab]);
@@ -218,7 +225,7 @@ export function Jey2RayPage({
         return <button key={profile.id} className={`happ-row ${active ? 'is-active' : ''}`} onClick={() => void (active ? disconnect() : connect(profile.id))}>
           <Flag code={profile.country} />
           <span className="happ-copy">
-            <strong>{profile.countryName && profile.countryName !== 'Другие' ? profile.countryName : profile.name}</strong>
+            <strong>{profile.name}</strong>
             <small>{stackOf(profile)}</small>
             <small className="happ-meta">{profile.server}:{profile.port}{profile.params.sni ? ` · sni ${profile.params.sni}` : ''}{profile.params.flow ? ` · ${profile.params.flow}` : ''}</small>
           </span>

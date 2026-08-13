@@ -95,7 +95,7 @@ function clashBlockToProfile(block: string): VpnProfile | null {
   const shareLink = `clash://${params.protocol}/${server}:${port}#${encodeURIComponent(name)}`;
   return enrichProfile({
     id: createHash('sha1').update(`${name}|${server}|${port}|${params.uuid || params.password || ''}`).digest('hex').slice(0, 12) || randomUUID().slice(0, 12),
-    name: name.slice(0, 64),
+    name: name.slice(0, 80),
     protocol: params.protocol,
     server,
     port,
@@ -163,6 +163,20 @@ function parseUserInfo(response: Response, url: string): VpnSubscriptionInfo {
 export async function fetchSubscriptionMaterial(url: string, hwid: string, log: (message: string) => void): Promise<{ links: string[]; clash: VpnProfile[]; info?: VpnSubscriptionInfo }> {
   const urls = candidateUrls(url);
   let htmlExtra: string[] = [];
+  const links = new Set<string>();
+  const clash: VpnProfile[] = [];
+  const seenClash = new Set<string>();
+  let info: VpnSubscriptionInfo | undefined;
+
+  const take = (nextLinks: string[], nextClash: VpnProfile[], nextInfo?: VpnSubscriptionInfo) => {
+    for (const link of nextLinks) links.add(link);
+    for (const profile of nextClash) {
+      if (seenClash.has(profile.id)) continue;
+      seenClash.add(profile.id);
+      clash.push(profile);
+    }
+    if (nextInfo && (!info || (nextInfo.expireAt && !info.expireAt))) info = nextInfo;
+  };
 
   for (const target of urls) {
     for (const ua of CLIENT_UAS) {
@@ -173,33 +187,24 @@ export async function fetchSubscriptionMaterial(url: string, hwid: string, log: 
         if (!body.trim()) continue;
         if (htmlLooksLikePage(body)) {
           htmlExtra = [...new Set([...htmlExtra, ...extractUrlsFromHtml(body, target)])];
-          log(`Страница панели (${new URL(target).pathname || '/'}, UA ${ua.split('/')[0]}) — ищем прямую подписку`);
           continue;
         }
-        const links = extractShareLinks(body);
-        const clash = extractClashProfiles(body);
-        const json = extractJsonProfiles(body);
-        if (links.length || clash.length || json.length) {
-          log(`Подписка прочитана как ${ua.split('/')[0]} · ссылок ${links.length} · clash ${clash.length + json.length}`);
-          return { links, clash: [...clash, ...json], info: parseUserInfo(response, url) };
-        }
+        take(extractShareLinks(body), [...extractClashProfiles(body), ...extractJsonProfiles(body)], parseUserInfo(response, url));
       } catch (error) {
         log(`Не удалось скачать ${target} (${ua.split('/')[0]}): ${error instanceof Error ? error.message : 'сеть'}`);
       }
     }
   }
 
-  for (const extra of htmlExtra.slice(0, 6)) {
-    if (urls.includes(extra)) continue;
+  for (const extra of htmlExtra.slice(0, 8)) {
     try {
       const response = await fetch(extra, { headers: headers('v2rayN/6.55', hwid), redirect: 'follow' });
       if (!response.ok) continue;
       const body = await response.text();
-      const links = extractShareLinks(body);
-      const clash = extractClashProfiles(body);
-      if (links.length || clash.length) return { links, clash, info: parseUserInfo(response, url) };
+      take(extractShareLinks(body), extractClashProfiles(body), parseUserInfo(response, url));
     } catch { /* next */ }
   }
 
-  return { links: [], clash: [] };
+  log(`Подписка: ссылок ${links.size} · профилей clash ${clash.length}`);
+  return { links: [...links], clash, info };
 }

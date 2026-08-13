@@ -35,7 +35,7 @@ export async function applyGeo(profiles: VpnProfile[], cacheFile: string): Promi
   return profiles.map((profile) => {
     const hit = cache[profile.server];
     if (!hit) return profile;
-    const nameless = looksLikeIp(profile.name) || profile.name === profile.server || profile.country === 'UN';
+    const nameless = looksLikeIp(profile.name) || profile.name === profile.server;
     return {
       ...profile,
       country: hit.code,

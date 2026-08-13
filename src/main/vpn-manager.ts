@@ -133,17 +133,13 @@ export class VpnManager extends EventEmitter {
       keep.add(next.id);
     };
 
-    const namedFirst = material.clash.length ? material.clash : [];
-    if (namedFirst.length) {
-      for (const profile of namedFirst) {
-        try { await accept(profile); }
-        catch (error) { this.emitLog('warn', `Пропуск clash-узла: ${error instanceof Error ? error.message : 'ошибка'}`); }
-      }
-    } else {
-      for (const link of material.links) {
-        try { await accept(createProfileFromLink(link)); }
-        catch (error) { this.emitLog('warn', `Пропуск узла: ${error instanceof Error ? error.message : 'битая ссылка'}`); }
-      }
+    for (const profile of material.clash) {
+      try { await accept(profile); }
+      catch (error) { this.emitLog('warn', `Пропуск clash-узла: ${error instanceof Error ? error.message : 'ошибка'}`); }
+    }
+    for (const link of material.links) {
+      try { await accept(createProfileFromLink(link)); }
+      catch (error) { this.emitLog('warn', `Пропуск узла: ${error instanceof Error ? error.message : 'битая ссылка'}`); }
     }
 
     if (!material.links.length && !material.clash.length) {

@@ -90,7 +90,6 @@ export function subscriptionLabel(url?: string): string {
 export function enrichProfile(profile: VpnProfile): VpnProfile {
   const service = isServiceNode(profile);
   const country = detectCountry(profile.name, profile.params.sni, profile.params.host, profile.server);
-  const nameless = looksLikeIp(profile.name) || profile.name === profile.server;
   return {
     ...profile,
     kind: service ? 'notice' : 'node',
@@ -99,6 +98,5 @@ export function enrichProfile(profile: VpnProfile): VpnProfile {
     flag: profile.flag && profile.country !== 'UN' ? profile.flag : country.flag,
     stack: protocolStack(profile),
     isNew: /(?:^|[\s\[])new(?:$|[\s\]])|нов/i.test(profile.name),
-    name: nameless && country.code !== 'UN' ? country.name : profile.name,
   };
 }

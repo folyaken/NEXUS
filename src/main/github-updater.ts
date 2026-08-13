@@ -54,9 +54,12 @@ export class GithubUpdater extends EventEmitter {
   async ensure(id: string): Promise<void> {
     const target = this.targets.find((item) => item.id === id);
     if (!target) throw new Error(`Нет цели обновления: ${id}`);
+    if (this.moduleExecutableExists(id)) return;
     await this.syncOne(target);
+    if (this.moduleExecutableExists(id)) return;
+    if (id === 'jey2ray') await this.installXrayFromMirrors();
     if (!this.moduleExecutableExists(id)) {
-      throw new Error(this.updates.get(id)?.error || 'Не удалось скачать Xray-core с GitHub');
+      throw new Error(this.updates.get(id)?.error || 'Не удалось скачать Xray-core. Проверь интернет / GitHub, затем «Скачать Xray».');
     }
   }
 
@@ -86,8 +89,14 @@ export class GithubUpdater extends EventEmitter {
       name: 'Jey2Ray / Xray-core',
       repo: 'XTLS/Xray-core',
       selectAsset: (assets) => {
-        if (process.platform === 'win32') return assets.find((asset) => asset.name === 'Xray-windows-64.zip');
-        if (process.platform === 'linux' && os.arch() === 'x64') return assets.find((asset) => asset.name === 'Xray-linux-64.zip');
+        if (process.platform === 'win32') {
+          return assets.find((asset) => asset.name === 'Xray-windows-64.zip')
+            || assets.find((asset) => /windows-64\.zip$/i.test(asset.name) && !/arm/i.test(asset.name));
+        }
+        if (process.platform === 'linux' && os.arch() === 'x64') {
+          return assets.find((asset) => asset.name === 'Xray-linux-64.zip')
+            || assets.find((asset) => /linux-64\.zip$/i.test(asset.name) && !/arm/i.test(asset.name));
+        }
         return undefined;
       },
       install: (assetPath, version) => this.installXray(assetPath, version),
@@ -153,8 +162,12 @@ export class GithubUpdater extends EventEmitter {
   private async downloadAsset(url: string, destination: string, repo: string): Promise<void> {
     const parsed = new URL(url);
     const owner = repo.split('/')[0];
-    if (parsed.protocol !== 'https:' || parsed.hostname !== 'github.com' || !parsed.pathname.startsWith(`/${owner}/`)) {
-      throw new Error(`Загрузка заблокирована: asset не принадлежит https://github.com/${owner} (${repo})`);
+    const allowedHost = parsed.hostname === 'github.com' || parsed.hostname.endsWith('githubusercontent.com') || parsed.hostname.includes('ghproxy');
+    if (parsed.protocol !== 'https:' || !allowedHost) {
+      throw new Error(`Загрузка заблокирована: ${parsed.hostname} (${repo})`);
+    }
+    if (parsed.hostname === 'github.com' && owner && !parsed.pathname.includes(`/${owner}/`)) {
+      throw new Error(`Загрузка заблокирована: asset не принадлежит https://github.com/${owner}`);
     }
     const response = await fetch(url, { headers: { 'User-Agent': 'NEXUS-Network-Control-Plane' }, redirect: 'follow' });
     if (!response.ok || !response.body) throw new Error(`GitHub asset: HTTP ${response.status}`);
