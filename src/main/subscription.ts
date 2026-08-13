@@ -1,5 +1,5 @@
 import { createHash, randomUUID } from 'node:crypto';
-import type { VpnLinkParams, VpnProfile } from './types';
+import type { VpnLinkParams, VpnProfile, VpnSubscriptionInfo } from './types';
 import { extractShareLinks } from './share-link';
 import { enrichProfile } from './vpn-classify';
 
@@ -73,7 +73,7 @@ function clashBlockToProfile(block: string): VpnProfile | null {
   const tls = /true|tls/i.test(yamlValue(block, 'tls') || '') || Boolean(yamlValue(block, 'servername'));
   const reality = /reality/i.test(block) || Boolean(yamlValue(block, 'public-key'));
   const params: VpnLinkParams = {
-    protocol: type === 'vmess' ? 'vmess' : type === 'trojan' ? 'trojan' : type === 'ss' || type === 'shadowsocks' ? 'shadowsocks' : 'vless',
+    protocol: type === 'vmess' ? 'vmess' : type === 'trojan' ? 'trojan' : type === 'ss' || type === 'shadowsocks' ? 'shadowsocks' : type === 'hysteria2' || type === 'hy2' ? 'hysteria2' : 'vless',
     address: server,
     port,
     uuid: yamlValue(block, 'uuid'),
@@ -91,9 +91,7 @@ function clashBlockToProfile(block: string): VpnProfile | null {
     serviceName: yamlValue(block, 'grpc-service-name') || yamlValue(block, 'serviceName'),
     encryption: yamlValue(block, 'encryption') || 'none',
   };
-  if (!['vless', 'vmess', 'trojan', 'ss', 'shadowsocks'].includes(type) && type && type !== 'vless') {
-    if (!['vmess', 'trojan', 'ss', 'shadowsocks'].includes(type)) return null;
-  }
+  if (type && !['vless', 'vmess', 'trojan', 'ss', 'shadowsocks', 'hysteria2', 'hy2'].includes(type)) return null;
   const shareLink = `clash://${params.protocol}/${server}:${port}#${encodeURIComponent(name)}`;
   return enrichProfile({
     id: createHash('sha1').update(`${name}|${server}|${port}|${params.uuid || params.password || ''}`).digest('hex').slice(0, 12) || randomUUID().slice(0, 12),
@@ -108,7 +106,7 @@ function clashBlockToProfile(block: string): VpnProfile | null {
 }
 
 export function extractClashProfiles(text: string): VpnProfile[] {
-  if (!/type:\s*(vless|vmess|trojan|ss|shadowsocks)/i.test(text)) return [];
+  if (!/type:\s*(vless|vmess|trojan|ss|shadowsocks|hysteria2|hy2)/i.test(text)) return [];
   const chunks = text.split(/\n(?=\s*-\s+name:|\s*-\s+\{)/);
   const profiles: VpnProfile[] = [];
   for (const chunk of chunks) {
@@ -137,7 +135,32 @@ export function extractJsonProfiles(text: string): VpnProfile[] {
   }
 }
 
-export async function fetchSubscriptionMaterial(url: string, hwid: string, log: (message: string) => void): Promise<{ links: string[]; clash: VpnProfile[] }> {
+function parseUserInfo(response: Response, url: string): VpnSubscriptionInfo {
+  const raw = response.headers.get('subscription-userinfo') || response.headers.get('Subscription-Userinfo') || '';
+  const parts = Object.fromEntries(raw.split(';').map((item) => {
+    const [key, value] = item.split('=').map((part) => part.trim());
+    return [key, value];
+  }).filter((item) => item[0]));
+  let title = response.headers.get('profile-title') || '';
+  if (title.toLowerCase().startsWith('base64:')) {
+    try { title = Buffer.from(title.slice(7), 'base64').toString('utf8'); } catch { /* keep */ }
+  }
+  const expire = Number(parts.expire);
+  return {
+    url,
+    title: title || new URL(url).host,
+    supportUrl: response.headers.get('support-url') || undefined,
+    announce: response.headers.get('announce') || response.headers.get('profile-web-page-url') || undefined,
+    expireAt: Number.isFinite(expire) && expire > 0 ? new Date(expire * 1000).toISOString() : undefined,
+    upload: Number(parts.upload) || 0,
+    download: Number(parts.download) || 0,
+    total: Number(parts.total) || 0,
+    updateHours: Number(response.headers.get('profile-update-interval')) || 1,
+    lastSync: new Date().toISOString(),
+  };
+}
+
+export async function fetchSubscriptionMaterial(url: string, hwid: string, log: (message: string) => void): Promise<{ links: string[]; clash: VpnProfile[]; info?: VpnSubscriptionInfo }> {
   const urls = candidateUrls(url);
   let htmlExtra: string[] = [];
 
@@ -158,7 +181,7 @@ export async function fetchSubscriptionMaterial(url: string, hwid: string, log: 
         const json = extractJsonProfiles(body);
         if (links.length || clash.length || json.length) {
           log(`Подписка прочитана как ${ua.split('/')[0]} · ссылок ${links.length} · clash ${clash.length + json.length}`);
-          return { links, clash: [...clash, ...json] };
+          return { links, clash: [...clash, ...json], info: parseUserInfo(response, url) };
         }
       } catch (error) {
         log(`Не удалось скачать ${target} (${ua.split('/')[0]}): ${error instanceof Error ? error.message : 'сеть'}`);
@@ -174,7 +197,7 @@ export async function fetchSubscriptionMaterial(url: string, hwid: string, log: 
       const body = await response.text();
       const links = extractShareLinks(body);
       const clash = extractClashProfiles(body);
-      if (links.length || clash.length) return { links, clash };
+      if (links.length || clash.length) return { links, clash, info: parseUserInfo(response, url) };
     } catch { /* next */ }
   }
 

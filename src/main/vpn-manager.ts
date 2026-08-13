@@ -8,7 +8,7 @@ import { createProfileFromLink, isSubscriptionUrl } from './share-link';
 import { fetchSubscriptionMaterial } from './subscription';
 import { enrichProfile, isServiceNode } from './vpn-classify';
 import { buildXrayConfig } from './xray-config';
-import type { ModuleLog, VpnProfile, VpnRuntime, VpnStatus } from './types';
+import type { ModuleLog, VpnProfile, VpnRuntime, VpnStatus, VpnSubscriptionInfo } from './types';
 import { waitForExit } from './process-watch';
 
 export class VpnManager extends EventEmitter {
@@ -20,6 +20,7 @@ export class VpnManager extends EventEmitter {
   private error?: string;
   private inboundPort = 10808;
   private hwid = 'NX-LOCAL';
+  private subscriptions = new Map<string, VpnSubscriptionInfo>();
 
   constructor(private readonly modulesDir: string) {
     super();
@@ -51,6 +52,7 @@ export class VpnManager extends EventEmitter {
       xrayReady: existsSync(this.xrayPath()),
       xrayVersion: null,
       error: this.error,
+      subscriptions: [...this.subscriptions.values()],
     };
   }
 
@@ -64,7 +66,7 @@ export class VpnManager extends EventEmitter {
     await fs.mkdir(path.dirname(this.logPath()), { recursive: true });
     const entries = await fs.readdir(this.configsDir(), { withFileTypes: true });
     for (const entry of entries) {
-      if (!entry.isFile() || !entry.name.endsWith('.json') || entry.name === 'generated_config.json') continue;
+      if (!entry.isFile() || !entry.name.endsWith('.json') || entry.name === 'generated_config.json' || entry.name === 'subscriptions.json') continue;
       try {
         const profile = enrichProfile(JSON.parse(await fs.readFile(path.join(this.configsDir(), entry.name), 'utf8')) as VpnProfile);
         if (profile.id && profile.shareLink && profile.kind !== 'notice') this.profiles.set(profile.id, profile);
@@ -73,6 +75,10 @@ export class VpnManager extends EventEmitter {
         this.emitLog('warn', `Пропущен повреждённый профиль ${entry.name}`);
       }
     }
+    try {
+      const raw = JSON.parse(await fs.readFile(path.join(this.configsDir(), 'subscriptions.json'), 'utf8')) as VpnSubscriptionInfo[];
+      for (const item of raw) if (item.url) this.subscriptions.set(item.url, item);
+    } catch { /* first run */ }
     this.emit('changed', this.snapshot());
   }
 
@@ -142,6 +148,10 @@ export class VpnManager extends EventEmitter {
       throw new Error(notices
         ? `Панель вернула только уведомления (${notices}), без серверов.`
         : 'Ссылки в подписке не удалось разобрать');
+    }
+    if (material.info) {
+      this.subscriptions.set(url, { ...material.info, title: material.info.title || parsed.host });
+      await this.persistSubscriptions();
     }
     this.emitLog('success', `Подписка ${parsed.host}: узлов ${imported.length}${notices ? `, служебных скрыто ${notices}` : ''}`);
     this.emit('changed', this.snapshot());
@@ -273,6 +283,11 @@ export class VpnManager extends EventEmitter {
         server.close(() => resolve(true));
       });
     });
+  }
+
+
+  private async persistSubscriptions(): Promise<void> {
+    await fs.writeFile(path.join(this.configsDir(), 'subscriptions.json'), `${JSON.stringify([...this.subscriptions.values()], null, 2)}\n`, 'utf8');
   }
 
   private async persist(profile: VpnProfile): Promise<void> {

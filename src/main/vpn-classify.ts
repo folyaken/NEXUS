@@ -17,6 +17,7 @@ const COUNTRIES: Record<string, { name: string; flag: string }> = {
   LT: { name: 'Литва', flag: '🇱🇹' }, EE: { name: 'Эстония', flag: '🇪🇪' }, RO: { name: 'Румыния', flag: '🇷🇴' },
   BG: { name: 'Болгария', flag: '🇧🇬' }, RS: { name: 'Сербия', flag: '🇷🇸' }, MD: { name: 'Молдова', flag: '🇲🇩' },
   GE: { name: 'Грузия', flag: '🇬🇪' }, AM: { name: 'Армения', flag: '🇦🇲' }, AZ: { name: 'Азербайджан', flag: '🇦🇿' },
+  EU: { name: 'Европа', flag: '🇪🇺' },
   IL: { name: 'Израиль', flag: '🇮🇱' }, IR: { name: 'Иран', flag: '🇮🇷' }, CN: { name: 'Китай', flag: '🇨🇳' },
 };
 
@@ -49,7 +50,15 @@ export function detectCountry(name: string): { code: string; name: string; flag:
   for (const [pattern, code] of NAME_TO_ISO) {
     if (pattern.test(name) && COUNTRIES[code]) return { code, ...COUNTRIES[code] };
   }
+  if (/доступн|быстр|optimal|fastest|europe|европ/i.test(name)) return { code: 'EU', name: 'Европа', flag: '🇪🇺' };
   return { code: 'UN', name: 'Другие', flag: '🌐' };
+}
+
+export function protocolStack(profile: Pick<VpnProfile, 'protocol' | 'params'>): string {
+  const proto = ({ vless: 'VLESS', vmess: 'VMess', trojan: 'Trojan', shadowsocks: 'SS', hysteria2: 'HYSTERIA' })[profile.protocol] || profile.protocol.toUpperCase();
+  const network = (profile.params.network || (profile.protocol === 'hysteria2' ? 'HYSTERIA' : 'TCP')).toUpperCase();
+  const security = (profile.params.security || (profile.protocol === 'hysteria2' ? 'TLS' : 'NONE')).toUpperCase();
+  return `${proto} / ${network} / ${security} / JSON`;
 }
 
 export function subscriptionLabel(url?: string): string {
@@ -70,5 +79,7 @@ export function enrichProfile(profile: VpnProfile): VpnProfile {
     country: country.code,
     countryName: country.name,
     flag: country.flag,
+    stack: protocolStack(profile),
+    isNew: /new|нов/i.test(profile.name) || Date.now() - Date.parse(profile.createdAt || '') < 1000 * 60 * 60 * 24,
   };
 }

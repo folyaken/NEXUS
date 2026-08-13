@@ -1,6 +1,6 @@
 export type ModuleStatus = 'running' | 'stopped' | 'error' | 'starting' | 'stopping';
 export type UpdateStatus = 'idle' | 'checking' | 'downloading' | 'installed' | 'up-to-date' | 'unsupported' | 'error';
-export type VpnProtocol = 'vless' | 'vmess' | 'trojan' | 'shadowsocks';
+export type VpnProtocol = 'vless' | 'vmess' | 'trojan' | 'shadowsocks' | 'hysteria2';
 export type VpnStatus = 'disconnected' | 'connecting' | 'connected' | 'error';
 
 export interface ModuleManifest {
@@ -95,6 +95,20 @@ export interface VpnLinkParams {
   allowInsecure?: boolean;
   type?: string;
   headerType?: string;
+  obfs?: string;
+}
+
+export interface VpnSubscriptionInfo {
+  url: string;
+  title: string;
+  supportUrl?: string;
+  announce?: string;
+  expireAt?: string;
+  upload?: number;
+  download?: number;
+  total?: number;
+  updateHours?: number;
+  lastSync?: string;
 }
 
 export interface VpnProfile {
@@ -109,6 +123,8 @@ export interface VpnProfile {
   country?: string;
   countryName?: string;
   flag?: string;
+  stack?: string;
+  isNew?: boolean;
   params: VpnLinkParams;
   createdAt: string;
 }
@@ -122,4 +138,5 @@ export interface VpnRuntime {
   xrayReady: boolean;
   xrayVersion: string | null;
   error?: string;
+  subscriptions?: VpnSubscriptionInfo[];
 }

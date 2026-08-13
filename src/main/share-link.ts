@@ -138,7 +138,25 @@ export function parseShareLink(input: string): { params: VpnLinkParams; name: st
   if (scheme === 'trojan') return parseVlessOrTrojan(raw, 'trojan');
   if (scheme === 'vmess') return parseVmess(raw);
   if (scheme === 'ss') return parseShadowsocks(raw);
-  throw new Error('Неподдерживаемая ссылка. Нужны vless://, vmess://, trojan:// или ss://');
+  if (scheme === 'hy2' || scheme === 'hysteria2') return parseHysteria2(raw);
+  throw new Error('Неподдерживаемая ссылка. Нужны vless://, vmess://, trojan://, ss:// или hy2://');
+}
+
+function parseHysteria2(raw: string): { params: VpnLinkParams; name: string } {
+  const url = new URL(raw.replace(/^hy2:/i, 'hysteria2:'));
+  const q = queryMap(url.search);
+  const params: VpnLinkParams = {
+    protocol: 'hysteria2',
+    address: url.hostname,
+    port: asPort(url.port, 443),
+    password: decodeURIComponent(url.username || q.auth || ''),
+    security: 'tls',
+    network: 'hysteria2',
+    sni: q.sni || q.peer || url.hostname,
+    obfs: q.obfs || q['obfs-password'],
+    allowInsecure: q.insecure === '1' || q.allowinsecure === '1',
+  };
+  return { params, name: fragmentName(url.hash, `HY2 ${url.hostname}`) };
 }
 
 export function createProfileFromLink(input: string, explicitName?: string): VpnProfile {
@@ -174,9 +192,9 @@ function splitLinks(text: string): string[] {
   const found = text
     .split(/[\r\n]+/)
     .map((line) => line.trim())
-    .filter((line) => /^(vless|vmess|trojan|ss):\/\//i.test(line));
+    .filter((line) => /^(vless|vmess|trojan|ss|hy2|hysteria2):\/\//i.test(line));
   if (found.length) return [...new Set(found)];
-  const inline = text.match(/(?:vless|vmess|trojan|ss):\/\/\S+/gi) ?? [];
+  const inline = text.match(/(?:vless|vmess|trojan|ss|hy2|hysteria2):\/\/\S+/gi) ?? [];
   return [...new Set(inline.map((item) => item.trim()))];
 }
 

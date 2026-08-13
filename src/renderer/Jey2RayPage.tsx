@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { animated, config, useSpring } from '@react-spring/web';
-import type { AppSettings, UpdateInfo, VpnProfile, VpnRuntime } from '../main/types';
+import type { AppSettings, UpdateInfo, VpnProfile, VpnRuntime, VpnSubscriptionInfo } from '../main/types';
 
 const EMPTY_RUNTIME: VpnRuntime = {
   status: 'disconnected',
@@ -10,6 +10,7 @@ const EMPTY_RUNTIME: VpnRuntime = {
   inboundPort: 10808,
   xrayReady: false,
   xrayVersion: null,
+  subscriptions: [],
 };
 
 function JeyVisual() {
@@ -29,13 +30,26 @@ function subscriptionKey(profile: VpnProfile): string {
   return profile.subscriptionUrl || 'manual';
 }
 
-function subscriptionTitle(key: string): string {
-  if (key === 'manual') return 'Ручные';
-  try {
-    return new URL(key).host.replace(/^www\./, '');
-  } catch {
-    return 'Подписка';
-  }
+function formatBytes(value?: number): string {
+  if (!value) return '0 MB';
+  if (value < 1024) return `${value} B`;
+  const mb = value / (1024 * 1024);
+  if (mb < 1024) return `${mb < 10 ? mb.toFixed(1) : Math.round(mb)} MB`;
+  return `${(mb / 1024).toFixed(1)} GB`;
+}
+
+function formatExpire(value?: string): string {
+  if (!value) return '—';
+  return new Intl.DateTimeFormat('ru-RU', { day: '2-digit', month: '2-digit', year: 'numeric' }).format(new Date(value));
+}
+
+function formatSync(value?: string): string {
+  if (!value) return '';
+  return new Intl.DateTimeFormat('ru-RU', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' }).format(new Date(value));
+}
+
+function stackOf(profile: VpnProfile): string {
+  return profile.stack || `${profile.protocol.toUpperCase()} / ${(profile.params.network || 'TCP').toUpperCase()} / ${(profile.params.security || 'NONE').toUpperCase()} / JSON`;
 }
 
 export function Jey2RayPage({
@@ -59,7 +73,6 @@ export function Jey2RayPage({
   const [runtime, setRuntime] = useState<VpnRuntime>(EMPTY_RUNTIME);
   const [busy, setBusy] = useState(false);
   const [tab, setTab] = useState('all');
-  const [showNotices, setShowNotices] = useState(false);
   const intro = useSpring({ from: { opacity: 0, y: 12 }, to: { opacity: 1, y: 0 }, config: config.gentle });
   const desktop = Boolean(window.nexus);
   const xrayUpdate = updates.find((item) => item.id === 'jey2ray');
@@ -78,41 +91,22 @@ export function Jey2RayPage({
   }, [onToast]);
 
   const nodes = useMemo(() => profiles.filter((item) => item.kind !== 'notice'), [profiles]);
-  const notices = useMemo(() => profiles.filter((item) => item.kind === 'notice'), [profiles]);
-  const tabs = useMemo(() => {
-    const keys = [...new Set(nodes.map(subscriptionKey))];
-    return ['all', ...keys];
-  }, [nodes]);
-
-  const visible = useMemo(() => {
-    const scoped = tab === 'all' ? nodes : nodes.filter((item) => subscriptionKey(item) === tab);
-    return scoped;
-  }, [nodes, tab]);
-
-  const byCountry = useMemo(() => {
-    const groups = new Map<string, VpnProfile[]>();
-    for (const profile of visible) {
-      const key = `${profile.flag ?? '🌐'} ${profile.countryName ?? 'Другие'}`;
-      const list = groups.get(key) ?? [];
-      list.push(profile);
-      groups.set(key, list);
-    }
-    return [...groups.entries()].sort((a, b) => a[0].localeCompare(b[0], 'ru'));
-  }, [visible]);
+  const tabs = useMemo(() => ['all', ...new Set(nodes.map(subscriptionKey))], [nodes]);
+  const visible = useMemo(() => tab === 'all' ? nodes : nodes.filter((item) => subscriptionKey(item) === tab), [nodes, tab]);
+  const info: VpnSubscriptionInfo | undefined = (runtime.subscriptions ?? []).find((item) => tab !== 'all' && item.url === tab) ?? runtime.subscriptions?.[0];
 
   const importLink = async () => {
     try {
       setBusy(true);
-      if (desktop) {
-        const imported = await window.nexus?.importVpn(link, name || undefined);
-        if (imported?.length) {
-          setLink('');
-          const firstSub = imported[0].subscriptionUrl;
-          if (firstSub) setTab(firstSub);
-          onToast(imported.length > 1 ? `Подписка: серверов ${imported.length}` : `Профиль «${imported[0].name}» сохранён`);
-        }
-      } else {
+      if (!desktop) {
         onToast('Импорт ссылок работает в окне Electron (npm start)');
+        return;
+      }
+      const imported = await window.nexus?.importVpn(link, name || undefined);
+      if (imported?.length) {
+        setLink('');
+        if (imported[0].subscriptionUrl) setTab(imported[0].subscriptionUrl);
+        onToast(imported.length > 1 ? `Подписка: серверов ${imported.length}` : `Профиль «${imported[0].name}» сохранён`);
       }
     } catch (error) {
       onToast(error instanceof Error ? error.message : 'Не удалось импортировать ссылку');
@@ -148,20 +142,8 @@ export function Jey2RayPage({
     }
   };
 
-  const remove = async (id: string) => {
-    try {
-      if (desktop) await window.nexus?.removeVpn(id);
-      else setProfiles((current) => current.filter((item) => item.id !== id));
-    } catch (error) {
-      onToast(error instanceof Error ? error.message : 'Не удалось удалить профиль');
-    }
-  };
-
-  const purgeNotices = async () => {
-    for (const item of notices) await remove(item.id);
-    onToast('Служебные карточки удалены');
-  };
-
+  const used = (info?.upload ?? 0) + (info?.download ?? 0);
+  const quota = info?.total ? formatBytes(info.total) : '∞';
   const statusText = runtime.status === 'connected' ? `Подключено · SOCKS 127.0.0.1:${runtime.inboundPort}` : runtime.status === 'connecting' ? 'Подключение…' : runtime.status === 'error' ? (runtime.error || 'Ошибка') : 'Отключено';
 
   return <section className="page-section jey-page">
@@ -169,7 +151,7 @@ export function Jey2RayPage({
       <div>
         <span className="section-kicker">PRIVATE NETWORK LAYER</span>
         <h1>Jey2Ray</h1>
-        <p>Подписки и шаринг-ссылки, как в Happ: отдельно по кабинету и по странам. Служебные уведомления панели скрываются.</p>
+        <p>Список как в Happ: страна, протокол, транспорт, REALITY/TLS, трафик и срок подписки.</p>
         <span className={`coming-badge ${runtime.status === 'connected' ? 'is-live' : ''}`}><i /> {statusText}</span>
       </div>
       <JeyVisual />
@@ -180,7 +162,7 @@ export function Jey2RayPage({
         <span className="section-kicker">ADD PROFILE</span>
         <h2>Ссылка или подписка</h2>
       </div>
-      <textarea className="jey-link" rows={3} value={link} onChange={(event) => setLink(event.target.value)} placeholder="https://vlv.on/…   или   vless://…" />
+      <textarea className="jey-link" rows={2} value={link} onChange={(event) => setLink(event.target.value)} placeholder="https://connect.rsvps.tech/…   или   vless://  hy2://" />
       <div className="jey-import-row">
         <input className="jey-name" value={name} onChange={(event) => setName(event.target.value)} placeholder="Имя (для одной ссылки)" />
         <button className="primary-button small" disabled={busy || !link.trim()} onClick={() => void importLink()}><span>Добавить</span><b>↗</b></button>
@@ -189,58 +171,56 @@ export function Jey2RayPage({
 
     <div className="jey-toolbar">
       <div>
-        <span className="section-kicker">SAVED ENDPOINTS</span>
-        <h2>Профили подключения</h2>
+        <span className="section-kicker">ENDPOINTS</span>
+        <h2>Серверы</h2>
       </div>
       <div className="jey-toolbar-actions">
         <label className="jey-autostart">
           <input type="checkbox" checked={settings.autoConnectVpn} onChange={() => onSettings({ ...settings, autoConnectVpn: !settings.autoConnectVpn })} />
           Автоподключение
         </label>
-        <button className="quiet-button" disabled={busy} onClick={() => void window.nexus?.refreshVpn().then((count) => onToast(count ? `Подписки обновлены · ${count} серверов` : 'Нет сохранённых подписок')).catch((error: Error) => onToast(error.message))}>Обновить подписки</button>
-        <button className="quiet-button" disabled={syncing} onClick={onSync}>{runtime.xrayReady ? 'Обновить Xray' : 'Скачать Xray'} {xrayUpdate?.latestVersion ? `· ${xrayUpdate.latestVersion}` : ''}</button>
+        <button className="quiet-button" disabled={busy} onClick={() => void window.nexus?.refreshVpn().then((count) => onToast(count ? `Обновлено · ${count}` : 'Нет подписок')).catch((error: Error) => onToast(error.message))}>Обновить</button>
+        <button className="quiet-button" disabled={syncing} onClick={onSync}>{runtime.xrayReady ? 'Xray' : 'Скачать Xray'} {xrayUpdate?.latestVersion ?? ''}</button>
         {runtime.status === 'connected' && <button className="primary-button small" disabled={busy} onClick={() => void disconnect()}>Отключить</button>}
       </div>
     </div>
 
     {tabs.length > 1 && <div className="jey-subs">
       {tabs.map((key) => <button key={key} className={`jey-sub ${tab === key ? 'active' : ''}`} onClick={() => setTab(key)}>
-        {key === 'all' ? `Все · ${nodes.length}` : `${subscriptionTitle(key)} · ${nodes.filter((item) => subscriptionKey(item) === key).length}`}
+        {key === 'all' ? `Все · ${nodes.length}` : `${(runtime.subscriptions ?? []).find((item) => item.url === key)?.title || new URL(key).host} · ${nodes.filter((item) => subscriptionKey(item) === key).length}`}
       </button>)}
     </div>}
 
-    {visible.length === 0 && <div className="empty-state"><span>✦</span><h3>Серверов нет</h3><p>Обнови подписку с HWID или вставь обычную vless-ссылку. Уведомления панели сюда больше не попадают.</p></div>}
-
-    {byCountry.map(([country, list]) => <div key={country} className="jey-country">
-      <div className="jey-country-head"><strong>{country}</strong><span>{list.length}</span></div>
-      <div className="jey-profile-grid">
-        {list.map((profile) => {
-          const active = runtime.activeProfileId === profile.id && runtime.status === 'connected';
-          return <article key={profile.id} className={`jey-profile ${active ? 'is-active' : ''}`}>
-            <div className="jey-profile-head">
-              <span className={`jey-proto ${profile.protocol}`}>{profile.protocol}</span>
-              <span className={`status-copy ${active ? 'green' : 'muted'}`}>{active ? 'Подключено' : 'Отключено'}</span>
-            </div>
-            <h3>{profile.name}</h3>
-            <p>{profile.server}:{profile.port}</p>
-            <div className="jey-profile-actions">
-              {active
-                ? <button className="primary-button small" disabled={busy} onClick={() => void disconnect()}>Отключить</button>
-                : <button className="primary-button small" disabled={busy} onClick={() => void connect(profile.id)}>Подключить</button>}
-              <button className="quiet-button" disabled={busy} onClick={() => void remove(profile.id)}>Удалить</button>
-            </div>
-          </article>;
-        })}
+    {info && <div className="happ-subhead">
+      <div className="happ-subhead-top">
+        <strong>{info.supportUrl?.includes('t.me') ? info.supportUrl.replace(/^https?:\/\/t\.me\//, 'tg: @') : info.title}</strong>
+        <span>{formatSync(info.lastSync)} · автообновление · {info.updateHours ?? 1}ч.</span>
       </div>
-    </div>)}
-
-    {notices.length > 0 && <div className="jey-notices">
-      <button className="quiet-button" onClick={() => setShowNotices((value) => !value)}>{showNotices ? 'Скрыть' : 'Показать'} уведомления панели ({notices.length})</button>
-      <button className="quiet-button" onClick={() => void purgeNotices()}>Удалить мусор</button>
-      {showNotices && <div className="jey-notice-list">{notices.map((item) => <span key={item.id}>{item.name}</span>)}</div>}
+      <div className="happ-quota">
+        <span>{formatBytes(used)} / {quota}</span>
+        <em>Истекает: {formatExpire(info.expireAt)}</em>
+      </div>
+      {info.announce && <div className="happ-announce">{info.announce}</div>}
     </div>}
 
-    {!runtime.xrayReady && <div className="jey-note"><span>i</span><div><strong>Нужен Xray-core</strong><p>Нажми «Скачать Xray». Пока бинарника нет, подключение не стартует.</p></div></div>}
-    {runtime.error && runtime.status === 'error' && <div className="jey-note"><span>!</span><div><strong>Ошибка подключения</strong><p>{runtime.error}</p></div></div>}
+    {visible.length === 0 && <div className="empty-state"><span>✦</span><h3>Серверов нет</h3><p>Добавь подписку — появятся страны и протоколы, как в Happ.</p></div>}
+
+    <div className="happ-list">
+      {visible.map((profile) => {
+        const active = runtime.activeProfileId === profile.id && runtime.status === 'connected';
+        return <button key={profile.id} className={`happ-row ${active ? 'is-active' : ''}`} onClick={() => void (active ? disconnect() : connect(profile.id))}>
+          <span className="happ-flag">{profile.flag || '🌐'}</span>
+          <span className="happ-copy">
+            <strong>{profile.name}</strong>
+            <small>{stackOf(profile)}</small>
+          </span>
+          {profile.isNew && <em className="happ-new">NEW</em>}
+          <span className="happ-go">{active ? '●' : '›'}</span>
+        </button>;
+      })}
+    </div>
+
+    {!runtime.xrayReady && <div className="jey-note"><span>i</span><div><strong>Нужен Xray-core</strong><p>Нажми «Скачать Xray».</p></div></div>}
+    {runtime.error && runtime.status === 'error' && <div className="jey-note"><span>!</span><div><strong>Ошибка</strong><p>{runtime.error}</p></div></div>}
   </section>;
 }

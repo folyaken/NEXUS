@@ -93,6 +93,27 @@ function outbound(params: VpnLinkParams): Record<string, unknown> {
     };
   }
 
+  if (params.protocol === 'hysteria2') {
+    return {
+      protocol: 'hysteria2',
+      settings: {
+        servers: [{
+          address: params.address,
+          port: params.port,
+          password: params.password,
+        }],
+      },
+      streamSettings: {
+        network: 'hysteria2',
+        security: 'tls',
+        tlsSettings: {
+          serverName: params.sni || params.address,
+          allowInsecure: Boolean(params.allowInsecure),
+        },
+      },
+    };
+  }
+
   return {
     protocol: 'shadowsocks',
     settings: {
