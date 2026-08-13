@@ -19,6 +19,7 @@ export interface ModuleManifest {
   strategies?: Record<string, string>;
   error?: string;
   development?: boolean;
+  worker_name?: string;
 }
 
 export interface ModuleLog {
@@ -40,6 +41,8 @@ export interface UpdateInfo {
   executable?: string;
   sha256?: string;
   error?: string;
+  downloadedBytes?: number;
+  totalBytes?: number;
 }
 
 export interface UserProfile {
@@ -47,3 +50,15 @@ export interface UserProfile {
   deviceId: string;
   deviceName: string;
 }
+
+export interface AppSettings {
+  autoStart: boolean;
+  notifications: boolean;
+  closeToTray: boolean;
+}
+
+export const DEFAULT_SETTINGS: AppSettings = {
+  autoStart: false,
+  notifications: true,
+  closeToTray: true,
+};

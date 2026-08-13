@@ -113,11 +113,21 @@ export class GithubUpdater extends EventEmitter {
   }
 
   private async fetchRelease(repo: string): Promise<GithubRelease> {
-    const response = await fetch(`${GITHUB_API}/${repo}/releases/latest`, {
-      headers: { Accept: 'application/vnd.github+json', 'User-Agent': 'NEXUS-Network-Control-Plane' },
-    });
-    if (!response.ok) throw new Error(`GitHub API: HTTP ${response.status}`);
-    return await response.json() as GithubRelease;
+    let lastError: Error | null = null;
+    for (let attempt = 1; attempt <= 3; attempt += 1) {
+      try {
+        const response = await fetch(`${GITHUB_API}/${repo}/releases/latest`, {
+          headers: { Accept: 'application/vnd.github+json', 'User-Agent': 'NEXUS-Network-Control-Plane' },
+        });
+        if (response.status === 403) throw new Error('GitHub API: лимит запросов (HTTP 403). Повторите позже.');
+        if (!response.ok) throw new Error(`GitHub API: HTTP ${response.status}`);
+        return await response.json() as GithubRelease;
+      } catch (error) {
+        lastError = error instanceof Error ? error : new Error('GitHub API недоступен');
+        await new Promise((resolve) => setTimeout(resolve, attempt * 400));
+      }
+    }
+    throw lastError ?? new Error('GitHub API недоступен');
   }
 
   private async downloadAsset(url: string, destination: string, repo: string): Promise<void> {
@@ -127,11 +137,19 @@ export class GithubUpdater extends EventEmitter {
     }
     const response = await fetch(url, { headers: { 'User-Agent': 'NEXUS-Network-Control-Plane' }, redirect: 'follow' });
     if (!response.ok || !response.body) throw new Error(`GitHub asset: HTTP ${response.status}`);
+    const totalBytes = Number(response.headers.get('content-length') ?? 0);
+    let downloadedBytes = 0;
+    const target = this.targets.find((item) => item.repo === repo);
     await new Promise<void>((resolve, reject) => {
       const output = createWriteStream(destination, { flags: 'w' });
       output.once('finish', resolve);
       output.once('error', reject);
-      Readable.fromWeb(response.body as Parameters<typeof Readable.fromWeb>[0]).once('error', reject).pipe(output);
+      const input = Readable.fromWeb(response.body as Parameters<typeof Readable.fromWeb>[0]);
+      input.on('data', (chunk: Buffer) => {
+        downloadedBytes += chunk.length;
+        if (target) this.setStatus(target, 'downloading', { downloadedBytes, totalBytes: totalBytes || undefined, asset: path.basename(destination) });
+      });
+      input.once('error', reject).pipe(output);
     });
   }
 

@@ -1,5 +1,5 @@
 import { contextBridge, ipcRenderer } from 'electron';
-import type { ModuleLog, ModuleManifest, UpdateInfo, UserProfile } from './types';
+import type { AppSettings, ModuleLog, ModuleManifest, UpdateInfo, UserProfile } from './types';
 
 contextBridge.exposeInMainWorld('nexus', {
   getModules: (): Promise<ModuleManifest[]> => ipcRenderer.invoke('modules:list'),
@@ -12,8 +12,12 @@ contextBridge.exposeInMainWorld('nexus', {
   syncUpdates: (): Promise<UpdateInfo[]> => ipcRenderer.invoke('updates:sync'),
   getProfile: (): Promise<UserProfile> => ipcRenderer.invoke('profile:get'),
   saveProfile: (name: string): Promise<UserProfile> => ipcRenderer.invoke('profile:save', name),
+  getSettings: (): Promise<AppSettings> => ipcRenderer.invoke('settings:get'),
+  saveSettings: (settings: AppSettings): Promise<AppSettings> => ipcRenderer.invoke('settings:save', settings),
+  getLastScan: (): Promise<string | null> => ipcRenderer.invoke('runtime:last-scan'),
   minimizeWindow: (): Promise<void> => ipcRenderer.invoke('window:minimize'),
   toggleFullscreen: (): Promise<boolean> => ipcRenderer.invoke('window:toggle-fullscreen'),
+  isFullscreen: (): Promise<boolean> => ipcRenderer.invoke('window:is-fullscreen'),
   closeWindow: (): Promise<void> => ipcRenderer.invoke('window:close'),
   onModulesChanged: (callback: (modules: ModuleManifest[]) => void) => {
     const listener = (_event: Electron.IpcRendererEvent, modules: ModuleManifest[]) => callback(modules);
@@ -29,5 +33,15 @@ contextBridge.exposeInMainWorld('nexus', {
     const listener = (_event: Electron.IpcRendererEvent, updates: UpdateInfo[]) => callback(updates);
     ipcRenderer.on('updates:changed', listener);
     return () => ipcRenderer.removeListener('updates:changed', listener);
+  },
+  onFullscreen: (callback: (value: boolean) => void) => {
+    const listener = (_event: Electron.IpcRendererEvent, value: boolean) => callback(value);
+    ipcRenderer.on('window:fullscreen', listener);
+    return () => ipcRenderer.removeListener('window:fullscreen', listener);
+  },
+  onScan: (callback: (stamp: string) => void) => {
+    const listener = (_event: Electron.IpcRendererEvent, stamp: string) => callback(stamp);
+    ipcRenderer.on('runtime:scan', listener);
+    return () => ipcRenderer.removeListener('runtime:scan', listener);
   },
 });

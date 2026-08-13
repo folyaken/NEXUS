@@ -1,4 +1,4 @@
-import { app, BrowserWindow, ipcMain, Menu, nativeImage, nativeTheme, Tray } from 'electron';
+import { app, BrowserWindow, ipcMain, Menu, Notification, nativeImage, nativeTheme, Tray } from 'electron';
 import path from 'node:path';
 import { createHash } from 'node:crypto';
 import { existsSync } from 'node:fs';
@@ -6,25 +6,71 @@ import { promises as fs } from 'node:fs';
 import os from 'node:os';
 import { ModuleManager } from './module-manager';
 import { GithubUpdater } from './github-updater';
-import type { UserProfile } from './types';
+import { DEFAULT_SETTINGS, type AppSettings, type ModuleLog, type UserProfile } from './types';
 
 declare const __dirname: string;
+
+const gotLock = app.requestSingleInstanceLock();
+if (!gotLock) {
+  app.quit();
+}
 
 let mainWindow: BrowserWindow | null = null;
 let tray: Tray | null = null;
 let isQuitting = false;
 let manager: ModuleManager;
 let updater: GithubUpdater;
+let settings: AppSettings = { ...DEFAULT_SETTINGS };
+let trayHintShown = false;
 
 function assetPath(name: string): string {
   return app.isPackaged ? path.join(process.resourcesPath, 'assets', name) : path.join(app.getAppPath(), 'assets', name);
 }
 
+function settingsPath(): string {
+  return path.join(app.getPath('userData'), 'settings.json');
+}
+
+async function readSettings(): Promise<AppSettings> {
+  try {
+    const raw = JSON.parse(await fs.readFile(settingsPath(), 'utf8')) as Partial<AppSettings>;
+    return {
+      autoStart: Boolean(raw.autoStart),
+      notifications: raw.notifications !== false,
+      closeToTray: raw.closeToTray !== false,
+    };
+  } catch {
+    return { ...DEFAULT_SETTINGS };
+  }
+}
+
+async function saveSettings(next: AppSettings): Promise<AppSettings> {
+  settings = {
+    autoStart: Boolean(next.autoStart),
+    notifications: Boolean(next.notifications),
+    closeToTray: Boolean(next.closeToTray),
+  };
+  await fs.mkdir(path.dirname(settingsPath()), { recursive: true });
+  await fs.writeFile(settingsPath(), `${JSON.stringify(settings, null, 2)}\n`, 'utf8');
+  return settings;
+}
+
 function showWindow(): void {
   if (!mainWindow || mainWindow.isDestroyed()) return;
   if (mainWindow.isMinimized()) mainWindow.restore();
+  if (mainWindow.isFullScreen()) {
+    mainWindow.show();
+    mainWindow.focus();
+    return;
+  }
   mainWindow.show();
   mainWindow.focus();
+}
+
+function notify(title: string, body: string): void {
+  if (!settings.notifications) return;
+  if (!Notification.isSupported()) return;
+  new Notification({ title, body }).show();
 }
 
 function createTray(): void {
@@ -39,7 +85,7 @@ function createTray(): void {
     { label: 'Показать NEXUS', click: showWindow },
     { label: 'Скрыть окно', click: () => mainWindow?.hide() },
     { type: 'separator' },
-    { label: 'Выйти', click: () => { isQuitting = true; app.quit(); } },
+    { label: 'Выйти', click: () => { void quitApp(); } },
   ]));
   tray.on('click', showWindow);
   tray.on('double-click', showWindow);
@@ -49,10 +95,10 @@ function createWindow(): void {
   mainWindow = new BrowserWindow({
     width: 1440,
     height: 900,
-    minWidth: 1200,
-    minHeight: 700,
-    resizable: false,
-    maximizable: false,
+    minWidth: 1100,
+    minHeight: 680,
+    resizable: true,
+    maximizable: true,
     fullscreenable: true,
     center: true,
     frame: false,
@@ -74,12 +120,41 @@ function createWindow(): void {
     void mainWindow.loadFile(path.join(app.getAppPath(), 'dist/index.html'));
   }
   mainWindow.on('close', (event) => {
-    if (!isQuitting) {
+    if (!isQuitting && settings.closeToTray) {
       event.preventDefault();
       mainWindow?.hide();
+      if (!trayHintShown) {
+        trayHintShown = true;
+        notify('NEXUS свёрнут', 'Приложение продолжает работать в трее.');
+      }
+    }
+  });
+  mainWindow.on('enter-full-screen', () => {
+    mainWindow?.webContents.send('window:fullscreen', true);
+  });
+  mainWindow.on('leave-full-screen', () => {
+    mainWindow?.webContents.send('window:fullscreen', false);
+  });
+  mainWindow.webContents.on('before-input-event', (event, input) => {
+    if (input.type === 'keyDown' && input.key === 'Escape' && mainWindow?.isFullScreen()) {
+      event.preventDefault();
+      mainWindow.setFullScreen(false);
     }
   });
   mainWindow.on('closed', () => { mainWindow = null; });
+}
+
+async function quitApp(): Promise<void> {
+  if (isQuitting) return;
+  isQuitting = true;
+  try {
+    await manager?.stopAll({ persistEnabled: false });
+  } catch {
+    /* still quit */
+  }
+  tray?.destroy();
+  tray = null;
+  app.quit();
 }
 
 async function resolveModulesDir(): Promise<string> {
@@ -141,45 +216,58 @@ function wireIpc(): void {
   ipcMain.handle('updates:sync', () => updater.syncAll());
   ipcMain.handle('profile:get', () => readProfile());
   ipcMain.handle('profile:save', (_event, name: string) => saveProfile(typeof name === 'string' ? name : ''));
+  ipcMain.handle('settings:get', () => settings);
+  ipcMain.handle('settings:save', (_event, next: AppSettings) => saveSettings(next ?? settings));
+  ipcMain.handle('runtime:last-scan', () => manager.getLastScanAt());
   ipcMain.handle('window:minimize', () => mainWindow?.minimize());
   ipcMain.handle('window:toggle-fullscreen', () => {
     if (!mainWindow || mainWindow.isDestroyed()) return false;
-    const next = !mainWindow.isFullScreen();
-    // Frameless + resizable:false blocks maximize; setFullScreen still needs fullscreenable.
-    mainWindow.setFullScreen(next);
+    mainWindow.setFullScreen(!mainWindow.isFullScreen());
     return mainWindow.isFullScreen();
   });
+  ipcMain.handle('window:is-fullscreen', () => Boolean(mainWindow?.isFullScreen()));
   ipcMain.handle('window:close', () => mainWindow?.close());
 
   manager.on('changed', (modules) => mainWindow?.webContents.send('modules:changed', modules));
-  manager.on('log', (log) => mainWindow?.webContents.send('logs:append', log));
+  manager.on('log', (log: ModuleLog) => {
+    mainWindow?.webContents.send('logs:append', log);
+  });
+  manager.on('state', (module: { name: string; status: string; error?: string }) => {
+    if (module.status === 'error') notify(module.name, module.error || 'Модуль завершился с ошибкой');
+  });
+  manager.on('scan', (stamp: string) => mainWindow?.webContents.send('runtime:scan', stamp));
   updater.on('changed', (updates) => mainWindow?.webContents.send('updates:changed', updates));
 }
 
-app.whenReady().then(async () => {
-  nativeTheme.themeSource = 'dark';
-  Menu.setApplicationMenu(null);
-  const modulesDir = await resolveModulesDir();
-  manager = new ModuleManager(modulesDir);
-  updater = new GithubUpdater(modulesDir, manager);
-  wireIpc();
-  await manager.init();
-  createTray();
-  createWindow();
-  // GitHub-only sync is non-blocking: the interface opens even when GitHub is unavailable.
-  void updater.syncAll();
-  app.on('activate', () => {
-    if (BrowserWindow.getAllWindows().length === 0) createWindow();
-    else showWindow();
+if (gotLock) {
+  app.on('second-instance', () => showWindow());
+
+  app.whenReady().then(async () => {
+    nativeTheme.themeSource = 'dark';
+    Menu.setApplicationMenu(null);
+    settings = await readSettings();
+    const modulesDir = await resolveModulesDir();
+    manager = new ModuleManager(modulesDir);
+    updater = new GithubUpdater(modulesDir, manager);
+    wireIpc();
+    await manager.init();
+    createTray();
+    createWindow();
+    if (settings.autoStart) void manager.startEnabled();
+    void updater.syncAll();
+    app.on('activate', () => {
+      if (BrowserWindow.getAllWindows().length === 0) createWindow();
+      else showWindow();
+    });
   });
-});
 
-app.on('before-quit', () => {
-  isQuitting = true;
-  tray?.destroy();
-  tray = null;
-});
+  app.on('before-quit', (event) => {
+    if (isQuitting) return;
+    event.preventDefault();
+    void quitApp();
+  });
 
-app.on('window-all-closed', () => {
-  if (process.platform !== 'darwin') app.quit();
-});
+  app.on('window-all-closed', () => {
+    if (process.platform !== 'darwin' && !settings.closeToTray) void quitApp();
+  });
+}

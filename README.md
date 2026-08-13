@@ -12,7 +12,9 @@
 - Перенаправление stdout/stderr в `log_file`, online event stream и PID в карточках модулей.
 - Dashboard, реестр модулей, журнал событий и настройки runtime.
 - `electron-builder` конфигурация для Windows NSIS и Linux AppImage.
-- Кастомная frameless title bar без стандартного меню Windows; окно фиксированного размера и перемещается за верхнюю панель.
+- Кастомная frameless title bar: свернуть, fullscreen (Esc), закрыть в трей или выйти полностью.
+- Настройки runtime сохраняются в `userData/settings.json`: автозапуск включённых модулей, уведомления, закрытие в трей.
+- При выходе все дочерние процессы останавливаются; второй экземпляр не запускается.
 - Локальный профиль: имя пользователя + device key, рассчитанный локально и сохранённый в `userData/profile.json`.
 - GitHub-only updater для `Flowseal/zapret-discord-youtube` и `Flowseal/tg-ws-proxy`: latest release API, allowlist asset URL, SHA-256 журнала, автоматическая синхронизация при старте.
 
