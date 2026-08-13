@@ -18,6 +18,12 @@
 - Локальный профиль: имя пользователя + device key, рассчитанный локально и сохранённый в `userData/profile.json`.
 - GitHub-only updater для `Flowseal/zapret-discord-youtube` и `Flowseal/tg-ws-proxy`: latest release API, allowlist asset URL, SHA-256 журнала, автоматическая синхронизация при старте.
 
+## Скачать без лишней папки
+
+Не используй кнопку GitHub «Download ZIP» — там будет обёртка `NEXUS-.../`.
+
+Бери готовый плоский архив `NEXUS.zip` из корня ветки (внутри сразу `package.json`, `src`, `modules`).
+
 ## Быстрый старт
 
 ```bash
