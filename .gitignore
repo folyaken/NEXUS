@@ -1,0 +1,38 @@
+# dependencies
+node_modules/
+
+# build output
+dist/
+dist-electron/
+release/
+out/
+
+# logs and caches
+*.log
+npm-debug.log*
+.cache/
+modules/.cache/
+modules/logs/
+modules/bin/
+
+# env and secrets
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+
+# OS / editor
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+*.swp
+
+# archives and installers (keep source only)
+*.rar
+*.7z
+*.exe
+*.AppImage
+*.dmg
+*.apk
