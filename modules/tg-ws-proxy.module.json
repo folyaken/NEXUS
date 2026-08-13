@@ -1,0 +1,13 @@
+{
+  "id": "tg-ws-proxy",
+  "name": "TG WS Proxy",
+  "description": "WebSocket-транспорт для стабильного подключения к Telegram.",
+  "enabled": false,
+  "executable": "./bin/tg-ws-proxy.exe",
+  "args": ["--listen", "127.0.0.1:8080"],
+  "status": "stopped",
+  "category": "proxy",
+  "icon": "◈",
+  "pid": null,
+  "log_file": "./logs/tg-ws-proxy.log"
+}

@@ -1,0 +1,14 @@
+{
+  "id": "dns-guard",
+  "name": "DNS Guard",
+  "description": "Локальный DNS-профиль с быстрым переключением конфигурации.",
+  "enabled": false,
+  "development": true,
+  "executable": "./bin/dns-guard.exe",
+  "args": ["--mode", "secure"],
+  "status": "stopped",
+  "category": "dns",
+  "icon": "⌁",
+  "pid": null,
+  "log_file": "./logs/dns-guard.log"
+}

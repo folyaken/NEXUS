@@ -1,0 +1,94 @@
+{
+  "name": "nexus-network-tools",
+  "version": "1.0.0",
+  "private": true,
+  "description": "NEXUS — локальная Electron-обёртка для сетевых инструментов",
+  "main": "dist-electron/main.js",
+  "scripts": {
+    "dev": "npm run build:main && concurrently -k \"vite --host 0.0.0.0\" \"wait-on http://localhost:5173 && electron .\"",
+    "start": "npm run start:standalone",
+    "start:standalone": "npm run build && node scripts/launch-standalone.cjs",
+    "package:win": "npm run build && electron-builder --win --x64",
+    "dev:web": "vite --host 0.0.0.0",
+    "build": "npm run build:main && vite build",
+    "build:main": "tsc -p tsconfig.main.json",
+    "package": "npm run build && electron-builder",
+    "preview": "vite preview --host 0.0.0.0"
+  },
+  "build": {
+    "appId": "ai.arena.nexus",
+    "productName": "NEXUS",
+    "files": [
+      "dist/**/*",
+      "dist-electron/**/*",
+      "modules/**/*",
+      "assets/**/*",
+      "package.json"
+    ],
+    "extraResources": [
+      {
+        "from": "assets",
+        "to": "assets",
+        "filter": [
+          "nexus-tray.png",
+          "nexus.ico"
+        ]
+      }
+    ],
+    "asar": true,
+    "icon": "assets/nexus.ico",
+    "directories": {
+      "output": "release"
+    },
+    "win": {
+      "target": [
+        {
+          "target": "nsis",
+          "arch": [
+            "x64"
+          ]
+        },
+        {
+          "target": "portable",
+          "arch": [
+            "x64"
+          ]
+        }
+      ],
+      "icon": "assets/nexus.ico",
+      "signAndEditExecutable": false
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true
+    },
+    "linux": {
+      "target": "AppImage",
+      "category": "Network"
+    }
+  },
+  "dependencies": {
+    "@react-spring/web": "^9.7.4",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.2",
+    "@types/react": "^18.3.12",
+    "@types/react-dom": "^18.3.1",
+    "@vitejs/plugin-react": "^4.3.4",
+    "concurrently": "^9.1.2",
+    "electron": "^33.2.1",
+    "electron-builder": "^25.1.8",
+    "extract-zip": "^2.0.1",
+    "typescript": "^5.7.2",
+    "vite": "^6.0.5",
+    "wait-on": "^8.0.1"
+  },
+  "allowScripts": {
+    "electron@33.4.11": true,
+    "esbuild@0.25.12": true
+  }
+}
