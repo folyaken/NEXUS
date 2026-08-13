@@ -223,6 +223,12 @@ kbd { padding: 3px 5px; border: 1px solid rgba(255,255,255,.1); border-radius: 5
 .gauge-needle { transform-origin: 8px 11.35px; transform: rotate(-8deg); }
 .ghost-action.is-rev .gauge-needle { animation: gauge-rev 0.85s cubic-bezier(.2,.7,.2,1) infinite; }
 @keyframes spin { to { transform: rotate(360deg); } }
+@keyframes gauge-rev {
+  0% { transform: rotate(-78deg); }
+  72% { transform: rotate(74deg); }
+  84% { transform: rotate(58deg); }
+  100% { transform: rotate(74deg); }
+}
 .slide-in { animation: slide-in .22s ease; }
 @keyframes slide-in { from { opacity: 0; transform: translateY(-8px); } to { opacity: 1; transform: none; } }
 
@@ -260,12 +266,6 @@ kbd { padding: 3px 5px; border: 1px solid rgba(255,255,255,.1); border-radius: 5
 .power-orb.is-on .orb-halo { animation: orb-breathe 2.2s ease-out infinite; border-color: rgba(113,244,184,.35); }
 .power-orb.is-other { color: #f8c76c; }
 .power-orb.is-other .orb-halo { border-color: rgba(248,199,108,.35); }
-.power-orb.is-wait { color: var(--amber); }
-@keyframes orb-breathe {
-  0% { transform: scale(.92); opacity: .9; }
-  100% { transform: scale(1.18); opacity: 0; }
-}
-5); }
 .power-orb.is-wait { color: var(--amber); }
 @keyframes orb-breathe {
   0% { transform: scale(.92); opacity: .9; }
