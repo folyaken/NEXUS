@@ -128,6 +128,7 @@ export interface VpnProfile {
   flag?: string;
   stack?: string;
   isNew?: boolean;
+  pingMs?: number | null;
   params: VpnLinkParams;
   createdAt: string;
 }

@@ -27,6 +27,7 @@ declare global {
       connectVpn(id: string): Promise<VpnRuntime>;
       disconnectVpn(): Promise<VpnRuntime>;
       ensureVpnCore(): Promise<void>;
+      pingVpn(): Promise<VpnProfile[]>;
       onModulesChanged(callback: (modules: ModuleManifest[]) => void): () => void;
       onLog(callback: (log: ModuleLog) => void): () => void;
       onUpdatesChanged(callback: (updates: UpdateInfo[]) => void): () => void;

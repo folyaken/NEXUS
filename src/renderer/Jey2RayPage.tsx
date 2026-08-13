@@ -45,6 +45,14 @@ function stackOf(profile: VpnProfile): string {
   return profile.stack || `${profile.protocol.toUpperCase()} / ${(profile.params.network || 'TCP').toUpperCase()} / ${(profile.params.security || 'NONE').toUpperCase()} / JSON`;
 }
 
+function Signal({ ms }: { ms?: number | null }) {
+  const level = ms == null ? 0 : ms < 90 ? 4 : ms < 160 ? 3 : ms < 260 ? 2 : 1;
+  const tone = level >= 3 ? 'good' : level === 2 ? 'ok' : level === 1 ? 'weak' : 'off';
+  return <span className={`happ-signal ${tone}`} title={ms == null ? 'Нет замера' : `${ms} мс`}>
+    {[1, 2, 3, 4].map((bar) => <i key={bar} className={bar <= level ? 'on' : ''} />)}
+  </span>;
+}
+
 export function Jey2RayPage({
   settings,
   updates,
@@ -174,6 +182,13 @@ export function Jey2RayPage({
         <h2>Серверы</h2>
         <div className="jey-toolbar-actions">
           <button className="quiet-button" disabled={busy} onClick={() => void window.nexus?.refreshVpn().then((count) => onToast(count ? `Обновлено · ${count}` : 'Нет подписок')).catch((error: Error) => onToast(error.message))}>Обновить</button>
+          <button className="quiet-button" disabled={busy} onClick={() => {
+            setBusy(true);
+            void window.nexus?.pingVpn().then((next) => {
+              if (next) setProfiles(next);
+              onToast('Пинг измерен');
+            }).catch((error: Error) => onToast(error.message)).finally(() => setBusy(false));
+          }}>Тест пинга</button>
           {!runtime.xrayReady && <button className="quiet-button" disabled={syncing} onClick={onSync}>Скачать ядро {xrayUpdate?.latestVersion ?? ''}</button>}
         </div>
       </div>
@@ -195,7 +210,6 @@ export function Jey2RayPage({
         </div>
         <div className="happ-quota happ-quota-soft">
           <span>Обновлено {formatWhen(info?.lastSync)}</span>
-          {info?.supportUrl ? <a className="happ-support" href={info.supportUrl} target="_blank" rel="noreferrer">поддержка</a> : <span />}
         </div>
         {info?.announce && <div className="happ-announce">{info.announce}</div>}
       </div>
@@ -210,7 +224,7 @@ export function Jey2RayPage({
               <strong>{displayName(profile)}</strong>
               <small>{stackOf(profile)}</small>
             </span>
-            {live && <em className="happ-on">ВКЛ</em>}
+            {live ? <em className="happ-on">ВКЛ</em> : <Signal ms={profile.pingMs} />}
             <span className="happ-go">›</span>
           </button>;
         })}

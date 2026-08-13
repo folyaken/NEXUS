@@ -48,12 +48,19 @@ export function looksLikeIp(value: string): boolean {
 }
 
 export function looksLikeHost(value: string): boolean {
-  return looksLikeIp(value) || (/^[a-z0-9.-]+\.[a-z]{2,}$/i.test(value) && !/[а-яё]/i.test(value));
+  const text = value.trim();
+  if (!text || /[а-яё]/i.test(text)) return false;
+  if (looksLikeIp(text)) return true;
+  if (/^[a-z]{3}\d{1,2}(?:[-.][a-z0-9.-]+)?$/i.test(text)) return true;
+  return /^[a-z0-9-]+(?:\.[a-z0-9-]+)+\.[a-z]{2,}$/i.test(text);
 }
 
 export function displayName(profile: VpnProfile): string {
   if (!looksLikeHost(profile.name) && profile.name.trim()) return profile.name;
-  if (profile.countryName && profile.countryName !== 'Другие') return profile.countryName;
+  if (profile.countryName && profile.countryName !== 'Другие') {
+    const city = profile.name.includes('·') ? profile.name.split('·')[1]?.trim() : '';
+    return city && !looksLikeHost(city) ? `${profile.countryName} · ${city}` : profile.countryName;
+  }
   return profile.name;
 }
 

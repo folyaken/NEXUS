@@ -1,7 +1,7 @@
 import { EventEmitter } from 'node:events';
 import { createWriteStream, existsSync, mkdirSync } from 'node:fs';
 import { promises as fs } from 'node:fs';
-import { createServer } from 'node:net';
+import { createServer, Socket } from 'node:net';
 import path from 'node:path';
 import { spawn, type ChildProcess } from 'node:child_process';
 import { createProfileFromLink, isSubscriptionUrl } from './share-link';
@@ -191,6 +191,39 @@ export class VpnManager extends EventEmitter {
     return imported;
   }
 
+  async pingAll(): Promise<VpnProfile[]> {
+    const nodes = this.list().filter((item) => item.kind !== 'notice');
+    const queue = [...nodes];
+    const workers = Array.from({ length: Math.min(6, queue.length || 1) }, async () => {
+      while (queue.length) {
+        const profile = queue.shift();
+        if (!profile) break;
+        profile.pingMs = await this.tcpPing(profile.server, profile.port);
+        this.profiles.set(profile.id, profile);
+        this.emit('changed', this.snapshot());
+      }
+    });
+    await Promise.all(workers);
+    this.emitLog('info', 'Тест пинга завершён');
+    return this.list();
+  }
+
+  private tcpPing(host: string, port: number): Promise<number | null> {
+    return new Promise((resolve) => {
+      const started = Date.now();
+      const socket = new Socket();
+      const done = (value: number | null) => {
+        socket.destroy();
+        resolve(value);
+      };
+      socket.setTimeout(2500);
+      socket.once('connect', () => done(Date.now() - started));
+      socket.once('timeout', () => done(null));
+      socket.once('error', () => done(null));
+      socket.connect(port, host);
+    });
+  }
+
   async refreshSubscriptions(): Promise<number> {
     const urls = [...new Set(this.list().map((item) => item.subscriptionUrl).filter((item): item is string => Boolean(item)))];
     let total = 0;
@@ -219,6 +252,12 @@ export class VpnManager extends EventEmitter {
     if (!profile) throw new Error('Профиль не найден');
     if (profile.kind === 'notice' || isServiceNode(profile)) {
       throw new Error('Это уведомление панели, а не VPN-сервер.');
+    }
+    if (profile.protocol === 'hysteria2') {
+      throw new Error('HYSTERIA2 Xray не поднимает. Выбери VLESS/VMess/Trojan/SS.');
+    }
+    if ((profile.params.security || '').toLowerCase() === 'reality' && !profile.params.publicKey) {
+      throw new Error('У узла Reality нет public key — ссылка неполная, этот сервер не подключить.');
     }
     const xray = this.xrayPath();
     if (!existsSync(xray)) {

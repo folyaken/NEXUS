@@ -26,6 +26,7 @@ contextBridge.exposeInMainWorld('nexus', {
   connectVpn: (id: string): Promise<VpnRuntime> => ipcRenderer.invoke('vpn:connect', id),
   disconnectVpn: (): Promise<VpnRuntime> => ipcRenderer.invoke('vpn:disconnect'),
   ensureVpnCore: (): Promise<void> => ipcRenderer.invoke('vpn:ensure-core'),
+  pingVpn: (): Promise<VpnProfile[]> => ipcRenderer.invoke('vpn:ping'),
   onVpnChanged: (callback: (snapshot: { profiles: VpnProfile[]; runtime: VpnRuntime }) => void) => {
     const listener = (_event: Electron.IpcRendererEvent, snapshot: { profiles: VpnProfile[]; runtime: VpnRuntime }) => callback(snapshot);
     ipcRenderer.on('vpn:changed', listener);
