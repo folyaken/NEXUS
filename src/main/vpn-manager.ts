@@ -43,10 +43,17 @@ export class VpnManager extends EventEmitter {
   }
 
   xrayPath(): string {
-    const win = path.join(this.modulesDir, 'bin', 'xray.exe');
-    const unix = path.join(this.modulesDir, 'bin', 'xray');
-    if (process.platform === 'win32') return existsSync(win) ? win : path.join(this.vpnRoot(), 'bin', 'xray.exe');
-    return existsSync(unix) ? unix : path.join(this.vpnRoot(), 'bin', 'xray');
+    const name = process.platform === 'win32' ? 'xray.exe' : 'xray';
+    const candidates = [
+      path.join(this.modulesDir, 'bin', name),
+      path.join(this.vpnRoot(), 'bin', name),
+      path.join(process.cwd(), 'modules', 'bin', name),
+    ];
+    try {
+      const { app } = require('electron') as typeof import('electron');
+      if (app?.isPackaged) candidates.unshift(path.join(process.resourcesPath, 'modules', 'bin', name));
+    } catch { /* not in electron yet */ }
+    return candidates.find((item) => existsSync(item)) ?? candidates[0];
   }
 
   runtime(): VpnRuntime {
