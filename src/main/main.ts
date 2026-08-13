@@ -6,6 +6,7 @@ import { promises as fs } from 'node:fs';
 import os from 'node:os';
 import { ModuleManager } from './module-manager';
 import { GithubUpdater } from './github-updater';
+import { VpnManager } from './vpn-manager';
 import { DEFAULT_SETTINGS, type AppSettings, type ModuleLog, type UserProfile } from './types';
 
 declare const __dirname: string;
@@ -20,6 +21,7 @@ let tray: Tray | null = null;
 let isQuitting = false;
 let manager: ModuleManager;
 let updater: GithubUpdater;
+let vpn: VpnManager;
 let settings: AppSettings = { ...DEFAULT_SETTINGS };
 let trayHintShown = false;
 
@@ -38,6 +40,9 @@ async function readSettings(): Promise<AppSettings> {
       autoStart: Boolean(raw.autoStart),
       notifications: raw.notifications !== false,
       closeToTray: raw.closeToTray !== false,
+      autoConnectVpn: Boolean(raw.autoConnectVpn),
+      lastVpnProfileId: typeof raw.lastVpnProfileId === 'string' ? raw.lastVpnProfileId : null,
+      vpnInboundPort: Number(raw.vpnInboundPort) > 0 ? Number(raw.vpnInboundPort) : 10808,
     };
   } catch {
     return { ...DEFAULT_SETTINGS };
@@ -49,6 +54,9 @@ async function saveSettings(next: AppSettings): Promise<AppSettings> {
     autoStart: Boolean(next.autoStart),
     notifications: Boolean(next.notifications),
     closeToTray: Boolean(next.closeToTray),
+    autoConnectVpn: Boolean(next.autoConnectVpn),
+    lastVpnProfileId: next.lastVpnProfileId ?? null,
+    vpnInboundPort: Number(next.vpnInboundPort) > 0 ? Number(next.vpnInboundPort) : 10808,
   };
   await fs.mkdir(path.dirname(settingsPath()), { recursive: true });
   await fs.writeFile(settingsPath(), `${JSON.stringify(settings, null, 2)}\n`, 'utf8');
@@ -148,6 +156,7 @@ async function quitApp(): Promise<void> {
   if (isQuitting) return;
   isQuitting = true;
   try {
+    await vpn?.disconnect();
     await manager?.stopAll({ persistEnabled: false });
   } catch {
     /* still quit */
@@ -218,6 +227,15 @@ function wireIpc(): void {
   ipcMain.handle('profile:save', (_event, name: string) => saveProfile(typeof name === 'string' ? name : ''));
   ipcMain.handle('settings:get', () => settings);
   ipcMain.handle('settings:save', (_event, next: AppSettings) => saveSettings(next ?? settings));
+  ipcMain.handle('vpn:list', () => vpn.snapshot());
+  ipcMain.handle('vpn:import', (_event, link: string, name?: string) => vpn.importLink(String(link ?? ''), typeof name === 'string' ? name : undefined));
+  ipcMain.handle('vpn:remove', (_event, id: string) => vpn.remove(String(id ?? '')));
+  ipcMain.handle('vpn:connect', async (_event, id: string) => {
+    const runtime = await vpn.connect(String(id ?? ''), settings.vpnInboundPort);
+    await saveSettings({ ...settings, lastVpnProfileId: String(id ?? '') });
+    return runtime;
+  });
+  ipcMain.handle('vpn:disconnect', () => vpn.disconnect());
   ipcMain.handle('runtime:last-scan', () => manager.getLastScanAt());
   ipcMain.handle('window:minimize', () => mainWindow?.minimize());
   ipcMain.handle('window:toggle-fullscreen', () => {
@@ -249,11 +267,18 @@ if (gotLock) {
     const modulesDir = await resolveModulesDir();
     manager = new ModuleManager(modulesDir);
     updater = new GithubUpdater(modulesDir, manager);
+    vpn = new VpnManager(modulesDir);
     wireIpc();
     await manager.init();
+    await vpn.init();
     createTray();
     createWindow();
     if (settings.autoStart) void manager.startEnabled();
+    if (settings.autoConnectVpn && settings.lastVpnProfileId) {
+      void vpn.connect(settings.lastVpnProfileId, settings.vpnInboundPort).catch((error: Error) => {
+        notify('Jey2Ray', error.message);
+      });
+    }
     void updater.syncAll();
     app.on('activate', () => {
       if (BrowserWindow.getAllWindows().length === 0) createWindow();

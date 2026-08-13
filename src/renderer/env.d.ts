@@ -1,4 +1,4 @@
-import type { AppSettings, ModuleLog, ModuleManifest, UpdateInfo, UserProfile } from '../main/types';
+import type { AppSettings, ModuleLog, ModuleManifest, UpdateInfo, UserProfile, VpnProfile, VpnRuntime } from '../main/types';
 
 declare global {
   interface Window {
@@ -20,11 +20,17 @@ declare global {
       toggleFullscreen(): Promise<boolean>;
       isFullscreen(): Promise<boolean>;
       closeWindow(): Promise<void>;
+      getVpn(): Promise<{ profiles: VpnProfile[]; runtime: VpnRuntime }>;
+      importVpn(link: string, name?: string): Promise<VpnProfile>;
+      removeVpn(id: string): Promise<void>;
+      connectVpn(id: string): Promise<VpnRuntime>;
+      disconnectVpn(): Promise<VpnRuntime>;
       onModulesChanged(callback: (modules: ModuleManifest[]) => void): () => void;
       onLog(callback: (log: ModuleLog) => void): () => void;
       onUpdatesChanged(callback: (updates: UpdateInfo[]) => void): () => void;
       onFullscreen(callback: (value: boolean) => void): () => void;
       onScan(callback: (stamp: string) => void): () => void;
+      onVpnChanged(callback: (snapshot: { profiles: VpnProfile[]; runtime: VpnRuntime }) => void): () => void;
     };
   }
 }

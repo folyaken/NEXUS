@@ -1,5 +1,5 @@
 import { contextBridge, ipcRenderer } from 'electron';
-import type { AppSettings, ModuleLog, ModuleManifest, UpdateInfo, UserProfile } from './types';
+import type { AppSettings, ModuleLog, ModuleManifest, UpdateInfo, UserProfile, VpnProfile, VpnRuntime } from './types';
 
 contextBridge.exposeInMainWorld('nexus', {
   getModules: (): Promise<ModuleManifest[]> => ipcRenderer.invoke('modules:list'),
@@ -19,6 +19,16 @@ contextBridge.exposeInMainWorld('nexus', {
   toggleFullscreen: (): Promise<boolean> => ipcRenderer.invoke('window:toggle-fullscreen'),
   isFullscreen: (): Promise<boolean> => ipcRenderer.invoke('window:is-fullscreen'),
   closeWindow: (): Promise<void> => ipcRenderer.invoke('window:close'),
+  getVpn: (): Promise<{ profiles: VpnProfile[]; runtime: VpnRuntime }> => ipcRenderer.invoke('vpn:list'),
+  importVpn: (link: string, name?: string): Promise<VpnProfile> => ipcRenderer.invoke('vpn:import', link, name),
+  removeVpn: (id: string): Promise<void> => ipcRenderer.invoke('vpn:remove', id),
+  connectVpn: (id: string): Promise<VpnRuntime> => ipcRenderer.invoke('vpn:connect', id),
+  disconnectVpn: (): Promise<VpnRuntime> => ipcRenderer.invoke('vpn:disconnect'),
+  onVpnChanged: (callback: (snapshot: { profiles: VpnProfile[]; runtime: VpnRuntime }) => void) => {
+    const listener = (_event: Electron.IpcRendererEvent, snapshot: { profiles: VpnProfile[]; runtime: VpnRuntime }) => callback(snapshot);
+    ipcRenderer.on('vpn:changed', listener);
+    return () => ipcRenderer.removeListener('vpn:changed', listener);
+  },
   onModulesChanged: (callback: (modules: ModuleManifest[]) => void) => {
     const listener = (_event: Electron.IpcRendererEvent, modules: ModuleManifest[]) => callback(modules);
     ipcRenderer.on('modules:changed', listener);

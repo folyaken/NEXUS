@@ -71,7 +71,7 @@ export class ModuleManager extends EventEmitter {
 
   async startEnabled(): Promise<void> {
     for (const module of this.modules.values()) {
-      if (!module.enabled || module.development) continue;
+      if (!module.enabled || module.development || module.id === 'jey2ray') continue;
       if (this.isRunning(module.id)) continue;
       try {
         await this.start(module.id);
@@ -103,6 +103,7 @@ export class ModuleManager extends EventEmitter {
   async start(id: string): Promise<ModuleManifest> {
     const module = this.modules.get(id);
     if (!module) throw new Error('Модуль не найден');
+    if (id === 'jey2ray') throw new Error('Jey2Ray управляется во вкладке Jey2Ray: добавьте ссылку и нажмите «Подключить».');
     if (this.isRunning(id)) return module;
 
     let executable: string;

@@ -72,6 +72,17 @@ export class GithubUpdater extends EventEmitter {
       },
       install: (assetPath, version) => this.installDirect(assetPath, version),
     });
+    this.targets.push({
+      id: 'jey2ray',
+      name: 'Jey2Ray / Xray-core',
+      repo: 'XTLS/Xray-core',
+      selectAsset: (assets) => {
+        if (process.platform === 'win32') return assets.find((asset) => asset.name === 'Xray-windows-64.zip');
+        if (process.platform === 'linux' && os.arch() === 'x64') return assets.find((asset) => asset.name === 'Xray-linux-64.zip');
+        return undefined;
+      },
+      install: (assetPath, version) => this.installXray(assetPath, version),
+    });
     for (const target of this.targets) {
       this.updates.set(target.id, this.info(target, { status: 'checking' }));
     }
@@ -132,8 +143,9 @@ export class GithubUpdater extends EventEmitter {
 
   private async downloadAsset(url: string, destination: string, repo: string): Promise<void> {
     const parsed = new URL(url);
-    if (parsed.protocol !== 'https:' || parsed.hostname !== 'github.com' || !parsed.pathname.startsWith(`/Flowseal/`)) {
-      throw new Error(`Загрузка заблокирована: asset не принадлежит https://github.com/Flowseal (${repo})`);
+    const owner = repo.split('/')[0];
+    if (parsed.protocol !== 'https:' || parsed.hostname !== 'github.com' || !parsed.pathname.startsWith(`/${owner}/`)) {
+      throw new Error(`Загрузка заблокирована: asset не принадлежит https://github.com/${owner} (${repo})`);
     }
     const response = await fetch(url, { headers: { 'User-Agent': 'NEXUS-Network-Control-Plane' }, redirect: 'follow' });
     if (!response.ok || !response.body) throw new Error(`GitHub asset: HTTP ${response.status}`);
@@ -151,6 +163,33 @@ export class GithubUpdater extends EventEmitter {
       });
       input.once('error', reject).pipe(output);
     });
+  }
+
+  private async installXray(assetPath: string, version: string): Promise<string> {
+    const extractRoot = path.join(this.modulesDir, '.cache', 'xray-extract');
+    await fs.rm(extractRoot, { recursive: true, force: true });
+    await fs.mkdir(extractRoot, { recursive: true });
+    await extract(assetPath, { dir: extractRoot });
+    const binaryName = process.platform === 'win32' ? 'xray.exe' : 'xray';
+    const found = await this.findFile(extractRoot, binaryName);
+    if (!found) throw new Error(`В ZIP Xray-core не найден ${binaryName}`);
+    const destination = path.join(this.modulesDir, 'bin', binaryName);
+    await fs.mkdir(path.dirname(destination), { recursive: true });
+    await fs.copyFile(found, destination);
+    if (process.platform !== 'win32') await fs.chmod(destination, 0o755);
+    const geoip = await this.findFile(extractRoot, 'geoip.dat');
+    const geosite = await this.findFile(extractRoot, 'geosite.dat');
+    if (geoip) await fs.copyFile(geoip, path.join(this.modulesDir, 'bin', 'geoip.dat'));
+    if (geosite) await fs.copyFile(geosite, path.join(this.modulesDir, 'bin', 'geosite.dat'));
+    await this.updateManifest('jey2ray', {
+      executable: `./bin/${binaryName}`,
+      working_dir: './bin',
+      args: ['-config', './configs/vpn/generated_config.json'],
+      installed_version: version,
+      development: false,
+    });
+    await fs.rm(extractRoot, { recursive: true, force: true });
+    return `./bin/${binaryName}`;
   }
 
   private async installDirect(assetPath: string, version: string): Promise<string> {
@@ -197,9 +236,17 @@ export class GithubUpdater extends EventEmitter {
 
   private async updateManifest(id: string, patch: Record<string, unknown>): Promise<void> {
     const entries = await fs.readdir(this.modulesDir, { withFileTypes: true });
-    const manifestEntry = entries.find((entry) => entry.isFile() && entry.name.endsWith('.module.json') && entry.name.startsWith(id));
-    const filename = manifestEntry?.name ?? `${id}.module.json`;
-    const manifestPath = path.join(this.modulesDir, filename);
+    let manifestPath = path.join(this.modulesDir, `${id}.module.json`);
+    for (const entry of entries) {
+      if (!entry.isFile() || !entry.name.endsWith('.module.json')) continue;
+      try {
+        const raw = JSON.parse(await fs.readFile(path.join(this.modulesDir, entry.name), 'utf8')) as { id?: string };
+        if (raw.id === id) {
+          manifestPath = path.join(this.modulesDir, entry.name);
+          break;
+        }
+      } catch { /* skip broken */ }
+    }
     const current = existsSync(manifestPath) ? JSON.parse(await fs.readFile(manifestPath, 'utf8')) as Record<string, unknown> : { id, name: id, enabled: false, args: [], status: 'stopped', pid: null, category: 'other', icon: '◈', log_file: `./logs/${id}.log` };
     await fs.writeFile(manifestPath, `${JSON.stringify({ ...current, ...patch }, null, 2)}\n`, 'utf8');
   }
