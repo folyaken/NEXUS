@@ -142,6 +142,13 @@ function wireIpc(): void {
   ipcMain.handle('profile:get', () => readProfile());
   ipcMain.handle('profile:save', (_event, name: string) => saveProfile(typeof name === 'string' ? name : ''));
   ipcMain.handle('window:minimize', () => mainWindow?.minimize());
+  ipcMain.handle('window:toggle-fullscreen', () => {
+    if (!mainWindow || mainWindow.isDestroyed()) return false;
+    const next = !mainWindow.isFullScreen();
+    // Frameless + resizable:false blocks maximize; setFullScreen still needs fullscreenable.
+    mainWindow.setFullScreen(next);
+    return mainWindow.isFullScreen();
+  });
   ipcMain.handle('window:close', () => mainWindow?.close());
 
   manager.on('changed', (modules) => mainWindow?.webContents.send('modules:changed', modules));
