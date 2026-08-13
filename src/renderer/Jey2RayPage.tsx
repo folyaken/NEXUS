@@ -191,17 +191,17 @@ export function Jey2RayPage({
       </button>)}
     </div>}
 
-    {info && <div className="happ-subhead">
+    <div className="happ-subhead">
       <div className="happ-subhead-top">
-        <strong>{info.supportUrl?.includes('t.me') ? info.supportUrl.replace(/^https?:\/\/t\.me\//, 'tg: @') : info.title}</strong>
-        <span>{formatSync(info.lastSync)} · автообновление · {info.updateHours ?? 1}ч.</span>
+        <strong>{info?.supportUrl?.includes('t.me') ? info.supportUrl.replace(/^https?:\/\/t\.me\//, 'tg: @') : (info?.title || 'Jey2Ray')}</strong>
+        <span>{info?.lastSync ? `${formatSync(info.lastSync)} · ` : ''}автообновление · {info?.updateHours ?? 1}ч. · узлов {visible.length}</span>
       </div>
       <div className="happ-quota">
         <span>{formatBytes(used)} / {quota}</span>
-        <em>Истекает: {formatExpire(info.expireAt)}</em>
+        <em>Истекает: {formatExpire(info?.expireAt)}</em>
       </div>
-      {info.announce && <div className="happ-announce">{info.announce}</div>}
-    </div>}
+      {info?.announce && <div className="happ-announce">{info.announce}</div>}
+    </div>
 
     {visible.length === 0 && <div className="empty-state"><span>✦</span><h3>Серверов нет</h3><p>Добавь подписку — появятся страны и протоколы, как в Happ.</p></div>}
 
@@ -211,8 +211,9 @@ export function Jey2RayPage({
         return <button key={profile.id} className={`happ-row ${active ? 'is-active' : ''}`} onClick={() => void (active ? disconnect() : connect(profile.id))}>
           <span className="happ-flag">{profile.flag || '🌐'}</span>
           <span className="happ-copy">
-            <strong>{profile.name}</strong>
+            <strong>{profile.countryName && profile.countryName !== 'Другие' ? profile.countryName : profile.name}</strong>
             <small>{stackOf(profile)}</small>
+            <small className="happ-meta">{profile.server}:{profile.port}{profile.params.sni ? ` · sni ${profile.params.sni}` : ''}{profile.params.flow ? ` · ${profile.params.flow}` : ''}</small>
           </span>
           {profile.isNew && <em className="happ-new">NEW</em>}
           <span className="happ-go">{active ? '●' : '›'}</span>

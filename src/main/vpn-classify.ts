@@ -38,19 +38,36 @@ export function isServiceNode(profile: Pick<VpnProfile, 'name' | 'server' | 'por
   return false;
 }
 
-export function detectCountry(name: string): { code: string; name: string; flag: string } {
-  const flags = name.match(/\p{Regional_Indicator}{2}/u);
-  if (flags) {
-    const code = [...flags[0]].map((char) => String.fromCharCode(char.codePointAt(0)! - 127397)).join('');
-    const known = COUNTRIES[code];
-    if (known) return { code, ...known };
+export function countryByCode(code: string): { code: string; name: string; flag: string } | null {
+  const known = COUNTRIES[code.toUpperCase()];
+  return known ? { code: code.toUpperCase(), ...known } : null;
+}
+
+export function looksLikeIp(value: string): boolean {
+  return /^\d{1,3}(?:\.\d{1,3}){3}$/.test(value) || value.includes(':');
+}
+
+export function detectCountry(...hints: Array<string | undefined>): { code: string; name: string; flag: string } {
+  for (const hint of hints) {
+    if (!hint) continue;
+    const flags = hint.match(/\p{Regional_Indicator}{2}/u);
+    if (flags) {
+      const code = [...flags[0]].map((char) => String.fromCharCode(char.codePointAt(0)! - 127397)).join('');
+      const known = COUNTRIES[code];
+      if (known) return { code, ...known };
+    }
+    const iso = hint.match(/(?:^|[\s\[\(\-_|])([A-Z]{2})(?:$|[\s\]\)\-_|0-9])/);
+    if (iso && COUNTRIES[iso[1]]) return { code: iso[1], ...COUNTRIES[iso[1]] };
+    for (const [pattern, code] of NAME_TO_ISO) {
+      if (pattern.test(hint) && COUNTRIES[code]) return { code, ...COUNTRIES[code] };
+    }
+    const tld = hint.match(/\.([a-z]{2})(?:$|\/)/i)?.[1]?.toUpperCase();
+    if (tld && COUNTRIES[tld === 'UK' ? 'GB' : tld]) {
+      const code = tld === 'UK' ? 'GB' : tld;
+      return { code, ...COUNTRIES[code] };
+    }
+    if (/доступн|быстр|optimal|fastest|europe|европ/i.test(hint)) return { code: 'EU', name: 'Европа', flag: '🇪🇺' };
   }
-  const iso = name.match(/(?:^|[\s\[\(\-_|])([A-Z]{2})(?:$|[\s\]\)\-_|0-9])/);
-  if (iso && COUNTRIES[iso[1]]) return { code: iso[1], ...COUNTRIES[iso[1]] };
-  for (const [pattern, code] of NAME_TO_ISO) {
-    if (pattern.test(name) && COUNTRIES[code]) return { code, ...COUNTRIES[code] };
-  }
-  if (/доступн|быстр|optimal|fastest|europe|европ/i.test(name)) return { code: 'EU', name: 'Европа', flag: '🇪🇺' };
   return { code: 'UN', name: 'Другие', flag: '🌐' };
 }
 
@@ -72,14 +89,16 @@ export function subscriptionLabel(url?: string): string {
 
 export function enrichProfile(profile: VpnProfile): VpnProfile {
   const service = isServiceNode(profile);
-  const country = detectCountry(profile.name);
+  const country = detectCountry(profile.name, profile.params.sni, profile.params.host, profile.server);
+  const nameless = looksLikeIp(profile.name) || profile.name === profile.server;
   return {
     ...profile,
     kind: service ? 'notice' : 'node',
-    country: country.code,
-    countryName: country.name,
-    flag: country.flag,
+    country: profile.country && profile.country !== 'UN' ? profile.country : country.code,
+    countryName: profile.countryName && profile.country !== 'UN' ? profile.countryName : country.name,
+    flag: profile.flag && profile.country !== 'UN' ? profile.flag : country.flag,
     stack: protocolStack(profile),
-    isNew: /new|нов/i.test(profile.name) || Date.now() - Date.parse(profile.createdAt || '') < 1000 * 60 * 60 * 24,
+    isNew: /(?:^|[\s\[])new(?:$|[\s\]])|нов/i.test(profile.name),
+    name: nameless && country.code !== 'UN' ? country.name : profile.name,
   };
 }

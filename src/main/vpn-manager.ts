@@ -7,6 +7,7 @@ import { spawn, type ChildProcess } from 'node:child_process';
 import { createProfileFromLink, isSubscriptionUrl } from './share-link';
 import { fetchSubscriptionMaterial } from './subscription';
 import { enrichProfile, isServiceNode } from './vpn-classify';
+import { applyGeo } from './vpn-geo';
 import { buildXrayConfig } from './xray-config';
 import type { ModuleLog, VpnProfile, VpnRuntime, VpnStatus, VpnSubscriptionInfo } from './types';
 import { waitForExit } from './process-watch';
@@ -79,6 +80,8 @@ export class VpnManager extends EventEmitter {
       const raw = JSON.parse(await fs.readFile(path.join(this.configsDir(), 'subscriptions.json'), 'utf8')) as VpnSubscriptionInfo[];
       for (const item of raw) if (item.url) this.subscriptions.set(item.url, item);
     } catch { /* first run */ }
+    const located = await applyGeo(this.list(), path.join(this.configsDir(), 'geo-cache.json'));
+    for (const profile of located) this.profiles.set(profile.id, profile);
     this.emit('changed', this.snapshot());
   }
 
@@ -126,13 +129,17 @@ export class VpnManager extends EventEmitter {
       keep.add(next.id);
     };
 
-    for (const link of material.links) {
-      try { await accept(createProfileFromLink(link)); }
-      catch (error) { this.emitLog('warn', `Пропуск узла: ${error instanceof Error ? error.message : 'битая ссылка'}`); }
-    }
-    for (const profile of material.clash) {
-      try { await accept(profile); }
-      catch (error) { this.emitLog('warn', `Пропуск clash-узла: ${error instanceof Error ? error.message : 'ошибка'}`); }
+    const namedFirst = material.clash.length ? material.clash : [];
+    if (namedFirst.length) {
+      for (const profile of namedFirst) {
+        try { await accept(profile); }
+        catch (error) { this.emitLog('warn', `Пропуск clash-узла: ${error instanceof Error ? error.message : 'ошибка'}`); }
+      }
+    } else {
+      for (const link of material.links) {
+        try { await accept(createProfileFromLink(link)); }
+        catch (error) { this.emitLog('warn', `Пропуск узла: ${error instanceof Error ? error.message : 'битая ссылка'}`); }
+      }
     }
 
     if (!material.links.length && !material.clash.length) {
@@ -149,10 +156,26 @@ export class VpnManager extends EventEmitter {
         ? `Панель вернула только уведомления (${notices}), без серверов.`
         : 'Ссылки в подписке не удалось разобрать');
     }
-    if (material.info) {
-      this.subscriptions.set(url, { ...material.info, title: material.info.title || parsed.host });
-      await this.persistSubscriptions();
+    const located = await applyGeo(imported, path.join(this.configsDir(), 'geo-cache.json'));
+    imported.length = 0;
+    for (const profile of located) {
+      await this.saveProfile(profile);
+      imported.push(profile);
+      keep.add(profile.id);
     }
+    this.subscriptions.set(url, {
+      url,
+      title: material.info?.title || parsed.host,
+      supportUrl: material.info?.supportUrl,
+      announce: material.info?.announce,
+      expireAt: material.info?.expireAt,
+      upload: material.info?.upload ?? 0,
+      download: material.info?.download ?? 0,
+      total: material.info?.total ?? 0,
+      updateHours: material.info?.updateHours ?? 1,
+      lastSync: new Date().toISOString(),
+    });
+    await this.persistSubscriptions();
     this.emitLog('success', `Подписка ${parsed.host}: узлов ${imported.length}${notices ? `, служебных скрыто ${notices}` : ''}`);
     this.emit('changed', this.snapshot());
     return imported;
