@@ -4,7 +4,8 @@ import { promises as fs } from 'node:fs';
 import { createServer } from 'node:net';
 import path from 'node:path';
 import { spawn, type ChildProcess } from 'node:child_process';
-import { createProfileFromLink, extractShareLinks, isSubscriptionUrl } from './share-link';
+import { createProfileFromLink, isSubscriptionUrl } from './share-link';
+import { fetchSubscriptionMaterial } from './subscription';
 import { enrichProfile, isServiceNode } from './vpn-classify';
 import { buildXrayConfig } from './xray-config';
 import type { ModuleLog, VpnProfile, VpnRuntime, VpnStatus } from './types';
@@ -102,41 +103,34 @@ export class VpnManager extends EventEmitter {
     const parsed = new URL(url);
     if (parsed.protocol !== 'https:') throw new Error('Подписка только по HTTPS');
     this.emitLog('info', `Загрузка подписки ${parsed.host} (HWID ${this.hwid.slice(0, 8)}…)…`);
-    const response = await fetch(url, {
-      headers: {
-        'User-Agent': 'Happ/3.4.0',
-        Accept: 'text/plain, */*',
-        hwid: this.hwid,
-        'x-hwid': this.hwid,
-        'x-device-os': process.platform,
-        'x-ver-os': process.platform === 'win32' ? '10' : 'linux',
-        'x-device-model': 'NEXUS-Jey2Ray',
-      },
-      redirect: 'follow',
-    });
-    if (!response.ok) throw new Error(`Подписка: HTTP ${response.status} (${parsed.host})`);
-    const body = await response.text();
-    const links = extractShareLinks(body);
-    if (!links.length) throw new Error('В ответе подписки нет ссылок vless/vmess/trojan/ss. Проверь URL (как в Happ).');
-
+    const material = await fetchSubscriptionMaterial(url, this.hwid, (message) => this.emitLog('info', message));
     const imported: VpnProfile[] = [];
     const keep = new Set<string>();
     let notices = 0;
-    for (const link of links) {
-      try {
-        const profile = enrichProfile(createProfileFromLink(link));
-        profile.subscriptionUrl = url;
-        if (profile.kind === 'notice' || isServiceNode(profile)) {
-          notices += 1;
-          continue;
-        }
-        await this.saveProfile(profile);
-        imported.push(profile);
-        keep.add(profile.id);
-      } catch (error) {
-        const message = error instanceof Error ? error.message : 'битая ссылка';
-        this.emitLog('warn', `Пропуск узла подписки: ${message}`);
+
+    const accept = async (profile: VpnProfile) => {
+      profile.subscriptionUrl = url;
+      const next = enrichProfile(profile);
+      if (next.kind === 'notice' || isServiceNode(next)) {
+        notices += 1;
+        return;
       }
+      await this.saveProfile(next);
+      imported.push(next);
+      keep.add(next.id);
+    };
+
+    for (const link of material.links) {
+      try { await accept(createProfileFromLink(link)); }
+      catch (error) { this.emitLog('warn', `Пропуск узла: ${error instanceof Error ? error.message : 'битая ссылка'}`); }
+    }
+    for (const profile of material.clash) {
+      try { await accept(profile); }
+      catch (error) { this.emitLog('warn', `Пропуск clash-узла: ${error instanceof Error ? error.message : 'ошибка'}`); }
+    }
+
+    if (!material.links.length && !material.clash.length) {
+      throw new Error('Панель отдала лендинг или формат Happ. Jey2Ray запрашивает как v2rayN/Clash. Вставь полный URL и обнови ещё раз.');
     }
     for (const profile of this.list()) {
       if (profile.subscriptionUrl === url && !keep.has(profile.id) && profile.kind !== 'notice') {
@@ -146,7 +140,7 @@ export class VpnManager extends EventEmitter {
     }
     if (!imported.length) {
       throw new Error(notices
-        ? `Панель вернула только уведомления (${notices}), без серверов. Обычно так бывает без HWID или если подписка не оплачена. Нажми «Обновить подписки» ещё раз.`
+        ? `Панель вернула только уведомления (${notices}), без серверов.`
         : 'Ссылки в подписке не удалось разобрать');
     }
     this.emitLog('success', `Подписка ${parsed.host}: узлов ${imported.length}${notices ? `, служебных скрыто ${notices}` : ''}`);
