@@ -128,6 +128,7 @@ export class GithubUpdater extends EventEmitter {
       await fs.mkdir(tempDir, { recursive: true });
       const tempPath = path.join(tempDir, `${target.id}-${release.tag_name.replace(/[^a-z0-9._-]/gi, '_')}-${asset.name}`);
       await this.downloadAsset(asset.browser_download_url, tempPath, target.repo);
+      await this.assertZip(tempPath);
       const hash = await this.sha256(tempPath);
       const executable = await target.install(tempPath, release.tag_name);
       this.versions[target.id] = { version: release.tag_name, asset: asset.name, sha256: hash, installedAt: new Date().toISOString() };
@@ -187,11 +188,26 @@ export class GithubUpdater extends EventEmitter {
     });
   }
 
+  private async assertZip(filePath: string): Promise<void> {
+    const stat = await fs.stat(filePath);
+    if (stat.size < 800_000) {
+      throw new Error(`Скачался мусор (${Math.round(stat.size / 1024)} КБ), а не Xray ZIP. GitHub недоступен или отдал HTML.`);
+    }
+    const handle = await fs.open(filePath, 'r');
+    const buf = Buffer.alloc(2);
+    await handle.read(buf, 0, 2, 0);
+    await handle.close();
+    if (buf[0] !== 0x50 || buf[1] !== 0x4b) {
+      throw new Error('Файл не ZIP (нет сигнатуры PK). Повтори «Скачать Xray».');
+    }
+  }
+
   private async installXrayFromMirrors(): Promise<void> {
     const file = process.platform === 'win32' ? 'Xray-windows-64.zip' : 'Xray-linux-64.zip';
     const mirrors = [
       `https://github.com/XTLS/Xray-core/releases/latest/download/${file}`,
       `https://ghproxy.net/https://github.com/XTLS/Xray-core/releases/latest/download/${file}`,
+      `https://mirror.ghproxy.com/https://github.com/XTLS/Xray-core/releases/latest/download/${file}`,
     ];
     const jey = this.targets.find((item) => item.id === 'jey2ray');
     const tempPath = path.join(this.modulesDir, '.cache', file);

@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import type { AppSettings, UpdateInfo, VpnProfile, VpnRuntime, VpnSubscriptionInfo } from '../main/types';
 import { displayName } from '../main/vpn-classify';
+import { Flag } from './Flag';
 
 const EMPTY_RUNTIME: VpnRuntime = {
   status: 'disconnected',
@@ -28,12 +29,6 @@ function formatBytes(value?: number): string {
 function formatExpire(value?: string): string {
   if (!value) return '—';
   return new Intl.DateTimeFormat('ru-RU', { day: '2-digit', month: '2-digit', year: 'numeric' }).format(new Date(value));
-}
-
-function Flag({ code }: { code?: string }) {
-  const iso = !code || code === 'UN' ? '' : code.toLowerCase();
-  if (!iso) return <span className="happ-flag">🌐</span>;
-  return <img className="happ-flag-img" alt="" src={`https://flagcdn.com/w80/${iso}.png`} />;
 }
 
 function stackOf(profile: VpnProfile): string {
