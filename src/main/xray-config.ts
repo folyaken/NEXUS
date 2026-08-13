@@ -1,5 +1,13 @@
 import type { VpnLinkParams } from './types';
 
+function vlessFlow(params: VpnLinkParams): string {
+  const network = (params.network || 'tcp').toLowerCase();
+  if (network === 'grpc' || network === 'ws' || network === 'h2') return '';
+  if (params.flow) return params.flow;
+  if ((params.security || '').toLowerCase() === 'reality') return 'xtls-rprx-vision';
+  return '';
+}
+
 function streamSettings(params: VpnLinkParams): Record<string, unknown> {
   const network = (params.network || 'tcp').toLowerCase();
   const security = (params.security || 'none').toLowerCase();
