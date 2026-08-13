@@ -7,15 +7,17 @@ import { spawn, type ChildProcess } from 'node:child_process';
 import { createProfileFromLink, isSubscriptionUrl } from './share-link';
 import { fetchSubscriptionMaterial } from './subscription';
 import { canConnect, enrichProfile, isServiceNode, looksLikeHost } from './vpn-classify';
+import { applyGeo } from './vpn-geo';
+import { buildXrayConfig } from './xray-config';
+import { buildSingboxConfig } from './singbox-config';
+import { clearSystemProxy, setSystemProxy } from './system-proxy';
+
+import type { ModuleLog, VpnProfile, VpnRuntime, VpnStatus, VpnSubscriptionInfo } from './types';
+import { waitForExit } from './process-watch';
 
 function looksHuman(name: string): boolean {
   return Boolean(name.trim()) && !looksLikeHost(name);
 }
-import { applyGeo } from './vpn-geo';
-import { buildXrayConfig } from './xray-config';
-import { clearSystemProxy, setSystemProxy } from './system-proxy';
-import type { ModuleLog, VpnProfile, VpnRuntime, VpnStatus, VpnSubscriptionInfo } from './types';
-import { waitForExit } from './process-watch';
 
 export class VpnManager extends EventEmitter {
   private profiles = new Map<string, VpnProfile>();
@@ -40,6 +42,7 @@ export class VpnManager extends EventEmitter {
   private vpnRoot(): string { return path.join(this.modulesDir, 'vpn'); }
   private configsDir(): string { return path.join(this.modulesDir, 'configs', 'vpn'); }
   private generatedPath(): string { return path.join(this.configsDir(), 'generated_config.json'); }
+  private singboxConfigPath(): string { return path.join(this.configsDir(), 'generated_singbox.json'); }
   private logPath(): string { return path.join(this.modulesDir, 'logs', 'vpn.log'); }
 
   hasXray(): boolean {
@@ -47,7 +50,14 @@ export class VpnManager extends EventEmitter {
   }
 
   xrayPath(): string {
-    const name = process.platform === 'win32' ? 'xray.exe' : 'xray';
+    return this.binPath(process.platform === 'win32' ? 'xray.exe' : 'xray');
+  }
+
+  singboxPath(): string {
+    return this.binPath(process.platform === 'win32' ? 'sing-box.exe' : 'sing-box');
+  }
+
+  private binPath(name: string): string {
     const candidates = [
       path.join(this.modulesDir, 'bin', name),
       path.join(this.vpnRoot(), 'bin', name),
@@ -84,7 +94,7 @@ export class VpnManager extends EventEmitter {
     await fs.mkdir(path.dirname(this.logPath()), { recursive: true });
     const entries = await fs.readdir(this.configsDir(), { withFileTypes: true });
     for (const entry of entries) {
-      if (!entry.isFile() || !entry.name.endsWith('.json') || entry.name === 'generated_config.json' || entry.name === 'subscriptions.json') continue;
+      if (!entry.isFile() || !entry.name.endsWith('.json') || entry.name.startsWith('generated_') || entry.name === 'subscriptions.json') continue;
       try {
         const profile = enrichProfile(JSON.parse(await fs.readFile(path.join(this.configsDir(), entry.name), 'utf8')) as VpnProfile);
         if (profile.id && profile.shareLink && profile.kind !== 'notice') this.profiles.set(profile.id, profile);
@@ -110,170 +120,14 @@ export class VpnManager extends EventEmitter {
     const raw = input.trim();
     if (isSubscriptionUrl(raw)) return this.importSubscription(raw);
     const profile = enrichProfile(createProfileFromLink(raw, name));
-    if (profile.kind === 'notice') {
-      this.emitLog('warn', `Служебная ссылка пропущена: ${profile.name}`);
-      throw new Error('Это служебное уведомление панели, не сервер. Нужна подписка с HWID или обычная vless-ссылка.');
-    }
-    await this.saveProfile(profile);
-    this.emitLog('success', `Профиль «${profile.name}» сохранён (${profile.protocol} ${profile.server}:${profile.port})`);
-    this.emit('changed', this.snapshot());
-    return [profile];
-  }
-
-  async importLink(link: string, name?: string): Promise<VpnProfile> {
-    const [profile] = await this.importInput(link, name);
-    return profile;
-  }
-
-  async importSubscription(url: string): Promise<VpnProfile[]> {
-    const parsed = new URL(url);
-    if (parsed.protocol !== 'https:') throw new Error('Подписка только по HTTPS');
-    this.emitLog('info', `Загрузка подписки ${parsed.host} (HWID ${this.hwid.slice(0, 8)}…)…`);
-    const material = await fetchSubscriptionMaterial(url, this.hwid, (message) => this.emitLog('info', message));
-    const imported: VpnProfile[] = [];
-    const keep = new Set<string>();
-    let notices = 0;
-
-    const accept = async (profile: VpnProfile) => {
-      profile.subscriptionUrl = url;
-      const next = enrichProfile(profile);
-      if (next.kind === 'notice' || isServiceNode(next)) {
-        notices += 1;
-        return;
-      }
-      await this.saveProfile(next);
-      imported.push(next);
-      keep.add(next.id);
-    };
-
-    for (const profile of material.clash) {
-      try { await accept(profile); }
-      catch (error) { this.emitLog('warn', `Пропуск clash-узла: ${error instanceof Error ? error.message : 'ошибка'}`); }
-    }
-    for (const link of material.links) {
-      try { await accept(createProfileFromLink(link)); }
-      catch (error) { this.emitLog('warn', `Пропуск узла: ${error instanceof Error ? error.message : 'битая ссылка'}`); }
-    }
-
-    if (!material.links.length && !material.clash.length) {
-      throw new Error('Панель отдала лендинг или формат Happ. Jey2Ray запрашивает как v2rayN/Clash. Вставь полный URL и обнови ещё раз.');
-    }
-    for (const profile of this.list()) {
-      if (profile.subscriptionUrl === url && !keep.has(profile.id) && profile.kind !== 'notice') {
-        this.profiles.delete(profile.id);
-        await fs.rm(path.join(this.configsDir(), `${profile.id}.json`), { force: true });
-      }
-    }
-    if (!imported.length) {
-      throw new Error(notices
-        ? `Панель вернула только уведомления (${notices}), без серверов.`
-        : 'Ссылки в подписке не удалось разобрать');
-    }
-    const unique = new Map<string, VpnProfile>();
-    for (const profile of imported) {
-      const key = `${profile.protocol}|${profile.server}|${profile.port}|${profile.params.network}|${profile.params.security}`;
-      const prev = unique.get(key);
-      if (!prev || (looksHuman(profile.name) && !looksHuman(prev.name))) unique.set(key, profile);
-    }
-    imported.length = 0;
-    imported.push(...unique.values());
-    const located = await applyGeo(imported, path.join(this.configsDir(), 'geo-cache.json'));
-    imported.length = 0;
-    for (const profile of located) {
-      await this.saveProfile(profile);
-      imported.push(profile);
-      keep.add(profile.id);
-    }
-    this.subscriptions.set(url, {
-      url,
-      title: material.info?.title || parsed.host,
-      supportUrl: material.info?.supportUrl,
-      announce: material.info?.announce,
-      description: material.info?.description,
-      expireAt: material.info?.expireAt,
-      upload: material.info?.upload ?? 0,
-      download: material.info?.download ?? 0,
-      total: material.info?.total ?? 0,
-      updateHours: material.info?.updateHours ?? 1,
-      lastSync: new Date().toISOString(),
-    });
-    await this.persistSubscriptions();
-    this.emitLog('success', `Подписка ${parsed.host}: узлов ${imported.length}${notices ? `, служебных скрыто ${notices}` : ''}`);
-    this.emit('changed', this.snapshot());
-    return imported;
-  }
-
-  async pingAll(): Promise<VpnProfile[]> {
-    const nodes = this.list().filter((item) => item.kind !== 'notice');
-    const queue = [...nodes];
-    const workers = Array.from({ length: Math.min(6, queue.length || 1) }, async () => {
-      while (queue.length) {
-        const profile = queue.shift();
-        if (!profile) break;
-        profile.pingMs = await this.tcpPing(profile.server, profile.port);
-        this.profiles.set(profile.id, profile);
-        this.emit('changed', this.snapshot());
-      }
-    });
-    await Promise.all(workers);
-    this.emitLog('info', 'Тест пинга завершён');
-    return this.list();
-  }
-
-  private tcpPing(host: string, port: number): Promise<number | null> {
-    return new Promise((resolve) => {
-      const started = Date.now();
-      const socket = new Socket();
-      const done = (value: number | null) => {
-        socket.destroy();
-        resolve(value);
-      };
-      socket.setTimeout(2500);
-      socket.once('connect', () => done(Date.now() - started));
-      socket.once('timeout', () => done(null));
-      socket.once('error', () => done(null));
-      socket.connect(port, host);
-    });
-  }
-
-  async refreshSubscriptions(): Promise<number> {
-    const urls = [...new Set(this.list().map((item) => item.subscriptionUrl).filter((item): item is string => Boolean(item)))];
-    let total = 0;
-    for (const url of urls) total += (await this.importSubscription(url)).length;
-    return total;
-  }
-
-  private async saveProfile(profile: VpnProfile): Promise<void> {
-    const existing = this.profiles.get(profile.id);
-    if (existing) profile.createdAt = existing.createdAt;
-    this.profiles.set(profile.id, enrichProfile(profile));
-    await this.persist(profile);
-  }
-
-  async remove(id: string): Promise<void> {
-    if (this.activeProfileId === id) await this.disconnect();
-    this.profiles.delete(id);
-    const file = path.join(this.configsDir(), `${id}.json`);
-    await fs.rm(file, { force: true });
-    this.emitLog('info', `Профиль ${id} удалён`);
-    this.emit('changed', this.snapshot());
-  }
-
-  async connect(id: string, preferredPort = 10808, mode: 'proxy' | 'tun' = 'proxy'): Promise<VpnRuntime> {
-    const profile = this.profiles.get(id);
-    if (!profile) throw new Error('Профиль не найден');
-    if (profile.kind === 'notice' || isServiceNode(profile)) {
-      throw new Error('Это уведомление панели, а не VPN-сервер.');
-    }
-    if (profile.protocol === 'hysteria2') {
-      throw new Error('HYSTERIA2 Xray не поднимает. Выбери VLESS/VMess/Trojan/SS.');
-    }
-    if ((profile.params.security || '').toLowerCase() === 'reality' && !profile.params.publicKey) {
-      throw new Error('У узла Reality нет public key — ссылка неполная, этот сервер не подключить.');
-    }
-    const xray = this.xrayPath();
-    if (!existsSync(xray)) {
-      const message = 'Xray-core не найден. Нажмите «Проверить GitHub» — скачается XTLS/Xray-core в modules/bin/xray.exe';
+    const blocked = canConnect(profile);
+    if (blocked) throw new Error(blocked);
+    const useSingbox = profile.protocol === 'hysteria2';
+    const engine = useSingbox ? this.singboxPath() : this.xrayPath();
+    if (!existsSync(engine)) {
+      const message = useSingbox
+        ? 'sing-box не найден. Перезапусти npm start — скачается SagerNet/sing-box для Hysteria.'
+        : 'Xray-core не найден. Перезапусти npm start — скачается XTLS/Xray-core.';
       this.setState('error', null, null, message);
       throw new Error(message);
     }
@@ -283,15 +137,17 @@ export class VpnManager extends EventEmitter {
     this.setState('connecting', id, null);
     const port = await this.pickPort(preferredPort);
     this.inboundPort = port;
-    const config = buildXrayConfig(profile.params, port, mode);
+    const config = useSingbox ? buildSingboxConfig(profile.params, port) : buildXrayConfig(profile.params, port, mode);
+    const configFile = useSingbox ? this.singboxConfigPath() : this.generatedPath();
     await fs.mkdir(this.configsDir(), { recursive: true });
-    await fs.writeFile(this.generatedPath(), `${JSON.stringify(config, null, 2)}\n`, 'utf8');
+    await fs.writeFile(configFile, `${JSON.stringify(config, null, 2)}\n`, 'utf8');
 
     mkdirSync(path.dirname(this.logPath()), { recursive: true });
     const logStream = createWriteStream(this.logPath(), { flags: 'a' });
     let lastErr = '';
-    const child = spawn(xray, ['-config', this.generatedPath()], {
-      cwd: path.dirname(xray),
+    const args = useSingbox ? ['run', '-c', configFile] : ['-config', configFile];
+    const child = spawn(engine, args, {
+      cwd: path.dirname(engine),
       windowsHide: true,
       shell: false,
       stdio: ['ignore', 'pipe', 'pipe'],
@@ -364,6 +220,7 @@ export class VpnManager extends EventEmitter {
     this.child = null;
     this.pid = null;
     await fs.rm(this.generatedPath(), { force: true });
+    await fs.rm(this.singboxConfigPath(), { force: true });
     this.setState('disconnected', null, null);
     this.emitLog('info', 'VPN отключён');
     return this.runtime();

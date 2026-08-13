@@ -57,7 +57,6 @@ export function looksLikeHost(value: string): boolean {
 
 export function canConnect(profile: Pick<VpnProfile, 'protocol' | 'kind' | 'params'>): string | null {
   if (profile.kind === 'notice') return 'Это не сервер, а служебная строка панели.';
-  if (profile.protocol === 'hysteria2') return 'Hysteria есть только в Happ. Здесь бери VLESS / VMess / Trojan / SS.';
   if ((profile.params.security || '').toLowerCase() === 'reality' && !profile.params.publicKey) return 'У Reality-узла нет ключа — ссылка обрезана.';
   return null;
 }

@@ -24,7 +24,7 @@
 
 Бери готовый плоский архив `NEXUS.zip` из корня ветки (внутри сразу `package.json`, `src`, `modules`).
 
-При `npm install` / `npm start` автоматически ставится **Xray-core** в `modules/bin` (официальный релиз XTLS). В Happ ядро тоже внутри клиента, пользователь его отдельно не качает.
+При `npm install` / `npm start` ставятся официальные ядра: **Xray-core** (VLESS/VMess/Trojan/SS) и **sing-box** (Hysteria2) в `modules/bin`. Бинарники в git не кладём.
 
 ## Jey2Ray
 
