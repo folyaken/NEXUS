@@ -232,7 +232,7 @@ export function Jey2RayPage({
     } catch (error) {
       onToast(cleanError(error));
     }
-  }, 1400);
+  }, 2200);
 
   const powerLabel = onAir
     ? `Работает · ${mode.toUpperCase()} · 127.0.0.1:${runtime.inboundPort + 1}`
