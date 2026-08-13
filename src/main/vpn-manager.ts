@@ -5,6 +5,7 @@ import { createServer } from 'node:net';
 import path from 'node:path';
 import { spawn, type ChildProcess } from 'node:child_process';
 import { createProfileFromLink, extractShareLinks, isSubscriptionUrl } from './share-link';
+import { enrichProfile, isServiceNode } from './vpn-classify';
 import { buildXrayConfig } from './xray-config';
 import type { ModuleLog, VpnProfile, VpnRuntime, VpnStatus } from './types';
 import { waitForExit } from './process-watch';
@@ -17,9 +18,14 @@ export class VpnManager extends EventEmitter {
   private pid: number | null = null;
   private error?: string;
   private inboundPort = 10808;
+  private hwid = 'NX-LOCAL';
 
   constructor(private readonly modulesDir: string) {
     super();
+  }
+
+  setHwid(value: string): void {
+    this.hwid = value || 'NX-LOCAL';
   }
 
   private vpnRoot(): string { return path.join(this.modulesDir, 'vpn'); }
@@ -59,8 +65,9 @@ export class VpnManager extends EventEmitter {
     for (const entry of entries) {
       if (!entry.isFile() || !entry.name.endsWith('.json') || entry.name === 'generated_config.json') continue;
       try {
-        const profile = JSON.parse(await fs.readFile(path.join(this.configsDir(), entry.name), 'utf8')) as VpnProfile;
-        if (profile.id && profile.shareLink) this.profiles.set(profile.id, profile);
+        const profile = enrichProfile(JSON.parse(await fs.readFile(path.join(this.configsDir(), entry.name), 'utf8')) as VpnProfile);
+        if (profile.id && profile.shareLink && profile.kind !== 'notice') this.profiles.set(profile.id, profile);
+        else if (profile.kind === 'notice') await fs.rm(path.join(this.configsDir(), entry.name), { force: true });
       } catch {
         this.emitLog('warn', `Пропущен повреждённый профиль ${entry.name}`);
       }
@@ -75,7 +82,11 @@ export class VpnManager extends EventEmitter {
   async importInput(input: string, name?: string): Promise<VpnProfile[]> {
     const raw = input.trim();
     if (isSubscriptionUrl(raw)) return this.importSubscription(raw);
-    const profile = createProfileFromLink(raw, name);
+    const profile = enrichProfile(createProfileFromLink(raw, name));
+    if (profile.kind === 'notice') {
+      this.emitLog('warn', `Служебная ссылка пропущена: ${profile.name}`);
+      throw new Error('Это служебное уведомление панели, не сервер. Нужна подписка с HWID или обычная vless-ссылка.');
+    }
     await this.saveProfile(profile);
     this.emitLog('success', `Профиль «${profile.name}» сохранён (${profile.protocol} ${profile.server}:${profile.port})`);
     this.emit('changed', this.snapshot());
@@ -90,11 +101,16 @@ export class VpnManager extends EventEmitter {
   async importSubscription(url: string): Promise<VpnProfile[]> {
     const parsed = new URL(url);
     if (parsed.protocol !== 'https:') throw new Error('Подписка только по HTTPS');
-    this.emitLog('info', `Загрузка подписки ${parsed.host}…`);
+    this.emitLog('info', `Загрузка подписки ${parsed.host} (HWID ${this.hwid.slice(0, 8)}…)…`);
     const response = await fetch(url, {
       headers: {
-        'User-Agent': 'NEXUS-Jey2Ray/1.0',
-        Accept: 'text/plain, text/html, */*',
+        'User-Agent': 'Happ/3.4.0',
+        Accept: 'text/plain, */*',
+        hwid: this.hwid,
+        'x-hwid': this.hwid,
+        'x-device-os': process.platform,
+        'x-ver-os': process.platform === 'win32' ? '10' : 'linux',
+        'x-device-model': 'NEXUS-Jey2Ray',
       },
       redirect: 'follow',
     });
@@ -104,19 +120,36 @@ export class VpnManager extends EventEmitter {
     if (!links.length) throw new Error('В ответе подписки нет ссылок vless/vmess/trojan/ss. Проверь URL (как в Happ).');
 
     const imported: VpnProfile[] = [];
+    const keep = new Set<string>();
+    let notices = 0;
     for (const link of links) {
       try {
-        const profile = createProfileFromLink(link);
+        const profile = enrichProfile(createProfileFromLink(link));
         profile.subscriptionUrl = url;
+        if (profile.kind === 'notice' || isServiceNode(profile)) {
+          notices += 1;
+          continue;
+        }
         await this.saveProfile(profile);
         imported.push(profile);
+        keep.add(profile.id);
       } catch (error) {
         const message = error instanceof Error ? error.message : 'битая ссылка';
         this.emitLog('warn', `Пропуск узла подписки: ${message}`);
       }
     }
-    if (!imported.length) throw new Error('Ссылки в подписке не удалось разобрать');
-    this.emitLog('success', `Подписка ${parsed.host}: добавлено узлов — ${imported.length}`);
+    for (const profile of this.list()) {
+      if (profile.subscriptionUrl === url && !keep.has(profile.id) && profile.kind !== 'notice') {
+        this.profiles.delete(profile.id);
+        await fs.rm(path.join(this.configsDir(), `${profile.id}.json`), { force: true });
+      }
+    }
+    if (!imported.length) {
+      throw new Error(notices
+        ? `Панель вернула только уведомления (${notices}), без серверов. Обычно так бывает без HWID или если подписка не оплачена. Нажми «Обновить подписки» ещё раз.`
+        : 'Ссылки в подписке не удалось разобрать');
+    }
+    this.emitLog('success', `Подписка ${parsed.host}: узлов ${imported.length}${notices ? `, служебных скрыто ${notices}` : ''}`);
     this.emit('changed', this.snapshot());
     return imported;
   }
@@ -131,7 +164,7 @@ export class VpnManager extends EventEmitter {
   private async saveProfile(profile: VpnProfile): Promise<void> {
     const existing = this.profiles.get(profile.id);
     if (existing) profile.createdAt = existing.createdAt;
-    this.profiles.set(profile.id, profile);
+    this.profiles.set(profile.id, enrichProfile(profile));
     await this.persist(profile);
   }
 
@@ -147,6 +180,9 @@ export class VpnManager extends EventEmitter {
   async connect(id: string, preferredPort = 10808): Promise<VpnRuntime> {
     const profile = this.profiles.get(id);
     if (!profile) throw new Error('Профиль не найден');
+    if (profile.kind === 'notice' || isServiceNode(profile)) {
+      throw new Error('Это уведомление панели, а не VPN-сервер.');
+    }
     const xray = this.xrayPath();
     if (!existsSync(xray)) {
       const message = 'Xray-core не найден. Нажмите «Проверить GitHub» — скачается XTLS/Xray-core в modules/bin/xray.exe';

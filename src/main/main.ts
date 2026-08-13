@@ -269,6 +269,8 @@ if (gotLock) {
     manager = new ModuleManager(modulesDir);
     updater = new GithubUpdater(modulesDir, manager);
     vpn = new VpnManager(modulesDir);
+    const profile = await readProfile();
+    vpn.setHwid(profile.deviceId);
     wireIpc();
     await manager.init();
     await vpn.init();

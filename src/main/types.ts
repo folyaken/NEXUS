@@ -105,6 +105,10 @@ export interface VpnProfile {
   port: number;
   shareLink: string;
   subscriptionUrl?: string;
+  kind?: 'node' | 'notice';
+  country?: string;
+  countryName?: string;
+  flag?: string;
   params: VpnLinkParams;
   createdAt: string;
 }
