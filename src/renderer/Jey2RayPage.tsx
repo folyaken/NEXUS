@@ -254,17 +254,16 @@ export function Jey2RayPage({
             Добавить подписку
           </button>
           <button className={`ghost-action ${action === 'refresh' ? 'is-spin' : ''}`} disabled={busy || Boolean(action)} onClick={() => void refresh()}>
-            <svg className="ico spin-ico" viewBox="0 0 18 18" aria-hidden>
-              <path d="M13.7 5.35A5.45 5.45 0 1 1 12.05 3.4" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" />
-              <path d="M11.15 2.05 14.05 3.55 12.2 6.2" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" />
+            <svg className="ico spin-ico" viewBox="0 0 24 24" aria-hidden>
+              <path fill="currentColor" d="M11.2 3.15A8.85 8.85 0 1 0 19 7.55l-1.95 1.15A6.55 6.55 0 1 1 11.2 5.45v2.7L17.45 5 11.2.65z" />
             </svg>
             Обновить
           </button>
           <button className={`ghost-action ${action === 'ping' ? 'is-rev' : ''}`} disabled={busy || Boolean(action)} onClick={() => void ping()}>
-            <svg className="ico gauge-ico" viewBox="0 0 22 16" aria-hidden>
-              <path d="M2.4 13.1a8.6 8.6 0 0 1 17.2 0" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" />
-              <path className="gauge-needle" d="M11 13.05 5.4 7.1" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" />
-              <circle cx="11" cy="13.05" r="1.25" fill="currentColor" />
+            <svg className="ico gauge-ico" viewBox="0 0 20 14" aria-hidden>
+              <path d="M2.3 11.6a7.7 7.7 0 0 1 15.4 0" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" />
+              <path className="gauge-needle" d="M10 11.55 5.35 6.55" fill="none" stroke="currentColor" strokeWidth="1.65" strokeLinecap="round" />
+              <circle cx="10" cy="11.55" r="1.15" fill="currentColor" />
             </svg>
             Тест пинга
           </button>
