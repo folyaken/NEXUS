@@ -51,6 +51,15 @@ export class GithubUpdater extends EventEmitter {
     return this.list();
   }
 
+  async ensure(id: string): Promise<void> {
+    const target = this.targets.find((item) => item.id === id);
+    if (!target) throw new Error(`Нет цели обновления: ${id}`);
+    await this.syncOne(target);
+    if (!this.moduleExecutableExists(id)) {
+      throw new Error(this.updates.get(id)?.error || 'Не удалось скачать Xray-core с GitHub');
+    }
+  }
+
   private readonly targets: UpdateTarget[] = [];
 
   private registerTargets(): void {
@@ -265,6 +274,10 @@ export class GithubUpdater extends EventEmitter {
   }
 
   private moduleExecutableExists(id: string): boolean {
+    if (id === 'jey2ray') {
+      const binary = process.platform === 'win32' ? 'xray.exe' : 'xray';
+      return existsSync(path.join(this.modulesDir, 'bin', binary));
+    }
     const module = this.manager.list().find((item) => item.id === id);
     if (!module) return false;
     const executable = path.isAbsolute(module.executable) ? module.executable : path.resolve(this.modulesDir, module.executable.replace(/^\.\//, ''));

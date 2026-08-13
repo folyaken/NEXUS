@@ -232,6 +232,10 @@ function wireIpc(): void {
   ipcMain.handle('vpn:refresh', () => vpn.refreshSubscriptions());
   ipcMain.handle('vpn:remove', (_event, id: string) => vpn.remove(String(id ?? '')));
   ipcMain.handle('vpn:connect', async (_event, id: string) => {
+    if (!vpn.hasXray()) {
+      mainWindow?.webContents.send('logs:append', { id: 'jey2ray', level: 'info', message: 'Скачиваем Xray-core…', timestamp: new Date().toISOString() });
+      await updater.ensure('jey2ray');
+    }
     const runtime = await vpn.connect(String(id ?? ''), settings.vpnInboundPort);
     await saveSettings({ ...settings, lastVpnProfileId: String(id ?? '') });
     return runtime;
@@ -256,6 +260,8 @@ function wireIpc(): void {
   });
   manager.on('scan', (stamp: string) => mainWindow?.webContents.send('runtime:scan', stamp));
   updater.on('changed', (updates) => mainWindow?.webContents.send('updates:changed', updates));
+  vpn.on('changed', (snapshot) => mainWindow?.webContents.send('vpn:changed', snapshot));
+  vpn.on('log', (log: ModuleLog) => mainWindow?.webContents.send('logs:append', log));
 }
 
 if (gotLock) {

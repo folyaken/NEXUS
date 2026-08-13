@@ -36,6 +36,10 @@ export class VpnManager extends EventEmitter {
   private generatedPath(): string { return path.join(this.configsDir(), 'generated_config.json'); }
   private logPath(): string { return path.join(this.modulesDir, 'logs', 'vpn.log'); }
 
+  hasXray(): boolean {
+    return existsSync(this.xrayPath());
+  }
+
   xrayPath(): string {
     const win = path.join(this.modulesDir, 'bin', 'xray.exe');
     const unix = path.join(this.modulesDir, 'bin', 'xray');

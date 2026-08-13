@@ -48,6 +48,12 @@ function formatSync(value?: string): string {
   return new Intl.DateTimeFormat('ru-RU', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' }).format(new Date(value));
 }
 
+function Flag({ code }: { code?: string }) {
+  const iso = !code || code === 'UN' ? '' : code.toLowerCase();
+  if (!iso) return <span className="happ-flag">🌐</span>;
+  return <img className="happ-flag-img" alt="" src={`https://flagcdn.com/w80/${iso}.png`} />;
+}
+
 function stackOf(profile: VpnProfile): string {
   return profile.stack || `${profile.protocol.toUpperCase()} / ${(profile.params.network || 'TCP').toUpperCase()} / ${(profile.params.security || 'NONE').toUpperCase()} / JSON`;
 }
@@ -122,6 +128,7 @@ export function Jey2RayPage({
         setRuntime({ ...runtime, status: 'connected', activeProfileId: id, pid: 4400 });
         return;
       }
+      if (!runtime.xrayReady) onToast('Скачиваем Xray-core, затем подключаемся…');
       await window.nexus?.connectVpn(id);
     } catch (error) {
       onToast(error instanceof Error ? error.message : 'Не удалось подключиться');
@@ -209,7 +216,7 @@ export function Jey2RayPage({
       {visible.map((profile) => {
         const active = runtime.activeProfileId === profile.id && runtime.status === 'connected';
         return <button key={profile.id} className={`happ-row ${active ? 'is-active' : ''}`} onClick={() => void (active ? disconnect() : connect(profile.id))}>
-          <span className="happ-flag">{profile.flag || '🌐'}</span>
+          <Flag code={profile.country} />
           <span className="happ-copy">
             <strong>{profile.countryName && profile.countryName !== 'Другие' ? profile.countryName : profile.name}</strong>
             <small>{stackOf(profile)}</small>

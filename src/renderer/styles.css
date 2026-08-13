@@ -146,6 +146,7 @@ kbd { padding: 3px 5px; border: 1px solid rgba(255,255,255,.1); border-radius: 5
 .happ-row:hover { background: rgba(28,36,52,.92); }
 .happ-row.is-active { box-shadow: inset 0 0 0 1px rgba(113,244,184,.28); }
 .happ-flag { font-size: 22px; line-height: 1; }
+.happ-flag-img { width: 28px; height: 20px; object-fit: cover; border-radius: 3px; box-shadow: 0 0 0 1px rgba(255,255,255,.08); }
 .happ-copy { min-width: 0; }
 .happ-copy strong { display: block; color: #e8eef8; font-size: 14px; }
 .happ-copy small { display: block; margin-top: 4px; color: #7f8da3; font-size: 10px; letter-spacing: .04em; text-transform: uppercase; }
