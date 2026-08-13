@@ -1,12 +1,12 @@
 import { useEffect, useMemo, useState } from 'react';
 import type { AppSettings, UpdateInfo, VpnProfile, VpnRuntime, VpnSubscriptionInfo } from '../main/types';
 import { canConnect, displayName } from '../main/vpn-classify';
+import { Flag } from './Flag';
 
 function cleanError(error: unknown): string {
   const raw = error instanceof Error ? error.message : String(error);
   return raw.replace(/^Error invoking remote method '[^']+':\s*(?:Error:\s*)?/i, '').trim();
 }
-import { Flag } from './Flag';
 
 const EMPTY_RUNTIME: VpnRuntime = {
   status: 'disconnected',
@@ -33,7 +33,7 @@ function formatBytes(value?: number): string {
 
 function formatWhen(value?: string): string {
   if (!value) return '—';
-  return new Intl.DateTimeFormat('ru-RU', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' }).format(new Date(value));
+  return new Intl.DateTimeFormat('ru-RU', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' }).format(new Date(value));
 }
 
 function formatExpire(value?: string): string {
@@ -50,11 +50,25 @@ function stackOf(profile: VpnProfile): string {
   return profile.stack || `${profile.protocol.toUpperCase()} / ${(profile.params.network || 'TCP').toUpperCase()} / ${(profile.params.security || 'NONE').toUpperCase()} / JSON`;
 }
 
+function telegramOf(info?: VpnSubscriptionInfo): string | null {
+  const blob = `${info?.title || ''} ${info?.supportUrl || ''} ${info?.announce || ''}`;
+  const match = blob.match(/@[\w_]{4,}/);
+  if (match) return match[0];
+  try {
+    if (info?.supportUrl && /t\.me\//i.test(info.supportUrl)) return `@${new URL(info.supportUrl).pathname.replace(/^\//, '')}`;
+  } catch { /* ignore */ }
+  return info?.title || null;
+}
+
 function Signal({ ms }: { ms?: number | null }) {
-  const level = ms == null ? 0 : ms < 90 ? 4 : ms < 160 ? 3 : ms < 260 ? 2 : 1;
-  const tone = level >= 3 ? 'good' : level === 2 ? 'ok' : level === 1 ? 'weak' : 'off';
-  return <span className={`happ-signal ${tone}`} title={ms == null ? 'Нет замера' : `${ms} мс`}>
-    {[1, 2, 3, 4].map((bar) => <i key={bar} className={bar <= level ? 'on' : ''} />)}
+  if (ms == null) {
+    return <span className="happ-ping off" title="Ещё не измеряли"><span className="happ-signal off">{[1, 2, 3, 4].map((bar) => <i key={bar} />)}</span><em>—</em></span>;
+  }
+  const level = ms < 60 ? 4 : ms < 120 ? 3 : ms < 220 ? 2 : 1;
+  const tone = level >= 3 ? 'good' : level === 2 ? 'ok' : 'weak';
+  return <span className={`happ-ping ${tone}`} title={`${ms} мс`}>
+    <span className={`happ-signal ${tone}`}>{[1, 2, 3, 4].map((bar) => <i key={bar} className={bar <= level ? 'on' : ''} />)}</span>
+    <em>{ms}</em>
   </span>;
 }
 
@@ -75,9 +89,11 @@ export function Jey2RayPage({
 }) {
   const [link, setLink] = useState('');
   const [name, setName] = useState('');
+  const [importOpen, setImportOpen] = useState(false);
   const [profiles, setProfiles] = useState<VpnProfile[]>([]);
   const [runtime, setRuntime] = useState<VpnRuntime>(EMPTY_RUNTIME);
   const [busy, setBusy] = useState(false);
+  const [action, setAction] = useState<'refresh' | 'ping' | null>(null);
   const [tab, setTab] = useState('all');
   const [selectedId, setSelectedId] = useState<string | null>(settings.lastVpnProfileId);
   const desktop = Boolean(window.nexus);
@@ -91,7 +107,7 @@ export function Jey2RayPage({
       setProfiles(snapshot.profiles);
       setRuntime(snapshot.runtime);
       if (snapshot.runtime.activeProfileId) setSelectedId(snapshot.runtime.activeProfileId);
-    }).catch((error: Error) => onToast(error.message));
+    }).catch((error: Error) => onToast(cleanError(error)));
     return api.onVpnChanged((snapshot) => {
       setProfiles(snapshot.profiles);
       setRuntime(snapshot.runtime);
@@ -102,7 +118,7 @@ export function Jey2RayPage({
     if (!desktop || runtime.xrayReady) return;
     void window.nexus?.ensureVpnCore().then(() => window.nexus?.getVpn()).then((snapshot) => {
       if (snapshot) setRuntime(snapshot.runtime);
-    }).catch((error: Error) => onToast(error.message));
+    }).catch((error: Error) => onToast(cleanError(error)));
   }, [desktop, runtime.xrayReady, onToast]);
 
   const nodes = useMemo(() => profiles.filter((item) => item.kind !== 'notice'), [profiles]);
@@ -111,8 +127,10 @@ export function Jey2RayPage({
   const info: VpnSubscriptionInfo | undefined = (runtime.subscriptions ?? []).find((item) => tab !== 'all' && item.url === tab) ?? runtime.subscriptions?.[0];
   const selected = nodes.find((item) => item.id === selectedId) ?? nodes.find((item) => !canConnect(item)) ?? nodes[0] ?? null;
   const onAir = runtime.status === 'connected' && runtime.activeProfileId === selected?.id;
+  const otherLive = runtime.status === 'connected' && runtime.activeProfileId !== selected?.id;
   const used = (info?.upload ?? 0) + (info?.download ?? 0);
   const quota = info?.total ? formatBytes(info.total) : '∞';
+  const title = telegramOf(info) || 'Jey2Ray';
 
   const importLink = async () => {
     try {
@@ -124,6 +142,7 @@ export function Jey2RayPage({
       const imported = await window.nexus?.importVpn(link, name || undefined);
       if (imported?.length) {
         setLink('');
+        setImportOpen(false);
         if (imported[0].subscriptionUrl) setTab(imported[0].subscriptionUrl);
         setSelectedId(imported[0].id);
         onToast(`Подписка: серверов ${imported.length}`);
@@ -149,7 +168,6 @@ export function Jey2RayPage({
         setRuntime({ ...runtime, status: 'connected', activeProfileId: id, pid: 4400 });
         return;
       }
-      if (!runtime.xrayReady) onToast('Скачиваем Xray-core, затем подключаемся…');
       await window.nexus?.connectVpn(id);
     } catch (error) {
       onToast(cleanError(error) || 'Не удалось подключиться');
@@ -175,34 +193,68 @@ export function Jey2RayPage({
       onToast('Сначала выбери сервер слева');
       return;
     }
-    if (onAir || runtime.status === 'connected') await disconnect();
+    if (onAir) await disconnect();
     else await connect(selected.id);
   };
 
+  const refresh = async () => {
+    setAction('refresh');
+    try {
+      const count = await window.nexus?.refreshVpn();
+      onToast(count ? `Обновлено · ${count}` : 'Нет подписок');
+    } catch (error) {
+      onToast(cleanError(error));
+    } finally {
+      setAction(null);
+    }
+  };
+
+  const ping = async () => {
+    setAction('ping');
+    try {
+      const next = await window.nexus?.pingVpn();
+      if (next) setProfiles(next);
+      onToast('Пинг измерен');
+    } catch (error) {
+      onToast(cleanError(error));
+    } finally {
+      setAction(null);
+    }
+  };
+
+  const powerLabel = onAir
+    ? `Работает · ${mode.toUpperCase()} · 127.0.0.1:${runtime.inboundPort + 1}`
+    : otherLive
+      ? 'Другой сервер онлайн. Нажми — переключить сюда'
+      : runtime.status === 'connecting'
+        ? 'Подключаем…'
+        : runtime.status === 'error'
+          ? (runtime.error || 'Ошибка')
+          : 'Выключено';
+
   return <section className="page-section jey-page happ-shell">
     <div className="happ-left">
-      <div className="jey-import compact">
+      <div className="jey-toolbar tight">
+        <h2>Серверы</h2>
+        <div className="jey-toolbar-actions">
+          <button className="ghost-action" onClick={() => setImportOpen((value) => !value)}><b>+</b> Добавить подписку</button>
+          <button className={`ghost-action ${action === 'refresh' ? 'is-spin' : ''}`} disabled={busy || Boolean(action)} onClick={() => void refresh()}>
+            <i className="spin-ico">⟳</i> Обновить
+          </button>
+          <button className={`ghost-action ${action === 'ping' ? 'is-spin' : ''}`} disabled={busy || Boolean(action)} onClick={() => void ping()}>
+            <i className="spin-ico">⌁</i> Тест пинга
+          </button>
+          {!runtime.xrayReady && <button className="ghost-action" disabled={syncing} onClick={onSync}>Скачать ядро {xrayUpdate?.latestVersion ?? ''}</button>}
+        </div>
+      </div>
+
+      {importOpen && <div className="jey-import compact slide-in">
         <textarea className="jey-link" rows={2} value={link} onChange={(event) => setLink(event.target.value)} placeholder="Подписка https://… или vless:// hy2://" />
         <div className="jey-import-row">
           <input className="jey-name" value={name} onChange={(event) => setName(event.target.value)} placeholder="Имя (необязательно)" />
           <button className="primary-button small" disabled={busy || !link.trim()} onClick={() => void importLink()}>Добавить</button>
         </div>
-      </div>
-
-      <div className="jey-toolbar tight">
-        <h2>Серверы</h2>
-        <div className="jey-toolbar-actions">
-          <button className="quiet-button" disabled={busy} onClick={() => void window.nexus?.refreshVpn().then((count) => onToast(count ? `Обновлено · ${count}` : 'Нет подписок')).catch((error: Error) => onToast(error.message))}>Обновить</button>
-          <button className="quiet-button" disabled={busy} onClick={() => {
-            setBusy(true);
-            void window.nexus?.pingVpn().then((next) => {
-              if (next) setProfiles(next);
-              onToast('Пинг измерен');
-            }).catch((error: Error) => onToast(error.message)).finally(() => setBusy(false));
-          }}>Тест пинга</button>
-          {!runtime.xrayReady && <button className="quiet-button" disabled={syncing} onClick={onSync}>Скачать ядро {xrayUpdate?.latestVersion ?? ''}</button>}
-        </div>
-      </div>
+      </div>}
 
       {tabs.length > 1 && <div className="jey-subs">
         {tabs.map((key) => <button key={key} className={`jey-sub ${tab === key ? 'active' : ''}`} onClick={() => setTab(key)}>
@@ -210,19 +262,17 @@ export function Jey2RayPage({
         </button>)}
       </div>}
 
-      <div className="happ-subhead">
-        <div className="happ-subhead-top">
-          <strong>{info?.title || 'Jey2Ray'}</strong>
+      <div className="happ-card">
+        <div className="happ-card-top">
+          <strong>{title}</strong>
           <span>узлов {visible.length}</span>
         </div>
-        <div className="happ-quota">
+        <div className="happ-card-meta">
           <span>{formatBytes(used)} / {quota}</span>
-          <em>Истекает: {formatExpire(info?.expireAt)}</em>
+          <span>истекает {formatExpire(info?.expireAt)}</span>
+          <span>обновлено {formatWhen(info?.lastSync)}</span>
         </div>
-        <div className="happ-quota happ-quota-soft">
-          <span>Обновлено {formatWhen(info?.lastSync)}</span>
-        </div>
-        {info?.announce && <div className="happ-announce">{info.announce}</div>}
+        {info?.announce && <div className="happ-ribbon">{info.announce}</div>}
       </div>
 
       <div className="happ-list">
@@ -244,18 +294,19 @@ export function Jey2RayPage({
     </div>
 
     <aside className="happ-right">
-      <button className={`power-btn ${onAir ? 'is-on' : ''} ${runtime.status === 'connecting' ? 'is-wait' : ''}`} disabled={busy} onClick={() => void togglePower()} aria-label={onAir ? 'Выключить VPN' : 'Включить VPN'}>
-        <b className="radar-ring r1" />
-        <b className="radar-ring r2" />
-        <b className="radar-ring r3" />
-        <span>⏻</span>
+      <button
+        className={`power-orb ${onAir ? 'is-on' : ''} ${otherLive ? 'is-other' : ''} ${runtime.status === 'connecting' ? 'is-wait' : ''}`}
+        disabled={busy}
+        onClick={() => void togglePower()}
+        aria-label={onAir ? 'Выключить VPN' : otherLive ? 'Переключить сервер' : 'Включить VPN'}
+      >
+        <span className="orb-halo" />
+        <span className="orb-core">⏻</span>
       </button>
       <div className="power-meta">
         {selected ? <Flag code={selected.country} /> : null}
         <strong>{selected ? displayName(selected) : 'Сервер не выбран'}</strong>
-        <small>
-          {runtime.status === 'connected' ? `Работает · ${mode.toUpperCase()} · 127.0.0.1:${runtime.inboundPort + 1}` : runtime.status === 'connecting' ? 'Подключаем…' : runtime.status === 'error' ? (runtime.error || 'Ошибка') : 'Выключено'}
-        </small>
+        <small>{powerLabel}</small>
       </div>
       <div className="mode-switch">
         <button className={mode === 'proxy' ? 'active' : ''} onClick={() => onSettings({ ...settings, vpnMode: 'proxy' })}>Proxy</button>
@@ -270,7 +321,7 @@ export function Jey2RayPage({
         <i />
         <span>Автоподключение</span>
       </button>
-      {!runtime.xrayReady && <div className="jey-note"><span>i</span><div><strong>Ставим Xray</strong><p>{xrayUpdate?.error || 'Качаем ядро с GitHub. Потом нажми большую кнопку.'}</p></div></div>}
+      {!runtime.xrayReady && <div className="jey-note"><span>i</span><div><strong>Ставим ядро</strong><p>{xrayUpdate?.error || 'Качаем Xray / sing-box. Потом нажми большую кнопку.'}</p></div></div>}
     </aside>
   </section>;
 }
