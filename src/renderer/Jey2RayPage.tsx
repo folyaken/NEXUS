@@ -203,30 +203,36 @@ export function Jey2RayPage({
     else await connect(selected.id);
   };
 
-  const refresh = async () => {
-    setAction('refresh');
+  const holdAction = async (kind: 'refresh' | 'ping', work: () => Promise<void>, minMs: number) => {
+    setAction(kind);
+    const started = Date.now();
+    try {
+      await work();
+    } finally {
+      const wait = minMs - (Date.now() - started);
+      if (wait > 0) await new Promise((resolve) => setTimeout(resolve, wait));
+      setAction(null);
+    }
+  };
+
+  const refresh = () => holdAction('refresh', async () => {
     try {
       const count = await window.nexus?.refreshVpn();
       onToast(count ? `Обновлено · ${count}` : 'Нет подписок');
     } catch (error) {
       onToast(cleanError(error));
-    } finally {
-      setAction(null);
     }
-  };
+  }, 1100);
 
-  const ping = async () => {
-    setAction('ping');
+  const ping = () => holdAction('ping', async () => {
     try {
       const next = await window.nexus?.pingVpn();
       if (next) setProfiles(next);
       onToast('Пинг измерен');
     } catch (error) {
       onToast(cleanError(error));
-    } finally {
-      setAction(null);
     }
-  };
+  }, 1400);
 
   const powerLabel = onAir
     ? `Работает · ${mode.toUpperCase()} · 127.0.0.1:${runtime.inboundPort + 1}`
@@ -248,17 +254,17 @@ export function Jey2RayPage({
             Добавить подписку
           </button>
           <button className={`ghost-action ${action === 'refresh' ? 'is-spin' : ''}`} disabled={busy || Boolean(action)} onClick={() => void refresh()}>
-            <svg className="ico spin-ico" viewBox="0 0 16 16" aria-hidden>
-              <path d="M12.55 5.15A5.1 5.1 0 1 1 11.05 3.5" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" />
-              <path d="M12.5 2.05v3.1H9.4" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" />
+            <svg className="ico spin-ico" viewBox="0 0 18 18" aria-hidden>
+              <path d="M13.7 5.35A5.45 5.45 0 1 1 12.05 3.4" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" />
+              <path d="M11.15 2.05 14.05 3.55 12.2 6.2" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" />
             </svg>
             Обновить
           </button>
           <button className={`ghost-action ${action === 'ping' ? 'is-rev' : ''}`} disabled={busy || Boolean(action)} onClick={() => void ping()}>
-            <svg className="ico gauge-ico" viewBox="0 0 16 16" aria-hidden>
-              <path d="M3.15 11.4a5.65 5.65 0 0 1 9.7 0" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" />
-              <path className="gauge-needle" d="M8 11.35 5.2 6.25" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" />
-              <circle cx="8" cy="11.35" r="1.15" fill="currentColor" />
+            <svg className="ico gauge-ico" viewBox="0 0 22 16" aria-hidden>
+              <path d="M2.4 13.1a8.6 8.6 0 0 1 17.2 0" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" />
+              <path className="gauge-needle" d="M11 13.05 5.4 7.1" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" />
+              <circle cx="11" cy="13.05" r="1.25" fill="currentColor" />
             </svg>
             Тест пинга
           </button>

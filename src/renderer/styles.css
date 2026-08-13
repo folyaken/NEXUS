@@ -215,13 +215,14 @@ kbd { padding: 3px 5px; border: 1px solid rgba(255,255,255,.1); border-radius: 5
 .ghost-action { display: inline-flex; align-items: center; gap: 7px; padding: 8px 12px; border-radius: 11px; background: rgba(255,255,255,.03); color: #b7c3d4; font-size: 12px; font-weight: 700; transition: transform .16s ease, background .16s ease, color .16s ease; }
 .ghost-action:hover { background: rgba(124,242,213,.1); color: #e8fff8; transform: translateY(-1px); }
 .ghost-action:active { transform: translateY(1px) scale(.98); }
-.ghost-action .ico { width: 15px; height: 15px; flex: 0 0 15px; }
+.ghost-action .ico { width: 16px; height: 16px; flex: 0 0 16px; }
+.ghost-action .gauge-ico { width: 22px; height: 16px; flex: 0 0 22px; }
 .ghost-action.is-spin { color: var(--cyan); }
 .ghost-action.is-rev { color: var(--cyan); }
 .spin-ico { transform-origin: 50% 50%; }
-.ghost-action.is-spin .spin-ico { animation: spin 0.7s linear infinite; }
-.gauge-needle { transform-origin: 8px 11.35px; transform: rotate(-8deg); }
-.ghost-action.is-rev .gauge-needle { animation: gauge-rev 0.85s cubic-bezier(.2,.7,.2,1) infinite; }
+.ghost-action.is-spin .spin-ico { animation: refresh-turn 1.05s cubic-bezier(.45,.12,.18,1) 1 both; }
+.gauge-needle { transform-origin: 11px 13.05px; transform: rotate(-6deg); }
+.ghost-action.is-rev .gauge-needle { animation: gauge-rev 1.35s cubic-bezier(.18,.7,.22,1) 1 both; }
 @keyframes spin { to { transform: rotate(360deg); } }
 @keyframes gauge-rev {
   0% { transform: rotate(-78deg); }
