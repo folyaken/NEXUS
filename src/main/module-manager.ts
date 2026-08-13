@@ -57,11 +57,13 @@ export class ModuleManager extends EventEmitter {
   }
 
   list(): ModuleManifest[] {
-    return [...this.modules.values()].map((module) => ({
-      ...module,
-      args: [...module.args],
-      strategies: module.strategies ? { ...module.strategies } : undefined,
-    }));
+    return [...this.modules.values()]
+      .filter((module) => module.id !== 'jey2ray')
+      .map((module) => ({
+        ...module,
+        args: [...module.args],
+        strategies: module.strategies ? { ...module.strategies } : undefined,
+      }));
   }
 
   getLogs(id?: string): ModuleLog[] {

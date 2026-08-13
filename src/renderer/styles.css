@@ -215,9 +215,9 @@ kbd { padding: 3px 5px; border: 1px solid rgba(255,255,255,.1); border-radius: 5
 .ghost-action { display: inline-flex; align-items: center; gap: 7px; padding: 8px 12px; border-radius: 11px; background: rgba(255,255,255,.03); color: #b7c3d4; font-size: 12px; font-weight: 700; transition: transform .16s ease, background .16s ease, color .16s ease; }
 .ghost-action:hover { background: rgba(124,242,213,.1); color: #e8fff8; transform: translateY(-1px); }
 .ghost-action:active { transform: translateY(1px) scale(.98); }
-.ghost-action b { display: grid; width: 18px; height: 18px; place-items: center; border-radius: 6px; background: linear-gradient(130deg, #83efd1, #a993ff); color: #121827; font-size: 14px; }
+.ghost-action .ico { width: 15px; height: 15px; flex: 0 0 15px; }
 .ghost-action.is-spin { color: var(--cyan); }
-.spin-ico { display: inline-block; }
+.spin-ico { transform-origin: 50% 50%; }
 .ghost-action.is-spin .spin-ico { animation: spin 0.7s linear infinite; }
 @keyframes spin { to { transform: rotate(360deg); } }
 .slide-in { animation: slide-in .22s ease; }
@@ -234,6 +234,8 @@ kbd { padding: 3px 5px; border: 1px solid rgba(255,255,255,.1); border-radius: 5
 .happ-ping.good em { color: #71f4b8; }
 .happ-ping.ok em { color: #f8c76c; }
 .happ-ping.weak em { color: #ff9a4a; }
+.happ-ping.soft em { color: #8fd8c8; }
+.happ-signal.soft i.on { background: #5ee0c0; }
 .happ-signal { display: inline-flex; align-items: flex-end; gap: 2px; height: 14px; }
 .happ-signal i { display: block; width: 3px; border-radius: 1px; background: #2d3648; }
 .happ-signal i:nth-child(1) { height: 4px; }

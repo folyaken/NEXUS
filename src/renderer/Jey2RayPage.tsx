@@ -64,6 +64,12 @@ function Signal({ ms }: { ms?: number | null }) {
   if (ms == null) {
     return <span className="happ-ping off" title="Ещё не измеряли"><span className="happ-signal off">{[1, 2, 3, 4].map((bar) => <i key={bar} />)}</span><em>—</em></span>;
   }
+  if (ms < 0) {
+    return <span className="happ-ping soft" title="Порт не отвечает на TCP, но узел рабочий (часто Reality / Hysteria)">
+      <span className="happ-signal soft">{[1, 2, 3, 4].map((bar) => <i key={bar} className={bar <= 3 ? 'on' : ''} />)}</span>
+      <em>ок</em>
+    </span>;
+  }
   const level = ms < 60 ? 4 : ms < 120 ? 3 : ms < 220 ? 2 : 1;
   const tone = level >= 3 ? 'good' : level === 2 ? 'ok' : 'weak';
   return <span className={`happ-ping ${tone}`} title={`${ms} мс`}>

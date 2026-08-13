@@ -219,7 +219,8 @@ export class VpnManager extends EventEmitter {
       while (queue.length) {
         const profile = queue.shift();
         if (!profile) break;
-        profile.pingMs = await this.tcpPing(profile.server, profile.port);
+        const ms = await this.tcpPing(profile.server, profile.port);
+        profile.pingMs = ms ?? -1;
         this.profiles.set(profile.id, profile);
         this.emit('changed', this.snapshot());
       }
