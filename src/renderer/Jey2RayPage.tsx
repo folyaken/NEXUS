@@ -189,14 +189,14 @@ export function Jey2RayPage({
           <strong>{info?.title || 'Jey2Ray'}</strong>
           <span>узлов {visible.length}</span>
         </div>
-        {info?.description && !info.description.includes('upload=') && <p className="happ-subdesc">{info.description}</p>}
-        <div className="happ-meta-grid">
-          <span>Трафик <b>{formatBytes(used)} / {quota}</b></span>
-          <span>Срок <b>{formatExpire(info?.expireAt)}</b></span>
-          <span>Обновлено <b>{formatWhen(info?.lastSync)}</b></span>
-          <span>Интервал <b>{info?.updateHours ? `${info.updateHours} ч` : '—'}</b></span>
+        <div className="happ-quota">
+          <span>{formatBytes(used)} / {quota}</span>
+          <em>Истекает: {formatExpire(info?.expireAt)}</em>
         </div>
-        {info?.supportUrl && <a className="happ-support" href={info.supportUrl} target="_blank" rel="noreferrer">Поддержка</a>}
+        <div className="happ-quota happ-quota-soft">
+          <span>Обновлено {formatWhen(info?.lastSync)}</span>
+          {info?.supportUrl ? <a className="happ-support" href={info.supportUrl} target="_blank" rel="noreferrer">поддержка</a> : <span />}
+        </div>
         {info?.announce && <div className="happ-announce">{info.announce}</div>}
       </div>
 
@@ -237,10 +237,10 @@ export function Jey2RayPage({
           ? 'Proxy: Windows получит системный HTTP-прокси. Браузер начнёт ходить через выбранный сервер.'
           : 'TUN: весь трафик системы. Нужны права администратора. Если не стартует — вернись на Proxy.'}
       </p>
-      <label className="jey-autostart">
-        <input type="checkbox" checked={settings.autoConnectVpn} onChange={() => onSettings({ ...settings, autoConnectVpn: !settings.autoConnectVpn })} />
-        Автоподключение
-      </label>
+      <button type="button" className={`nx-switch ${settings.autoConnectVpn ? 'is-on' : ''}`} onClick={() => onSettings({ ...settings, autoConnectVpn: !settings.autoConnectVpn })}>
+        <i />
+        <span>Автоподключение</span>
+      </button>
       {!runtime.xrayReady && <div className="jey-note"><span>i</span><div><strong>Ставим Xray</strong><p>{xrayUpdate?.error || 'Качаем ядро с GitHub. Потом нажми большую кнопку.'}</p></div></div>}
     </aside>
   </section>;

@@ -29,10 +29,14 @@ function candidateUrls(raw: string): string[] {
     `${base}?flag=v2ray`,
     `${base}?flag=clash`,
     `${base}?flag=happ`,
+    `${base}?flag=sing`,
+    `${base}?flag=sing-box`,
     `${base}?target=v2ray`,
+    `${base}?target=clash`,
     `${base}?format=v2ray`,
     `${base}/v2ray`,
     `${base}/clash`,
+    `${base}/singbox`,
   ];
   return [...new Set(extras)];
 }
@@ -115,13 +119,20 @@ export function extractClashProfiles(text: string): VpnProfile[] {
   return profiles;
 }
 
+function flattenJsonNodes(data: unknown): Record<string, unknown>[] {
+  if (Array.isArray(data)) return data.filter((item): item is Record<string, unknown> => Boolean(item) && typeof item === 'object');
+  if (!data || typeof data !== 'object') return [];
+  const record = data as Record<string, unknown>;
+  const nested = [record.proxies, record.outbounds, record.servers, record.nodes];
+  return nested.flatMap((item) => flattenJsonNodes(item));
+}
+
 export function extractJsonProfiles(text: string): VpnProfile[] {
   const trimmed = text.trim();
   if (!trimmed.startsWith('{') && !trimmed.startsWith('[')) return [];
   try {
-    const data = JSON.parse(trimmed) as { proxies?: Record<string, unknown>[] } | Record<string, unknown>[];
-    const list = Array.isArray(data) ? data : data.proxies;
-    if (!Array.isArray(list)) return [];
+    const list = flattenJsonNodes(JSON.parse(trimmed));
+    if (!list.length) return [];
     const yamlish = list.map((item) => Object.entries(item).map(([key, value]) => {
       if (value && typeof value === 'object') {
         return Object.entries(value as Record<string, unknown>).map(([inner, innerValue]) => `  ${inner}: ${innerValue}`).join('\n');
@@ -134,33 +145,35 @@ export function extractJsonProfiles(text: string): VpnProfile[] {
   }
 }
 
-function parseUserInfo(response: Response, url: string): VpnSubscriptionInfo {
-  const raw = response.headers.get('subscription-userinfo') || response.headers.get('Subscription-Userinfo') || '';
+function headerOrComment(source: string, key: string): string {
+  const match = source.match(new RegExp(`(?:^|[\\r\\n])#?\\s*${key}:\\s*(.+)`, 'i'));
+  return match?.[1]?.trim() || '';
+}
+
+function decodeMaybeBase64(value: string): string {
+  if (!value.toLowerCase().startsWith('base64:')) return value;
+  try { return Buffer.from(value.slice(7), 'base64').toString('utf8'); } catch { return value; }
+}
+
+function parseUserInfo(response: Response, url: string, body = ''): VpnSubscriptionInfo {
+  const raw = response.headers.get('subscription-userinfo') || headerOrComment(body, 'subscription-userinfo') || '';
   const parts = Object.fromEntries(raw.split(';').map((item) => {
     const [key, value] = item.split('=').map((part) => part.trim());
     return [key, value];
   }).filter((item) => item[0]));
-  let title = response.headers.get('profile-title') || '';
-  if (title.toLowerCase().startsWith('base64:')) {
-    try { title = Buffer.from(title.slice(7), 'base64').toString('utf8'); } catch { /* keep */ }
-  }
-  let announce = response.headers.get('announce') || '';
-  if (announce.toLowerCase().startsWith('base64:')) {
-    try { announce = Buffer.from(announce.slice(7), 'base64').toString('utf8'); } catch { /* keep */ }
-  }
+  const title = decodeMaybeBase64(response.headers.get('profile-title') || headerOrComment(body, 'profile-title') || '');
+  const announce = decodeMaybeBase64(response.headers.get('announce') || headerOrComment(body, 'announce') || '');
   const expire = Number(parts.expire);
-  const description = response.headers.get('profile-description') || response.headers.get('subscription-userinfo') || undefined;
   return {
     url,
     title: title || new URL(url).host,
-    supportUrl: response.headers.get('support-url') || undefined,
+    supportUrl: response.headers.get('support-url') || headerOrComment(body, 'support-url') || undefined,
     announce: announce || response.headers.get('profile-web-page-url') || undefined,
-    description,
     expireAt: Number.isFinite(expire) && expire > 0 ? new Date(expire * 1000).toISOString() : undefined,
     upload: Number(parts.upload) || 0,
     download: Number(parts.download) || 0,
     total: Number(parts.total) || 0,
-    updateHours: Number(response.headers.get('profile-update-interval')) || 1,
+    updateHours: Number(response.headers.get('profile-update-interval') || headerOrComment(body, 'profile-update-interval')) || 1,
     lastSync: new Date().toISOString(),
   };
 }
@@ -206,7 +219,7 @@ export async function fetchSubscriptionMaterial(url: string, hwid: string, log: 
       const response = await fetch(extra, { headers: headers('v2rayN/6.55', hwid), redirect: 'follow' });
       if (!response.ok) continue;
       const body = await response.text();
-      take(extractShareLinks(body), extractClashProfiles(body), parseUserInfo(response, url));
+      take(extractShareLinks(body), extractClashProfiles(body), parseUserInfo(response, url, body));
     } catch { /* next */ }
   }
 
