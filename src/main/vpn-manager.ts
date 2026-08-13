@@ -177,6 +177,7 @@ export class VpnManager extends EventEmitter {
       title: material.info?.title || parsed.host,
       supportUrl: material.info?.supportUrl,
       announce: material.info?.announce,
+      description: material.info?.description,
       expireAt: material.info?.expireAt,
       upload: material.info?.upload ?? 0,
       download: material.info?.download ?? 0,
@@ -247,15 +248,18 @@ export class VpnManager extends EventEmitter {
     this.child = child;
     this.pid = child.pid ?? null;
 
-    const write = (chunk: Buffer, level: ModuleLog['level']) => {
+    child.stdout?.on('data', (chunk: Buffer) => {
       const text = chunk.toString().trim();
       if (!text) return;
-      if (level === 'error') lastErr = text.slice(-300);
       logStream.write(`[${new Date().toISOString()}] ${text}\n`);
-      this.emitLog(level, text);
-    };
-    child.stdout?.on('data', (chunk: Buffer) => write(chunk, 'info'));
-    child.stderr?.on('data', (chunk: Buffer) => write(chunk, 'error'));
+    });
+    child.stderr?.on('data', (chunk: Buffer) => {
+      const text = chunk.toString().trim();
+      if (!text) return;
+      lastErr = text.slice(-300);
+      logStream.write(`[${new Date().toISOString()}] ${text}\n`);
+      if (/failed|error|fatal|invalid/i.test(text)) this.emitLog('error', text.slice(0, 240));
+    });
     child.once('error', (error) => {
       logStream.end();
       this.child = null;

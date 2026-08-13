@@ -105,6 +105,7 @@ export interface VpnSubscriptionInfo {
   title: string;
   supportUrl?: string;
   announce?: string;
+  description?: string;
   expireAt?: string;
   upload?: number;
   download?: number;

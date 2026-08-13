@@ -26,9 +26,19 @@ function formatBytes(value?: number): string {
   return `${(mb / 1024).toFixed(1)} GB`;
 }
 
-function formatExpire(value?: string): string {
+function formatWhen(value?: string): string {
   if (!value) return '—';
-  return new Intl.DateTimeFormat('ru-RU', { day: '2-digit', month: '2-digit', year: 'numeric' }).format(new Date(value));
+  return new Intl.DateTimeFormat('ru-RU', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' }).format(new Date(value));
+}
+
+function formatExpire(value?: string): string {
+  if (!value) return 'без срока';
+  const date = new Date(value);
+  const days = Math.round((date.getTime() - Date.now()) / 86_400_000);
+  const stamp = new Intl.DateTimeFormat('ru-RU', { day: '2-digit', month: '2-digit', year: 'numeric' }).format(date);
+  if (days < 0) return `${stamp} · истекла`;
+  if (days === 0) return `${stamp} · сегодня`;
+  return `${stamp} · ещё ${days} дн.`;
 }
 
 function stackOf(profile: VpnProfile): string {
@@ -164,7 +174,7 @@ export function Jey2RayPage({
         <h2>Серверы</h2>
         <div className="jey-toolbar-actions">
           <button className="quiet-button" disabled={busy} onClick={() => void window.nexus?.refreshVpn().then((count) => onToast(count ? `Обновлено · ${count}` : 'Нет подписок')).catch((error: Error) => onToast(error.message))}>Обновить</button>
-          <button className="quiet-button" disabled={syncing} onClick={onSync}>{runtime.xrayReady ? 'Xray ок' : 'Скачать Xray'} {xrayUpdate?.latestVersion ?? ''}</button>
+          {!runtime.xrayReady && <button className="quiet-button" disabled={syncing} onClick={onSync}>Скачать ядро {xrayUpdate?.latestVersion ?? ''}</button>}
         </div>
       </div>
 
@@ -179,10 +189,14 @@ export function Jey2RayPage({
           <strong>{info?.title || 'Jey2Ray'}</strong>
           <span>узлов {visible.length}</span>
         </div>
-        <div className="happ-quota">
-          <span>{formatBytes(used)} / {quota}</span>
-          <em>Истекает: {formatExpire(info?.expireAt)}</em>
+        {info?.description && !info.description.includes('upload=') && <p className="happ-subdesc">{info.description}</p>}
+        <div className="happ-meta-grid">
+          <span>Трафик <b>{formatBytes(used)} / {quota}</b></span>
+          <span>Срок <b>{formatExpire(info?.expireAt)}</b></span>
+          <span>Обновлено <b>{formatWhen(info?.lastSync)}</b></span>
+          <span>Интервал <b>{info?.updateHours ? `${info.updateHours} ч` : '—'}</b></span>
         </div>
+        {info?.supportUrl && <a className="happ-support" href={info.supportUrl} target="_blank" rel="noreferrer">Поддержка</a>}
         {info?.announce && <div className="happ-announce">{info.announce}</div>}
       </div>
 

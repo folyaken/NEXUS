@@ -4,11 +4,9 @@ import { extractShareLinks } from './share-link';
 import { enrichProfile } from './vpn-classify';
 
 const CLIENT_UAS = [
+  'Happ/3.4.6',
   'v2rayN/6.55',
-  'v2rayNG/1.8.34',
   'clash-meta/1.18.0',
-  'ClashMetaForAndroid/2.11.0',
-  'HiddifyNext/2.0',
 ];
 
 function headers(ua: string, hwid: string): Record<string, string> {
@@ -30,6 +28,7 @@ function candidateUrls(raw: string): string[] {
     raw,
     `${base}?flag=v2ray`,
     `${base}?flag=clash`,
+    `${base}?flag=happ`,
     `${base}?target=v2ray`,
     `${base}?format=v2ray`,
     `${base}/v2ray`,
@@ -145,12 +144,18 @@ function parseUserInfo(response: Response, url: string): VpnSubscriptionInfo {
   if (title.toLowerCase().startsWith('base64:')) {
     try { title = Buffer.from(title.slice(7), 'base64').toString('utf8'); } catch { /* keep */ }
   }
+  let announce = response.headers.get('announce') || '';
+  if (announce.toLowerCase().startsWith('base64:')) {
+    try { announce = Buffer.from(announce.slice(7), 'base64').toString('utf8'); } catch { /* keep */ }
+  }
   const expire = Number(parts.expire);
+  const description = response.headers.get('profile-description') || response.headers.get('subscription-userinfo') || undefined;
   return {
     url,
     title: title || new URL(url).host,
     supportUrl: response.headers.get('support-url') || undefined,
-    announce: response.headers.get('announce') || response.headers.get('profile-web-page-url') || undefined,
+    announce: announce || response.headers.get('profile-web-page-url') || undefined,
+    description,
     expireAt: Number.isFinite(expire) && expire > 0 ? new Date(expire * 1000).toISOString() : undefined,
     upload: Number(parts.upload) || 0,
     download: Number(parts.download) || 0,

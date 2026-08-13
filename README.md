@@ -24,6 +24,8 @@
 
 Бери готовый плоский архив `NEXUS.zip` из корня ветки (внутри сразу `package.json`, `src`, `modules`).
 
+При `npm install` / `npm start` автоматически ставится **Xray-core** в `modules/bin` (официальный релиз XTLS). В Happ ядро тоже внутри клиента, пользователь его отдельно не качает.
+
 ## Jey2Ray
 
 Вкладка **Jey2Ray** — VPN-клиент на Xray-core. Вставь `vless://`, `vmess://`, `trojan://` или `ss://`. Ядро качается с `XTLS/Xray-core` в `modules/bin/xray.exe`. Профили лежат в `modules/configs/vpn/`. Локальный SOCKS: `127.0.0.1:10808`.
