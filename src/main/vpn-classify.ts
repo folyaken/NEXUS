@@ -22,8 +22,8 @@ const COUNTRIES: Record<string, { name: string; flag: string }> = {
 };
 
 const NAME_TO_ISO: Array<[RegExp, string]> = [
-  [/nether|голланд|amsterdam/i, 'NL'], [/german|deutsch|герман|frankfurt|berlin/i, 'DE'],
-  [/united.?states|america|сша|new.?york|los.?angeles|miami/i, 'US'], [/britain|england|london|великобритан/i, 'GB'],
+  [/nether|голланд|amsterdam|^ams\d/i, 'NL'], [/german|deutsch|герман|frankfurt|berlin|^fra\d|nodemesh/i, 'DE'],
+  [/united.?states|america|сша|new.?york|los.?angeles|miami|^nyc\d|^lax\d/i, 'US'], [/britain|england|london|великобритан|^lon\d|^lhr\d/i, 'GB'],
   [/france|paris|франц/i, 'FR'], [/finland|helsinki|финлянд/i, 'FI'], [/sweden|stockholm|швец/i, 'SE'],
   [/poland|warsaw|польш/i, 'PL'], [/turkey|istanbul|турц/i, 'TR'], [/singapore|сингапур/i, 'SG'],
   [/japan|tokyo|япон/i, 'JP'], [/korea|seoul|коре/i, 'KR'], [/hong.?kong|гонконг/i, 'HK'],
@@ -51,8 +51,15 @@ export function looksLikeHost(value: string): boolean {
   const text = value.trim();
   if (!text || /[а-яё]/i.test(text)) return false;
   if (looksLikeIp(text)) return true;
-  if (/^[a-z]{3}\d{1,2}(?:[-.][a-z0-9.-]+)?$/i.test(text)) return true;
-  return /^[a-z0-9-]+(?:\.[a-z0-9-]+)+\.[a-z]{2,}$/i.test(text);
+  if (text.includes('.') && /^[a-z0-9.-]+$/i.test(text)) return true;
+  return /^[a-z]{3}\d{1,2}(?:[-.][a-z0-9.-]+)?$/i.test(text);
+}
+
+export function canConnect(profile: Pick<VpnProfile, 'protocol' | 'kind' | 'params'>): string | null {
+  if (profile.kind === 'notice') return 'Это не сервер, а служебная строка панели.';
+  if (profile.protocol === 'hysteria2') return 'Hysteria есть только в Happ. Здесь бери VLESS / VMess / Trojan / SS.';
+  if ((profile.params.security || '').toLowerCase() === 'reality' && !profile.params.publicKey) return 'У Reality-узла нет ключа — ссылка обрезана.';
+  return null;
 }
 
 export function displayName(profile: VpnProfile): string {

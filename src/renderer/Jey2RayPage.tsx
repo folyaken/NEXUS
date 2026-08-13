@@ -1,6 +1,11 @@
 import { useEffect, useMemo, useState } from 'react';
 import type { AppSettings, UpdateInfo, VpnProfile, VpnRuntime, VpnSubscriptionInfo } from '../main/types';
-import { displayName } from '../main/vpn-classify';
+import { canConnect, displayName } from '../main/vpn-classify';
+
+function cleanError(error: unknown): string {
+  const raw = error instanceof Error ? error.message : String(error);
+  return raw.replace(/^Error invoking remote method '[^']+':\s*(?:Error:\s*)?/i, '').trim();
+}
 import { Flag } from './Flag';
 
 const EMPTY_RUNTIME: VpnRuntime = {
@@ -104,7 +109,7 @@ export function Jey2RayPage({
   const tabs = useMemo(() => ['all', ...new Set(nodes.map(subscriptionKey))], [nodes]);
   const visible = useMemo(() => tab === 'all' ? nodes : nodes.filter((item) => subscriptionKey(item) === tab), [nodes, tab]);
   const info: VpnSubscriptionInfo | undefined = (runtime.subscriptions ?? []).find((item) => tab !== 'all' && item.url === tab) ?? runtime.subscriptions?.[0];
-  const selected = nodes.find((item) => item.id === selectedId) ?? nodes[0] ?? null;
+  const selected = nodes.find((item) => item.id === selectedId) ?? nodes.find((item) => !canConnect(item)) ?? nodes[0] ?? null;
   const onAir = runtime.status === 'connected' && runtime.activeProfileId === selected?.id;
   const used = (info?.upload ?? 0) + (info?.download ?? 0);
   const quota = info?.total ? formatBytes(info.total) : '∞';
@@ -124,13 +129,19 @@ export function Jey2RayPage({
         onToast(`Подписка: серверов ${imported.length}`);
       }
     } catch (error) {
-      onToast(error instanceof Error ? error.message : 'Не удалось импортировать ссылку');
+      onToast(cleanError(error) || 'Не удалось импортировать ссылку');
     } finally {
       setBusy(false);
     }
   };
 
   const connect = async (id: string) => {
+    const profile = nodes.find((item) => item.id === id);
+    const blocked = profile ? canConnect(profile) : 'Сервер не найден';
+    if (blocked) {
+      onToast(blocked);
+      return;
+    }
     try {
       setBusy(true);
       setSelectedId(id);
@@ -141,7 +152,7 @@ export function Jey2RayPage({
       if (!runtime.xrayReady) onToast('Скачиваем Xray-core, затем подключаемся…');
       await window.nexus?.connectVpn(id);
     } catch (error) {
-      onToast(error instanceof Error ? error.message : 'Не удалось подключиться');
+      onToast(cleanError(error) || 'Не удалось подключиться');
     } finally {
       setBusy(false);
     }
@@ -153,7 +164,7 @@ export function Jey2RayPage({
       if (desktop) await window.nexus?.disconnectVpn();
       else setRuntime({ ...runtime, status: 'disconnected', activeProfileId: null, pid: null });
     } catch (error) {
-      onToast(error instanceof Error ? error.message : 'Не удалось отключить VPN');
+      onToast(cleanError(error) || 'Не удалось отключить VPN');
     } finally {
       setBusy(false);
     }
@@ -218,11 +229,12 @@ export function Jey2RayPage({
         {visible.map((profile) => {
           const live = runtime.status === 'connected' && runtime.activeProfileId === profile.id;
           const picked = selected?.id === profile.id;
-          return <button key={profile.id} className={`happ-row ${live ? 'is-live' : ''} ${picked ? 'is-active' : ''}`} onClick={() => setSelectedId(profile.id)} onDoubleClick={() => void connect(profile.id)}>
+          const blocked = canConnect(profile);
+          return <button key={profile.id} className={`happ-row ${live ? 'is-live' : ''} ${picked ? 'is-active' : ''} ${blocked ? 'is-off' : ''}`} onClick={() => setSelectedId(profile.id)} onDoubleClick={() => { if (blocked) onToast(blocked); else void connect(profile.id); }}>
             <Flag code={profile.country} />
             <span className="happ-copy">
               <strong>{displayName(profile)}</strong>
-              <small>{stackOf(profile)}</small>
+              <small>{blocked || stackOf(profile)}</small>
             </span>
             {live ? <em className="happ-on">ВКЛ</em> : <Signal ms={profile.pingMs} />}
             <span className="happ-go">›</span>
@@ -233,6 +245,9 @@ export function Jey2RayPage({
 
     <aside className="happ-right">
       <button className={`power-btn ${onAir ? 'is-on' : ''} ${runtime.status === 'connecting' ? 'is-wait' : ''}`} disabled={busy} onClick={() => void togglePower()} aria-label={onAir ? 'Выключить VPN' : 'Включить VPN'}>
+        <b className="radar-ring r1" />
+        <b className="radar-ring r2" />
+        <b className="radar-ring r3" />
         <span>⏻</span>
       </button>
       <div className="power-meta">

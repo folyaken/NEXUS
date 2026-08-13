@@ -1,13 +1,35 @@
+import { promises as dns } from 'node:dns';
 import { existsSync } from 'node:fs';
 import { promises as fs } from 'node:fs';
-import { countryByCode, looksLikeIp } from './vpn-classify';
+import { countryByCode, looksLikeHost, looksLikeIp } from './vpn-classify';
 import type { VpnProfile } from './types';
 
 type GeoHit = { code: string; name: string; flag: string; city?: string; isp?: string };
 
+async function resolveHost(host: string): Promise<string | null> {
+  if (looksLikeIp(host)) return host;
+  try {
+    const { address } = await dns.lookup(host);
+    return address;
+  } catch {
+    return null;
+  }
+}
+
 export async function applyGeo(profiles: VpnProfile[], cacheFile: string): Promise<VpnProfile[]> {
   const cache = await loadCache(cacheFile);
-  const missing = [...new Set(profiles.map((item) => item.server).filter((host) => looksLikeIp(host) && !cache[host]))];
+  const hosts = [...new Set(profiles.map((item) => item.server))];
+  const missing: string[] = [];
+  for (const host of hosts) {
+    if (cache[host]) continue;
+    const ip = await resolveHost(host);
+    if (ip && cache[ip]) {
+      cache[host] = cache[ip];
+      continue;
+    }
+    if (ip) missing.push(ip);
+  }
+
   if (missing.length) {
     for (let index = 0; index < missing.length; index += 100) {
       const chunk = missing.slice(index, index + 100);
@@ -26,8 +48,13 @@ export async function applyGeo(profiles: VpnProfile[], cacheFile: string): Promi
           cache[row.query] = { ...known, city: row.city, isp: row.isp };
         }
       } catch {
-        /* offline: keep name heuristics */
+        /* offline */
       }
+    }
+    for (const host of hosts) {
+      if (cache[host]) continue;
+      const ip = await resolveHost(host);
+      if (ip && cache[ip]) cache[host] = cache[ip];
     }
     await fs.writeFile(cacheFile, `${JSON.stringify(cache)}\n`, 'utf8');
   }
@@ -35,7 +62,7 @@ export async function applyGeo(profiles: VpnProfile[], cacheFile: string): Promi
   return profiles.map((profile) => {
     const hit = cache[profile.server];
     if (!hit) return profile;
-    const nameless = looksLikeIp(profile.name) || profile.name === profile.server || /^[a-z]{3}\d{1,2}/i.test(profile.name);
+    const nameless = looksLikeHost(profile.name) || profile.name === profile.server;
     return {
       ...profile,
       country: hit.code,

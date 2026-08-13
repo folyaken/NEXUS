@@ -6,7 +6,11 @@ import path from 'node:path';
 import { spawn, type ChildProcess } from 'node:child_process';
 import { createProfileFromLink, isSubscriptionUrl } from './share-link';
 import { fetchSubscriptionMaterial } from './subscription';
-import { enrichProfile, isServiceNode } from './vpn-classify';
+import { canConnect, enrichProfile, isServiceNode, looksLikeHost } from './vpn-classify';
+
+function looksHuman(name: string): boolean {
+  return Boolean(name.trim()) && !looksLikeHost(name);
+}
 import { applyGeo } from './vpn-geo';
 import { buildXrayConfig } from './xray-config';
 import { clearSystemProxy, setSystemProxy } from './system-proxy';
@@ -165,6 +169,14 @@ export class VpnManager extends EventEmitter {
         ? `Панель вернула только уведомления (${notices}), без серверов.`
         : 'Ссылки в подписке не удалось разобрать');
     }
+    const unique = new Map<string, VpnProfile>();
+    for (const profile of imported) {
+      const key = `${profile.protocol}|${profile.server}|${profile.port}|${profile.params.network}|${profile.params.security}`;
+      const prev = unique.get(key);
+      if (!prev || (looksHuman(profile.name) && !looksHuman(prev.name))) unique.set(key, profile);
+    }
+    imported.length = 0;
+    imported.push(...unique.values());
     const located = await applyGeo(imported, path.join(this.configsDir(), 'geo-cache.json'));
     imported.length = 0;
     for (const profile of located) {

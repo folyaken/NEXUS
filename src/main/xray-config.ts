@@ -53,7 +53,7 @@ function outbound(params: VpnLinkParams): Record<string, unknown> {
           users: [{
             id: params.uuid,
             encryption: params.encryption || 'none',
-            flow: (params.network || 'tcp').toLowerCase() === 'grpc' ? '' : (params.flow || ''),
+            flow: vlessFlow(params),
           }],
         }],
       },
