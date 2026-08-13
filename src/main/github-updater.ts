@@ -187,6 +187,30 @@ export class GithubUpdater extends EventEmitter {
     });
   }
 
+  private async installXrayFromMirrors(): Promise<void> {
+    const file = process.platform === 'win32' ? 'Xray-windows-64.zip' : 'Xray-linux-64.zip';
+    const mirrors = [
+      `https://github.com/XTLS/Xray-core/releases/latest/download/${file}`,
+      `https://ghproxy.net/https://github.com/XTLS/Xray-core/releases/latest/download/${file}`,
+    ];
+    const jey = this.targets.find((item) => item.id === 'jey2ray');
+    const tempPath = path.join(this.modulesDir, '.cache', file);
+    await fs.mkdir(path.dirname(tempPath), { recursive: true });
+    let lastError = 'Не удалось скачать Xray ни с одного зеркала';
+    for (const url of mirrors) {
+      try {
+        if (jey) this.setStatus(jey, 'downloading', { asset: file });
+        await this.downloadAsset(url, tempPath, 'XTLS/Xray-core');
+        await this.installXray(tempPath, 'latest');
+        await fs.rm(tempPath, { force: true });
+        return;
+      } catch (error) {
+        lastError = error instanceof Error ? error.message : lastError;
+      }
+    }
+    throw new Error(lastError);
+  }
+
   private async installXray(assetPath: string, version: string): Promise<string> {
     const extractRoot = path.join(this.modulesDir, '.cache', 'xray-extract');
     await fs.rm(extractRoot, { recursive: true, force: true });
