@@ -243,12 +243,24 @@ export function Jey2RayPage({
       <div className="jey-toolbar tight">
         <h2>Серверы</h2>
         <div className="jey-toolbar-actions">
-          <button className="ghost-action" onClick={() => setImportOpen((value) => !value)}><b>+</b> Добавить подписку</button>
-          <button className={`ghost-action ${action === 'refresh' ? 'is-spin' : ''}`} disabled={busy || Boolean(action)} onClick={() => void refresh()}>
-            <i className="spin-ico">⟳</i> Обновить
+          <button className="ghost-action" onClick={() => setImportOpen((value) => !value)}>
+            <svg className="ico" viewBox="0 0 16 16" aria-hidden><path d="M8 3v10M3 8h10" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" /></svg>
+            Добавить подписку
           </button>
-          <button className={`ghost-action ${action === 'ping' ? 'is-spin' : ''}`} disabled={busy || Boolean(action)} onClick={() => void ping()}>
-            <i className="spin-ico">⌁</i> Тест пинга
+          <button className={`ghost-action ${action === 'refresh' ? 'is-spin' : ''}`} disabled={busy || Boolean(action)} onClick={() => void refresh()}>
+            <svg className="ico spin-ico" viewBox="0 0 16 16" aria-hidden>
+              <path d="M12.55 5.15A5.1 5.1 0 1 1 11.05 3.5" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" />
+              <path d="M12.5 2.05v3.1H9.4" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" />
+            </svg>
+            Обновить
+          </button>
+          <button className={`ghost-action ${action === 'ping' ? 'is-rev' : ''}`} disabled={busy || Boolean(action)} onClick={() => void ping()}>
+            <svg className="ico gauge-ico" viewBox="0 0 16 16" aria-hidden>
+              <path d="M3.15 11.4a5.65 5.65 0 0 1 9.7 0" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" />
+              <path className="gauge-needle" d="M8 11.35 5.2 6.25" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" />
+              <circle cx="8" cy="11.35" r="1.15" fill="currentColor" />
+            </svg>
+            Тест пинга
           </button>
           {!runtime.xrayReady && <button className="ghost-action" disabled={syncing} onClick={onSync}>Скачать ядро {xrayUpdate?.latestVersion ?? ''}</button>}
         </div>
