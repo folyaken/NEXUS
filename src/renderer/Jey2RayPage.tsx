@@ -66,8 +66,11 @@ export function Jey2RayPage({
     try {
       setBusy(true);
       if (desktop) {
-        const profile = await window.nexus?.importVpn(link, name || undefined);
-        if (profile) setLink('');
+        const imported = await window.nexus?.importVpn(link, name || undefined);
+        if (imported?.length) {
+          setLink('');
+          onToast(imported.length > 1 ? `Подписка: добавлено узлов — ${imported.length}` : `Профиль «${imported[0].name}» сохранён`);
+        }
       } else {
         onToast('Импорт ссылок работает в окне Electron (npm start)');
       }
@@ -121,7 +124,7 @@ export function Jey2RayPage({
       <div>
         <span className="section-kicker">PRIVATE NETWORK LAYER</span>
         <h1>Jey2Ray</h1>
-        <p>Клиент Xray-core: вставь ссылку vless / vmess / trojan / ss, сохрани профиль и подключись. Локальный SOCKS — 127.0.0.1:{settings.vpnInboundPort}.</p>
+        <p>Вставь шаринг-ссылку (vless/vmess/trojan/ss) или HTTPS-подписку вроде happ/vlv.on. Локальный SOCKS — 127.0.0.1:{settings.vpnInboundPort}.</p>
         <span className={`coming-badge ${runtime.status === 'connected' ? 'is-live' : ''}`}><i /> {statusText}</span>
       </div>
       <JeyVisual />
@@ -130,9 +133,9 @@ export function Jey2RayPage({
     <div className="jey-import">
       <div>
         <span className="section-kicker">ADD PROFILE</span>
-        <h2>Добавить по ссылке</h2>
+        <h2>Ссылка или подписка</h2>
       </div>
-      <textarea className="jey-link" rows={3} value={link} onChange={(event) => setLink(event.target.value)} placeholder="vless://…  vmess://…  trojan://…  ss://…" />
+      <textarea className="jey-link" rows={3} value={link} onChange={(event) => setLink(event.target.value)} placeholder="https://vlv.on/…   или   vless://…  vmess://…  trojan://…  ss://…" />
       <div className="jey-import-row">
         <input className="jey-name" value={name} onChange={(event) => setName(event.target.value)} placeholder="Имя профиля (необязательно)" />
         <button className="primary-button small" disabled={busy || !link.trim()} onClick={() => void importLink()}><span>Добавить</span><b>↗</b></button>
@@ -149,6 +152,7 @@ export function Jey2RayPage({
           <input type="checkbox" checked={settings.autoConnectVpn} onChange={() => onSettings({ ...settings, autoConnectVpn: !settings.autoConnectVpn })} />
           Автоподключение
         </label>
+        <button className="quiet-button" disabled={busy} onClick={() => void window.nexus?.refreshVpn().then((count) => onToast(count ? `Подписки обновлены · ${count} узлов` : 'Нет сохранённых подписок')).catch((error: Error) => onToast(error.message))}>Обновить подписки</button>
         <button className="quiet-button" disabled={syncing} onClick={onSync}>{runtime.xrayReady ? 'Обновить Xray' : 'Скачать Xray'} {xrayUpdate?.latestVersion ? `· ${xrayUpdate.latestVersion}` : ''}</button>
         {runtime.status === 'connected' && <button className="primary-button small" disabled={busy} onClick={() => void disconnect()}>Отключить</button>}
       </div>

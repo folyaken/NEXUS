@@ -228,7 +228,8 @@ function wireIpc(): void {
   ipcMain.handle('settings:get', () => settings);
   ipcMain.handle('settings:save', (_event, next: AppSettings) => saveSettings(next ?? settings));
   ipcMain.handle('vpn:list', () => vpn.snapshot());
-  ipcMain.handle('vpn:import', (_event, link: string, name?: string) => vpn.importLink(String(link ?? ''), typeof name === 'string' ? name : undefined));
+  ipcMain.handle('vpn:import', (_event, link: string, name?: string) => vpn.importInput(String(link ?? ''), typeof name === 'string' ? name : undefined));
+  ipcMain.handle('vpn:refresh', () => vpn.refreshSubscriptions());
   ipcMain.handle('vpn:remove', (_event, id: string) => vpn.remove(String(id ?? '')));
   ipcMain.handle('vpn:connect', async (_event, id: string) => {
     const runtime = await vpn.connect(String(id ?? ''), settings.vpnInboundPort);

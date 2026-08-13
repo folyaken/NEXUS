@@ -104,6 +104,7 @@ export interface VpnProfile {
   server: string;
   port: number;
   shareLink: string;
+  subscriptionUrl?: string;
   params: VpnLinkParams;
   createdAt: string;
 }

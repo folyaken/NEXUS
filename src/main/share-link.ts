@@ -157,6 +157,34 @@ export function createProfileFromLink(input: string, explicitName?: string): Vpn
   };
 }
 
-export function protocolLabel(protocol: VpnProtocol): string {
-  return ({ vless: 'VLESS', vmess: 'VMess', trojan: 'Trojan', shadowsocks: 'Shadowsocks' })[protocol];
+export function extractShareLinks(payload: string): string[] {
+  const text = payload.trim();
+  if (!text) return [];
+  const direct = splitLinks(text);
+  if (direct.length) return direct;
+  try {
+    const decoded = decodeBase64(text.replace(/\s+/g, ''));
+    return splitLinks(decoded);
+  } catch {
+    return [];
+  }
+}
+
+function splitLinks(text: string): string[] {
+  const found = text
+    .split(/[\r\n]+/)
+    .map((line) => line.trim())
+    .filter((line) => /^(vless|vmess|trojan|ss):\/\//i.test(line));
+  if (found.length) return [...new Set(found)];
+  const inline = text.match(/(?:vless|vmess|trojan|ss):\/\/\S+/gi) ?? [];
+  return [...new Set(inline.map((item) => item.trim()))];
+}
+
+export function isSubscriptionUrl(value: string): boolean {
+  try {
+    const url = new URL(value.trim());
+    return url.protocol === 'https:';
+  } catch {
+    return false;
+  }
 }

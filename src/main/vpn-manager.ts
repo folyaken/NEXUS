@@ -4,7 +4,7 @@ import { promises as fs } from 'node:fs';
 import { createServer } from 'node:net';
 import path from 'node:path';
 import { spawn, type ChildProcess } from 'node:child_process';
-import { createProfileFromLink } from './share-link';
+import { createProfileFromLink, extractShareLinks, isSubscriptionUrl } from './share-link';
 import { buildXrayConfig } from './xray-config';
 import type { ModuleLog, VpnProfile, VpnRuntime, VpnStatus } from './types';
 import { waitForExit } from './process-watch';
@@ -72,13 +72,67 @@ export class VpnManager extends EventEmitter {
     return { profiles: this.list(), runtime: this.runtime() };
   }
 
-  async importLink(link: string, name?: string): Promise<VpnProfile> {
-    const profile = createProfileFromLink(link, name);
-    this.profiles.set(profile.id, profile);
-    await this.persist(profile);
+  async importInput(input: string, name?: string): Promise<VpnProfile[]> {
+    const raw = input.trim();
+    if (isSubscriptionUrl(raw)) return this.importSubscription(raw);
+    const profile = createProfileFromLink(raw, name);
+    await this.saveProfile(profile);
     this.emitLog('success', `Профиль «${profile.name}» сохранён (${profile.protocol} ${profile.server}:${profile.port})`);
     this.emit('changed', this.snapshot());
+    return [profile];
+  }
+
+  async importLink(link: string, name?: string): Promise<VpnProfile> {
+    const [profile] = await this.importInput(link, name);
     return profile;
+  }
+
+  async importSubscription(url: string): Promise<VpnProfile[]> {
+    const parsed = new URL(url);
+    if (parsed.protocol !== 'https:') throw new Error('Подписка только по HTTPS');
+    this.emitLog('info', `Загрузка подписки ${parsed.host}…`);
+    const response = await fetch(url, {
+      headers: {
+        'User-Agent': 'NEXUS-Jey2Ray/1.0',
+        Accept: 'text/plain, text/html, */*',
+      },
+      redirect: 'follow',
+    });
+    if (!response.ok) throw new Error(`Подписка: HTTP ${response.status} (${parsed.host})`);
+    const body = await response.text();
+    const links = extractShareLinks(body);
+    if (!links.length) throw new Error('В ответе подписки нет ссылок vless/vmess/trojan/ss. Проверь URL (как в Happ).');
+
+    const imported: VpnProfile[] = [];
+    for (const link of links) {
+      try {
+        const profile = createProfileFromLink(link);
+        profile.subscriptionUrl = url;
+        await this.saveProfile(profile);
+        imported.push(profile);
+      } catch (error) {
+        const message = error instanceof Error ? error.message : 'битая ссылка';
+        this.emitLog('warn', `Пропуск узла подписки: ${message}`);
+      }
+    }
+    if (!imported.length) throw new Error('Ссылки в подписке не удалось разобрать');
+    this.emitLog('success', `Подписка ${parsed.host}: добавлено узлов — ${imported.length}`);
+    this.emit('changed', this.snapshot());
+    return imported;
+  }
+
+  async refreshSubscriptions(): Promise<number> {
+    const urls = [...new Set(this.list().map((item) => item.subscriptionUrl).filter((item): item is string => Boolean(item)))];
+    let total = 0;
+    for (const url of urls) total += (await this.importSubscription(url)).length;
+    return total;
+  }
+
+  private async saveProfile(profile: VpnProfile): Promise<void> {
+    const existing = this.profiles.get(profile.id);
+    if (existing) profile.createdAt = existing.createdAt;
+    this.profiles.set(profile.id, profile);
+    await this.persist(profile);
   }
 
   async remove(id: string): Promise<void> {

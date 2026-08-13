@@ -21,7 +21,8 @@ declare global {
       isFullscreen(): Promise<boolean>;
       closeWindow(): Promise<void>;
       getVpn(): Promise<{ profiles: VpnProfile[]; runtime: VpnRuntime }>;
-      importVpn(link: string, name?: string): Promise<VpnProfile>;
+      importVpn(link: string, name?: string): Promise<VpnProfile[]>;
+      refreshVpn(): Promise<number>;
       removeVpn(id: string): Promise<void>;
       connectVpn(id: string): Promise<VpnRuntime>;
       disconnectVpn(): Promise<VpnRuntime>;
