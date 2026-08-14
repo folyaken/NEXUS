@@ -1,6 +1,13 @@
 const assert = require('node:assert/strict');
 const net = require('node:net');
+const tls = require('node:tls');
 const path = require('node:path');
+
+const nativeTlsConnect = tls.connect;
+tls.connect = ({ socket }) => {
+  process.nextTick(() => socket.emit('secureConnect'));
+  return socket;
+};
 
 const root = path.resolve(__dirname, '..');
 const { VpnManager } = require(path.join(root, 'dist-electron', 'vpn-manager.js'));
@@ -21,13 +28,24 @@ void (async () => {
   let requests = 0;
   const proxy = net.createServer((socket) => {
     let request = '';
+    let tunnelReady = false;
     socket.on('data', (chunk) => {
       request += chunk.toString('latin1');
-      if (!request.includes('\r\n\r\n')) return;
-      requests += 1;
-      assert.match(request, /^CONNECT 1\.1\.1\.1:443 HTTP\/1\.1\r\n/m);
-      assert.doesNotMatch(request, /uuid|password|shareLink|subscription/i);
-      setTimeout(() => socket.end('HTTP/1.1 200 Connection established\r\n\r\n'), 15);
+      const end = request.indexOf('\r\n\r\n');
+      if (end < 0) return;
+      const message = request.slice(0, end + 4);
+      request = request.slice(end + 4);
+      if (!tunnelReady) {
+        requests += 1;
+        assert.match(message, /^CONNECT cp\.cloudflare\.com:443 HTTP\/1\.1\r\n/m);
+        assert.doesNotMatch(message, /uuid|password|shareLink|subscription/i);
+        tunnelReady = true;
+        socket.write('HTTP/1.1 200 Connection established\r\n\r\n');
+        return;
+      }
+      assert.match(message, /^GET \/generate_204\?nexus=[a-z0-9]+ HTTP\/1\.1\r\n/m);
+      assert.match(message, /\r\nHost: cp\.cloudflare\.com\r\n/i);
+      setTimeout(() => socket.end('HTTP/1.1 204 No Content\r\nServer: remote-test\r\nConnection: close\r\n\r\n'), 75);
     });
   });
   const httpPort = await listen(proxy);
@@ -40,7 +58,7 @@ void (async () => {
   manager.status = 'connected';
   manager.activeProfileId = 'safe-test-profile';
   const [first, deduplicated] = await Promise.all([manager.sampleLatency(), manager.sampleLatency()]);
-  assert.ok(first && first.pingMs >= 1 && first.pingMs < 1000, 'tunnel latency sample is missing or implausible');
+  assert.ok(first && first.pingMs >= 60 && first.pingMs < 1000, 'sample must wait for the delayed remote HTTP response');
   assert.deepEqual(deduplicated, first, 'concurrent samples must share one safe probe');
   assert.match(first.measuredAt, /^\d{4}-\d{2}-\d{2}T/);
   assert.equal(requests, 1, 'concurrent IPC calls must not multiply tunnel traffic');
@@ -51,24 +69,40 @@ void (async () => {
   assert.equal(requests, 1);
 
   await close(proxy);
+  tls.connect = nativeTlsConnect;
 
   const fs = require('node:fs');
   const source = fs.readFileSync(path.join(root, 'src', 'main', 'vpn-manager.ts'), 'utf8');
   const method = source.slice(source.indexOf('sampleLatency()'), source.indexOf('async refreshSubscription', source.indexOf('sampleLatency()')));
   assert.match(method, /127\.0\.0\.1/);
-  assert.match(method, /CONNECT 1\.1\.1\.1:443/);
+  assert.match(method, /CONNECT cp\.cloudflare\.com:443/);
+  assert.match(method, /connectTls\(\{/);
+  assert.match(method, /rejectUnauthorized: true/);
+  assert.match(method, /GET \/generate_204\?nexus=/);
+  assert.match(method, /2\\d\\d\|3\\d\\d/, 'only a real successful remote HTTP response may complete the sample');
+  assert.doesNotMatch(method, /CONNECT 1\.1\.1\.1:443/, 'the old loopback-only probe must not return');
   assert.doesNotMatch(method, /profile\.server|profile\.port/, 'connected sampling must not probe the VPN endpoint directly');
 
   const main = fs.readFileSync(path.join(root, 'src', 'main', 'main.ts'), 'utf8');
   const preload = fs.readFileSync(path.join(root, 'src', 'main', 'preload.ts'), 'utf8');
   const env = fs.readFileSync(path.join(root, 'src', 'renderer', 'env.d.ts'), 'utf8');
+  const geo = fs.readFileSync(path.join(root, 'src', 'main', 'vpn-geo.ts'), 'utf8');
   const page = fs.readFileSync(path.join(root, 'src', 'renderer', 'Jey2RayPage.tsx'), 'utf8');
   const styles = fs.readFileSync(path.join(root, 'src', 'renderer', 'styles.css'), 'utf8');
   assert.match(main, /ipcMain\.handle\('vpn:latency-sample'/);
   assert.match(preload, /sampleVpnLatency:/);
   assert.match(env, /sampleVpnLatency\(\): Promise<VpnLatencySample \| null>/);
+  assert.match(geo, /city: hit\.city/);
+  assert.match(geo, /lang=ru/);
+  assert.match(geo, /version: 2, locale: 'ru'/);
   assert.match(page, /runtime\.status === 'connected'.*className="tunnel-route"/s);
-  assert.match(page, /<PingSparkline samples=\{latencySamples\}/);
+  assert.match(page, /profile\.city/);
+  assert.match(page, /Подключено/);
+  assert.match(page, /setInterval\(\(\) => void sample\(\), 3000\)/);
+  assert.match(page, /<PingSparkline samples=\{latencySamples\} \/>/);
+  assert.doesNotMatch(page, /fallback=\{activeProfile\?\.pingMs\}/, 'endpoint TCP latency must not appear as tunnel latency');
+  assert.doesNotMatch(page, /Работает ·|127\.0\.0\.1|Системный Proxy/);
+  assert.doesNotMatch(page, /routing-summary/, 'technical routing summary must stay off the main screen');
   assert.doesNotMatch(page, /Math\.random/, 'sparkline must contain measured rather than synthetic data');
   assert.match(styles, /font-family: "Space Grotesk Variable"/);
   assert.match(styles, /font-family: "Inter Variable"/);
@@ -77,6 +111,7 @@ void (async () => {
 
   console.log('VPN tunnel latency sampling regression checks passed.');
 })().catch((error) => {
+  tls.connect = nativeTlsConnect;
   console.error(error);
   process.exitCode = 1;
 });

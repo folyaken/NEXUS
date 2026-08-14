@@ -5,6 +5,7 @@ import { countryByCode, looksLikeHost, looksLikeIp } from './vpn-classify';
 import type { VpnProfile } from './types';
 
 type GeoHit = { code: string; name: string; flag: string; city?: string; isp?: string };
+type GeoCacheFile = { version: 2; locale: 'ru'; entries: Record<string, GeoHit> };
 
 async function resolveHost(host: string): Promise<string | null> {
   if (looksLikeIp(host)) return host;
@@ -34,7 +35,7 @@ export async function applyGeo(profiles: VpnProfile[], cacheFile: string): Promi
     for (let index = 0; index < missing.length; index += 100) {
       const chunk = missing.slice(index, index + 100);
       try {
-        const response = await fetch('http://ip-api.com/batch?fields=status,query,country,countryCode,city,isp', {
+        const response = await fetch('http://ip-api.com/batch?fields=status,query,country,countryCode,city,isp&lang=ru', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(chunk),
@@ -56,7 +57,8 @@ export async function applyGeo(profiles: VpnProfile[], cacheFile: string): Promi
       const ip = await resolveHost(host);
       if (ip && cache[ip]) cache[host] = cache[ip];
     }
-    await fs.writeFile(cacheFile, `${JSON.stringify(cache)}\n`, 'utf8');
+    const cacheDocument: GeoCacheFile = { version: 2, locale: 'ru', entries: cache };
+    await fs.writeFile(cacheFile, `${JSON.stringify(cacheDocument)}\n`, 'utf8');
   }
 
   return profiles.map((profile) => {
@@ -67,6 +69,7 @@ export async function applyGeo(profiles: VpnProfile[], cacheFile: string): Promi
       ...profile,
       country: hit.code,
       countryName: hit.name,
+      city: hit.city,
       flag: hit.flag,
       name: nameless ? (hit.city ? `${hit.name} · ${hit.city}` : hit.name) : profile.name,
     };
@@ -76,7 +79,9 @@ export async function applyGeo(profiles: VpnProfile[], cacheFile: string): Promi
 async function loadCache(file: string): Promise<Record<string, GeoHit>> {
   try {
     if (!existsSync(file)) return {};
-    return JSON.parse(await fs.readFile(file, 'utf8')) as Record<string, GeoHit>;
+    const parsed = JSON.parse(await fs.readFile(file, 'utf8')) as Partial<GeoCacheFile>;
+    if (parsed.version !== 2 || parsed.locale !== 'ru' || !parsed.entries || typeof parsed.entries !== 'object') return {};
+    return parsed.entries;
   } catch {
     return {};
   }

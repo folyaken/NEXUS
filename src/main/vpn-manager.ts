@@ -2,6 +2,7 @@ import { EventEmitter } from 'node:events';
 import { createWriteStream, existsSync, mkdirSync } from 'node:fs';
 import { promises as fs } from 'node:fs';
 import { createServer, Socket } from 'node:net';
+import { connect as connectTls, type TLSSocket } from 'node:tls';
 import path from 'node:path';
 import { spawn, type ChildProcess } from 'node:child_process';
 import { createProfileFromLink, isSubscriptionUrl } from './share-link';
@@ -450,30 +451,30 @@ export class VpnManager extends EventEmitter {
     return new Promise((resolve) => {
       const started = Date.now();
       const socket = new Socket();
+      let secureSocket: TLSSocket | null = null;
       let settled = false;
-      let response = '';
+      let proxyResponse = '';
+      let remoteResponse = '';
+      const timer = setTimeout(() => done(null), timeoutMs);
       const done = (sample: VpnLatencySample | null) => {
         if (settled) return;
         settled = true;
-        socket.destroy();
+        clearTimeout(timer);
+        if (secureSocket) secureSocket.destroy();
+        else socket.destroy();
         resolve(sample);
       };
 
-      socket.setNoDelay(true);
-      socket.setTimeout(timeoutMs);
-      socket.once('timeout', () => done(null));
-      socket.once('error', () => done(null));
-      socket.once('close', () => done(null));
-      socket.on('data', (chunk: Buffer) => {
-        response += chunk.toString('latin1');
-        if (response.length > 4096) {
+      const onRemoteData = (chunk: Buffer) => {
+        remoteResponse += chunk.toString('latin1');
+        if (remoteResponse.length > 8192) {
           done(null);
           return;
         }
-        const end = response.indexOf('\r\n\r\n');
+        const end = remoteResponse.indexOf('\r\n\r\n');
         if (end < 0) return;
-        const statusLine = response.slice(0, response.indexOf('\r\n'));
-        if (!/^HTTP\/1\.[01]\s+200\b/i.test(statusLine)) {
+        const statusLine = remoteResponse.slice(0, remoteResponse.indexOf('\r\n'));
+        if (!/^HTTP\/1\.[01]\s+(?:2\d\d|3\d\d)\b/i.test(statusLine)) {
           done(null);
           return;
         }
@@ -481,9 +482,56 @@ export class VpnManager extends EventEmitter {
           pingMs: Math.max(1, Date.now() - started),
           measuredAt: new Date().toISOString(),
         });
-      });
+      };
+
+      const onProxyData = (chunk: Buffer) => {
+        proxyResponse += chunk.toString('latin1');
+        if (proxyResponse.length > 4096) {
+          done(null);
+          return;
+        }
+        const end = proxyResponse.indexOf('\r\n\r\n');
+        if (end < 0) return;
+        const statusLine = proxyResponse.slice(0, proxyResponse.indexOf('\r\n'));
+        if (!/^HTTP\/1\.[01]\s+200\b/i.test(statusLine)) {
+          done(null);
+          return;
+        }
+        socket.removeListener('data', onProxyData);
+        try {
+          secureSocket = connectTls({
+            socket,
+            servername: 'cp.cloudflare.com',
+            ALPNProtocols: ['http/1.1'],
+            rejectUnauthorized: true,
+          });
+          secureSocket.once('error', () => done(null));
+          secureSocket.on('data', onRemoteData);
+          secureSocket.once('secureConnect', () => {
+            const nonce = Date.now().toString(36);
+            secureSocket?.write([
+              `GET /generate_204?nexus=${nonce} HTTP/1.1`,
+              'Host: cp.cloudflare.com',
+              'Accept: */*',
+              'Cache-Control: no-cache, no-store',
+              'Pragma: no-cache',
+              'Connection: close',
+              'User-Agent: NEXUS-Latency/1.0',
+              '',
+              '',
+            ].join('\r\n'));
+          });
+        } catch {
+          done(null);
+        }
+      };
+
+      socket.setNoDelay(true);
+      socket.once('error', () => done(null));
+      socket.once('close', () => done(null));
+      socket.on('data', onProxyData);
       socket.connect({ host: '127.0.0.1', port: this.inboundPort + 1 }, () => {
-        socket.write('CONNECT 1.1.1.1:443 HTTP/1.1\r\nHost: 1.1.1.1:443\r\nProxy-Connection: keep-alive\r\n\r\n');
+        socket.write('CONNECT cp.cloudflare.com:443 HTTP/1.1\r\nHost: cp.cloudflare.com:443\r\nProxy-Connection: keep-alive\r\n\r\n');
       });
     });
   }

@@ -138,6 +138,7 @@ export interface VpnProfile {
   kind?: 'node' | 'notice';
   country?: string;
   countryName?: string;
+  city?: string;
   flag?: string;
   stack?: string;
   isNew?: boolean;

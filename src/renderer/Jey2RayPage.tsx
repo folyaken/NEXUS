@@ -104,10 +104,8 @@ function Signal({ ms }: { ms?: number | null }) {
   </span>;
 }
 
-function PingSparkline({ samples, fallback }: { samples: number[]; fallback?: number | null }) {
-  const clean = samples.filter((value) => Number.isFinite(value) && value > 0 && value < 10_000);
-  const fallbackValue = typeof fallback === 'number' && fallback > 0 ? fallback : null;
-  const values = clean.length ? clean : fallbackValue != null ? [fallbackValue] : [];
+function PingSparkline({ samples }: { samples: number[] }) {
+  const values = samples.filter((value) => Number.isFinite(value) && value > 0 && value < 10_000);
   const displayValue = values.length ? Math.round(values[values.length - 1]) : null;
   const plot = values.length === 1 ? [values[0], values[0]] : values;
   const width = 244;
@@ -132,7 +130,6 @@ function PingSparkline({ samples, fallback }: { samples: number[]; fallback?: nu
   const lastPoint = points[points.length - 1];
 
   return <div className={`tunnel-ping ${tone}`} aria-label={displayValue == null ? 'Задержка туннеля измеряется' : `Задержка туннеля ${displayValue} миллисекунд`}>
-    <div className="tunnel-ping-head"><span>Задержка туннеля</span><strong>{displayValue == null ? '—' : displayValue} <small>ms</small></strong></div>
     <svg viewBox={`0 0 ${width} ${height}`} role="img" aria-hidden>
       <defs><linearGradient id="tunnel-ping-area" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stopColor="currentColor" stopOpacity=".24" /><stop offset="1" stopColor="currentColor" stopOpacity="0" /></linearGradient></defs>
       <path className="tunnel-ping-grid" d={`M4 ${height - 5.5}H${width - 4}`} />
@@ -141,6 +138,20 @@ function PingSparkline({ samples, fallback }: { samples: number[]; fallback?: nu
       {lastPoint && <circle className="tunnel-ping-point" cx={lastPoint.x} cy={lastPoint.y} r="2.7" />}
     </svg>
   </div>;
+}
+
+function profileLocation(profile: VpnProfile | null): { country: string; detail: string } {
+  if (!profile) return { country: 'Сервер не выбран', detail: 'Выбери сервер слева' };
+  const shownName = displayName(profile).trim();
+  const knownCountry = profile.countryName?.trim();
+  const country = knownCountry && knownCountry !== 'Другие' ? knownCountry : shownName;
+  const city = profile.city?.trim();
+  if (city) return { country, detail: `${country} · ${city}` };
+  const parts = shownName.split(/\s*[·•|]\s*/).filter(Boolean);
+  if (parts.length > 1 && parts[0].toLocaleLowerCase('ru-RU') === country.toLocaleLowerCase('ru-RU')) {
+    return { country, detail: `${country} · ${parts.slice(1).join(' · ')}` };
+  }
+  return { country, detail: country };
 }
 
 export function Jey2RayPage({
@@ -222,6 +233,9 @@ export function Jey2RayPage({
   const activeProfile = nodes.find((item) => item.id === runtime.activeProfileId) ?? null;
   const onAir = runtime.status === 'connected' && runtime.activeProfileId === selected?.id;
   const otherLive = runtime.status === 'connected' && runtime.activeProfileId !== selected?.id;
+  const panelProfile = runtime.status === 'connected' ? (activeProfile || selected) : selected;
+  const panelLocation = profileLocation(panelProfile);
+  const latestLatency = latencySamples.length ? latencySamples[latencySamples.length - 1] : null;
   const used = (info?.upload ?? 0) + (info?.download ?? 0);
   const quota = info?.total ? formatBytes(info.total) : '∞';
   const title = tab === 'all' ? 'Все серверы' : tab === 'manual' ? 'Ручные профили' : telegramOf(info) || 'Подписка';
@@ -492,36 +506,18 @@ export function Jey2RayPage({
       }
     };
     void sample();
-    const timer = window.setInterval(() => void sample(), 6500);
+    const timer = window.setInterval(() => void sample(), 3000);
     return () => {
       cancelled = true;
       window.clearInterval(timer);
     };
   }, [desktop, runtime.status, runtime.activeProfileId, settingsOpen, subscriptionsOpen, diagnosticsOpen]);
 
-  const routeLabel = appRouting === 'include'
-    ? `VPN только для выбранных · ${splitApps.length}`
-    : appRouting === 'exclude'
-      ? `Напрямую выбранные · ${splitApps.length}`
-      : mode === 'tun'
-        ? 'Весь трафик через VPN'
-        : 'Системный Proxy';
-  const routeDescription = appRouting === 'include'
-    ? 'Остальные приложения подключаются напрямую.'
-    : appRouting === 'exclude'
-      ? 'Остальные приложения используют VPN.'
-      : mode === 'tun'
-        ? 'Общий TUN без правил для отдельных приложений.'
-        : 'HTTP-прокси Windows без маршрутизации по приложениям.';
-  const powerLabel = onAir
-    ? `Работает · ${routeLabel} · 127.0.0.1:${runtime.inboundPort + 1}`
-    : otherLive
-      ? 'Другой сервер онлайн. Нажми — переключить сюда'
-      : runtime.status === 'connecting'
-        ? 'Подключаем…'
-        : runtime.status === 'error'
-          ? (runtime.error || 'Ошибка')
-          : 'Выключено';
+  const powerState = runtime.status === 'connecting'
+    ? 'Подключаем…'
+    : runtime.status === 'error'
+      ? (runtime.error || 'Ошибка подключения')
+      : 'Выключено';
 
   if (subscriptionsOpen) return <SubscriptionManager
     subscriptions={runtime.subscriptions ?? []}
@@ -723,12 +719,12 @@ export function Jey2RayPage({
     </div>
 
     <aside className="happ-right">
-      {runtime.status === 'connected' && (activeProfile || selected) && <div className="tunnel-route" aria-label={`Защищённый маршрут к серверу ${displayName(activeProfile || selected!)}`}>
+      {runtime.status === 'connected' && panelProfile && <div className="tunnel-route" aria-label={`Защищённый маршрут к серверу ${panelLocation.detail}`}>
         <span className="tunnel-route-device" title="Это устройство">
           <svg viewBox="0 0 24 24" aria-hidden><rect x="4" y="3.5" width="16" height="12" rx="2" /><path d="M8 20h8M10 15.5 9 20m5-4.5 1 4.5" /></svg>
         </span>
         <span className="tunnel-route-track" aria-hidden><i /></span>
-        <span className="tunnel-route-server" title={displayName(activeProfile || selected!)}><Flag code={(activeProfile || selected!)?.country} /></span>
+        <span className="tunnel-route-server" title={panelLocation.detail}><Flag code={panelProfile.country} /></span>
       </div>}
       <button
         className={`power-orb ${onAir ? 'is-on' : ''} ${otherLive ? 'is-other' : ''} ${runtime.status === 'connecting' ? 'is-wait' : ''}`}
@@ -740,13 +736,14 @@ export function Jey2RayPage({
         <span className="orb-core">⏻</span>
       </button>
       <div className="power-meta">
-        {selected ? <Flag code={selected.country} /> : null}
-        <strong>{selected ? (fastest?.id === selected.id ? 'Самый быстрый' : displayName(selected)) : 'Сервер не выбран'}</strong>
-        <small>{powerLabel}</small>
+        <strong>{panelLocation.country}</strong>
+        {panelLocation.detail !== panelLocation.country && <small className="power-location">{panelLocation.detail}</small>}
+        {runtime.status === 'connected'
+          ? <span className="power-connected"><i />Подключено {latestLatency == null ? '· замеряем…' : <>· <b>{latestLatency} мс</b></>}</span>
+          : <span className={`power-state ${runtime.status === 'error' ? 'is-error' : ''}`}>{powerState}</span>}
       </div>
-      {runtime.status === 'connected' && <PingSparkline samples={latencySamples} fallback={activeProfile?.pingMs} />}
+      {runtime.status === 'connected' && <PingSparkline samples={latencySamples} />}
       <div className="mode-switch" aria-label="Режим подключения">
-        <span className="mode-switch-title">Режим подключения</span>
         <div className="mode-switch-options">
           <button
             type="button"
@@ -763,12 +760,6 @@ export function Jey2RayPage({
             onClick={() => selectConnectionMode('tun')}
           >TUN</button>
         </div>
-      </div>
-      <div className={`routing-summary ${appRoutingActive ? 'is-on' : ''}`}>
-        <span className="routing-summary-icon">
-          <svg viewBox="0 0 24 24" aria-hidden><path d="M6 5v8a4 4 0 0 0 4 4h8M14.5 13.5 18 17l-3.5 3.5M10 8.5 6 4.5 2 8.5" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" /></svg>
-        </span>
-        <span><small>{mode.toUpperCase()} · приложения</small><strong>{routeLabel}</strong><em>{routeDescription}</em></span>
       </div>
       <button type="button" className="diagnostics-entry" onClick={() => setDiagnosticsOpen(true)}>
         <span className="diagnostics-entry-icon"><svg viewBox="0 0 24 24" aria-hidden><path d="M4 13h3l2-6 4 11 2-5h5" /><circle cx="12" cy="12" r="9" /></svg></span>
