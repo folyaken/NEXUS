@@ -159,7 +159,7 @@ void (async () => {
   assert.match(page, /profile\.city/);
   assert.match(page, /Подключено/);
   assert.match(page, /setInterval\(\(\) => void sample\(\), 3000\)/);
-  assert.match(page, /power-session/);
+  assert.match(page, /tunnel-session-counter/);
   assert.match(page, /switchVpnMode\(next\)/);
   assert.doesNotMatch(page, /PingSparkline|tunnel-ping|latencySamples/, 'the latency graph and its history must stay removed');
   assert.doesNotMatch(page, /fallback=\{activeProfile\?\.pingMs\}/, 'endpoint TCP latency must not appear as tunnel latency');
@@ -170,7 +170,7 @@ void (async () => {
   assert.match(styles, /font-family: "Inter Variable"/);
   assert.match(styles, /font-family: "JetBrains Mono Variable"/);
   assert.match(styles, /\.mode-switch button\.active \{ background: linear-gradient\(145deg, #776bea, #4f45bb\)/);
-  assert.match(styles, /\.power-session b .*font-family: var\(--font-data\)/);
+  assert.match(styles, /\.tunnel-session-counter .*font-family: var\(--font-body\)/);
   assert.doesNotMatch(styles, /\.tunnel-ping/, 'latency graph styling must stay removed');
 
   console.log('VPN tunnel latency sampling regression checks passed.');

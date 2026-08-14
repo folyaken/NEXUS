@@ -35,6 +35,7 @@ assert.ok(switchHandler.indexOf('await saveSettings') < switchHandler.indexOf('r
 const preload = fs.readFileSync(path.join(root, 'src', 'main', 'preload.ts'), 'utf8');
 const env = fs.readFileSync(path.join(root, 'src', 'renderer', 'env.d.ts'), 'utf8');
 const types = fs.readFileSync(path.join(root, 'src', 'main', 'types.ts'), 'utf8');
+const app = fs.readFileSync(path.join(root, 'src', 'renderer', 'App.tsx'), 'utf8');
 const page = fs.readFileSync(path.join(root, 'src', 'renderer', 'Jey2RayPage.tsx'), 'utf8');
 const styles = fs.readFileSync(path.join(root, 'src', 'renderer', 'styles.css'), 'utf8');
 
@@ -45,10 +46,30 @@ assert.match(page, /const selectConnectionMode = async/);
 assert.match(page, /await window\.nexus\?\.switchVpnMode\(next\)/);
 assert.match(page, /disabled=\{busy \|\| runtime\.status === 'connecting'\}/, 'connected VPN must not disable the PROXY/TUN buttons');
 assert.match(page, /setInterval\(\(\) => setSessionNow\(Date\.now\(\)\), 1000\)/);
-assert.match(page, /<span className="power-session">/);
+assert.match(page, /<span className="tunnel-session-counter"[^>]*>\{sessionDuration\}<\/span>/);
+assert.ok(page.indexOf('className="tunnel-session-counter"') < page.indexOf('className="tunnel-route"'), 'the session timer must be above the animated route');
 assert.match(page, /formatSessionDuration\(runtime\.connectedAt, sessionNow\)/);
-assert.doesNotMatch(page, /<PingSparkline|className="tunnel-ping"/);
-assert.match(styles, /\.power-session b/);
-assert.doesNotMatch(styles, /\.tunnel-ping/);
+assert.doesNotMatch(page, /<PingSparkline|className="tunnel-ping"|className="power-session"|<small>Сессия<\/small>/);
+assert.match(page, /orb-halo orb-halo-primary/);
+assert.match(page, /orb-halo orb-halo-follow/);
+assert.match(page, /orb-halo orb-halo-wait/);
+assert.doesNotMatch(page, /settingsOpen|app-settings-page|settings-gear-button|Открыть настройки приложений/);
 
-console.log('Live VPN mode switching and session counter regression checks passed.');
+assert.match(app, /type SettingsTab = 'general' \| 'applications'/);
+assert.match(app, /className="settings-tabs" role="tablist"/);
+assert.match(app, />Настройки приложений<\/strong>/);
+assert.match(app, /function ApplicationSettings/);
+assert.match(app, /window\.nexus\?\.pickVpnApps\(\)/);
+assert.match(app, /role="radiogroup" aria-label="Режим маршрутизации приложений"/);
+assert.match(app, /Сначала отключи VPN, затем измени маршрутизацию приложений/);
+
+assert.match(styles, /\.tunnel-session-counter \{[^}]*font-family: var\(--font-body\)/);
+assert.match(styles, /\.mode-switch button \{[^}]*font-family: var\(--font-body\)[^}]*text-transform: uppercase/);
+assert.match(styles, /\.power-orb\.is-on \.orb-halo-primary \{ animation: orb-wave-primary/);
+assert.match(styles, /\.power-orb\.is-on \.orb-halo-follow \{ animation: orb-wave-follow/);
+assert.match(styles, /\.power-orb\.is-wait \.orb-halo-wait \{ animation: orb-wave-wait/);
+assert.match(styles, /100% \{ transform: scale\(1\.82\); opacity: 0; \}/);
+assert.match(styles, /\.settings-tab\.active \{/);
+assert.doesNotMatch(styles, /\.tunnel-ping|\.power-session/);
+
+console.log('Live VPN mode switching, session timer, pulse rings and settings tabs regression checks passed.');

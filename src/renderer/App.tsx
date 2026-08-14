@@ -1,10 +1,11 @@
 import { useEffect, useMemo, useState } from 'react';
 import { animated, config, useSpring } from '@react-spring/web';
-import type { AppSettings, ModuleLog, ModuleManifest, ModuleStatus, UpdateInfo, UserProfile } from '../main/types';
+import type { AppSettings, ModuleLog, ModuleManifest, ModuleStatus, UpdateInfo, UserProfile, VpnAppRoutingMode, VpnStatus } from '../main/types';
 import { DEFAULT_SETTINGS } from '../main/types';
 import { Jey2RayPage } from './Jey2RayPage';
 
 type Page = 'dashboard' | 'modules' | 'jey2ray' | 'logs' | 'settings';
+type SettingsTab = 'general' | 'applications';
 type Tone = 'green' | 'amber' | 'red' | 'muted';
 
 const DEMO_MODULES: ModuleManifest[] = [
@@ -57,6 +58,11 @@ function moduleLabel(module: ModuleManifest): string {
 
 function formatTime(value: string): string {
   return new Intl.DateTimeFormat('ru-RU', { hour: '2-digit', minute: '2-digit' }).format(new Date(value));
+}
+
+function cleanError(error: unknown): string {
+  const raw = error instanceof Error ? error.message : String(error);
+  return raw.replace(/^Error invoking remote method '[^']+':\s*(?:Error:\s*)?/i, '').trim();
 }
 
 function IconMark({ children }: { children: string }) {
@@ -162,6 +168,7 @@ function App() {
   const [logFilter, setLogFilter] = useState('all');
   const [toast, setToast] = useState('');
   const [settings, setSettings] = useState<AppSettings>(DEFAULT_SETTINGS);
+  const [settingsTab, setSettingsTab] = useState<SettingsTab>('general');
   const [syncing, setSyncing] = useState(false);
   const [fullscreen, setFullscreen] = useState(false);
   const [lastScan, setLastScan] = useState<string | null>(null);
@@ -295,7 +302,7 @@ function App() {
   };
 
   return <div className="app-frame"><WindowBar fullscreen={fullscreen} /><div className="app-shell"><div className="ambient ambient-one" /><div className="ambient ambient-two" />
-    <aside className="sidebar"><div className="brand"><div className="brand-orb"><NexusMark /></div><div><strong>NEXUS</strong><span>NETWORK CONTROL</span></div></div><div className="workspace-selector workspace-static"><span className="workspace-avatar">N</span><div><span className="workspace-label">DEVICE PROFILE · {profile.deviceId}</span><strong>{profile.deviceName || 'Локальное устройство'}</strong></div><span className="workspace-badge">LOCAL</span></div><div className="nav-label">CONTROL CENTER</div><nav>{navItems.map((item) => <button key={item.id} className={`nav-item ${page === item.id ? 'active' : ''}`} onClick={() => setPage(item.id)}><span className="nav-glyph"><NavGlyph name={item.icon} /></span><span>{item.label}</span>{item.id === 'logs' && logs.length > 0 ? <em>{Math.min(logs.length, 99)}</em> : null}</button>)}</nav><div className="sidebar-bottom"><div className="system-status"><StatusDot tone={systemTone} /><div><span>{systemTitle}</span><small>{systemNote}</small></div></div><div className="version-row"><span>NEXUS v1.0.0</span><span className="online-dot" /> LOCAL</div></div></aside>
+    <aside className="sidebar"><div className="brand"><div className="brand-orb"><NexusMark /></div><div><strong>NEXUS</strong><span>NETWORK CONTROL</span></div></div><div className="workspace-selector workspace-static"><span className="workspace-avatar">N</span><div><span className="workspace-label">DEVICE PROFILE · {profile.deviceId}</span><strong>{profile.deviceName || 'Локальное устройство'}</strong></div><span className="workspace-badge">LOCAL</span></div><div className="nav-label">CONTROL CENTER</div><nav>{navItems.map((item) => <button key={item.id} className={`nav-item ${page === item.id ? 'active' : ''}`} onClick={() => { setPage(item.id); if (item.id === 'settings') setSettingsTab('general'); }}><span className="nav-glyph"><NavGlyph name={item.icon} /></span><span>{item.label}</span>{item.id === 'logs' && logs.length > 0 ? <em>{Math.min(logs.length, 99)}</em> : null}</button>)}</nav><div className="sidebar-bottom"><div className="system-status"><StatusDot tone={systemTone} /><div><span>{systemTitle}</span><small>{systemNote}</small></div></div><div className="version-row"><span>NEXUS v1.0.0</span><span className="online-dot" /> LOCAL</div></div></aside>
 
     <main className="main-content"><header className="topbar"><div className="breadcrumb"><span>CONTROL CENTER</span><b>/</b><strong>{navItems.find((item) => item.id === page)?.label}</strong></div><div className="top-actions"><button className="circle-button" aria-label="Журнал событий" title="Открыть журнал" onClick={() => setPage('logs')}><span>♢</span>{logs.some((log) => log.level === 'error') ? <i /> : null}</button><div className="profile-wrap"><button className="user-chip" onClick={() => setProfileOpen((value) => !value)}><span className="user-avatar">{profileInitial}</span><span>{profileName}</span><b>⌄</b></button><ProfilePopover open={profileOpen} profile={profile} draft={profileDraft} setDraft={setProfileDraft} onSave={handleSaveProfile} /></div></div></header>
 
@@ -307,7 +314,7 @@ function App() {
 
       {page === 'logs' && <section className="page-section"><div className="page-heading"><div><span className="section-kicker">EVENT STREAM</span><h1>Журнал событий</h1><p>Последние сигналы от модулей и NEXUS runtime.</p></div><div className="log-live"><StatusDot tone="green" /> поток в реальном времени</div></div><div className="filter-row"><span className="filter-label">ИСТОЧНИК:</span><button className={`filter-chip ${logFilter === 'all' ? 'active' : ''}`} onClick={() => setLogFilter('all')}>Все <b>{logs.length}</b></button>{['system', ...modules.map((module) => module.id)].map((id) => <button key={id} className={`filter-chip ${logFilter === id ? 'active' : ''}`} onClick={() => setLogFilter(id)}>{id === 'system' ? 'NEXUS' : id}</button>)}</div><div className="logs-card"><div className="logs-toolbar"><span>СЕГОДНЯ</span><span>{visibleLogs.length} событий</span></div>{visibleLogs.length ? visibleLogs.map((log, index) => <LogRow key={`${log.timestamp}-${index}`} log={log} />) : <div className="empty-state"><span>≡</span><h3>Журнал пуст</h3><p>События появятся после запуска модуля.</p></div>}</div></section>}
 
-      {page === 'settings' && <Settings settings={settings} onChange={(next) => void persistSettings(next)} updates={updates} />}
+      {page === 'settings' && <Settings settings={settings} onChange={(next) => void persistSettings(next)} updates={updates} activeTab={settingsTab} onTabChange={setSettingsTab} onToast={setToast} />}
     </main><Toast message={toast} />
   </div></div>;
 }
@@ -317,8 +324,166 @@ function LogRow({ log }: { log: ModuleLog }) {
   return <div className="log-row"><span className="log-time">{formatTime(log.timestamp)}</span><span className={`status-dot ${tone}`} /><span className="log-source">{log.id === 'system' ? 'NEXUS' : log.id}</span><span className="log-message" title={log.message}>{log.message}</span><span className={`log-level ${tone}`}>{log.level}</span></div>;
 }
 
-function Settings({ settings, onChange, updates }: { settings: AppSettings; onChange: (next: AppSettings) => void; updates: UpdateInfo[] }) {
-  return <section className="page-section settings-page"><div className="page-heading"><div><span className="section-kicker">PREFERENCES</span><h1>Настройки</h1><p>Поведение локального control plane.</p></div></div><div className="settings-layout"><div className="settings-card"><div className="settings-card-head"><div className="settings-symbol"><GearIcon /></div><div><h3>Runtime</h3><p>Как NEXUS управляет процессами.</p></div></div><SettingRow label="Автозапуск модулей" description="Запускать ранее включённые модули при старте приложения." checked={settings.autoStart} onChange={() => onChange({ ...settings, autoStart: !settings.autoStart })} /><SettingRow label="Уведомления о событиях" description="Системные уведомления при ошибках модулей и сворачивании в трей." checked={settings.notifications} onChange={() => onChange({ ...settings, notifications: !settings.notifications })} /><SettingRow label="Закрывать в трей" description="Крестик прячет окно. Полный выход — из меню трея." checked={settings.closeToTray} onChange={() => onChange({ ...settings, closeToTray: !settings.closeToTray })} /><SettingRow label="Автоподключение Jey2Ray" description="Подключать последний VPN-профиль при старте NEXUS." checked={settings.autoConnectVpn} onChange={() => onChange({ ...settings, autoConnectVpn: !settings.autoConnectVpn })} /></div><div className="settings-card"><div className="settings-card-head"><div className="settings-symbol violet">◈</div><div><h3>Module registry</h3><p>Релизы с GitHub Flowseal и XTLS/Xray-core.</p></div></div><div className="source-list"><div><span>Flowseal / zapret-discord-youtube</span><b>{updates.find((item) => item.id === 'zapret')?.latestVersion ?? '—'}</b></div><div><span>Flowseal / tg-ws-proxy</span><b>{updates.find((item) => item.id === 'tg-ws-proxy')?.latestVersion ?? '—'}</b></div><div><span>XTLS / Xray-core</span><b>{updates.find((item) => item.id === 'jey2ray')?.latestVersion ?? '—'}</b></div></div><div className="path-setting"><span className="setting-label">ПОЛИТИКА ПРОЦЕССОВ</span><code>shell: false</code><small>stdout и stderr записываются в log_file манифеста.</small></div></div></div><div className="info-callout"><span>i</span><div><strong>Локальный профиль и обновления</strong><p>Имя и device key хранятся только локально. Автообновление принимает только HTTPS-релизы с github.com/Flowseal и сохраняет SHA-256 скачанного файла.</p></div></div></section>;
+function Settings({ settings, onChange, updates, activeTab, onTabChange, onToast }: {
+  settings: AppSettings;
+  onChange: (next: AppSettings) => void;
+  updates: UpdateInfo[];
+  activeTab: SettingsTab;
+  onTabChange: (tab: SettingsTab) => void;
+  onToast: (message: string) => void;
+}) {
+  return <section className="page-section settings-page">
+    <div className="page-heading"><div><span className="section-kicker">PREFERENCES</span><h1>Настройки</h1><p>Поведение локального control plane и правила приложений.</p></div></div>
+    <div className="settings-tabs" role="tablist" aria-label="Разделы настроек">
+      <button type="button" role="tab" aria-selected={activeTab === 'general'} className={`settings-tab ${activeTab === 'general' ? 'active' : ''}`} onClick={() => onTabChange('general')}>
+        <span className="settings-tab-icon"><GearIcon /></span><span><strong>Основные</strong><small>Runtime и обновления</small></span>
+      </button>
+      <button type="button" role="tab" aria-selected={activeTab === 'applications'} className={`settings-tab ${activeTab === 'applications' ? 'active' : ''}`} onClick={() => onTabChange('applications')}>
+        <span className="settings-tab-icon applications"><svg viewBox="0 0 24 24" aria-hidden><rect x="4" y="3.5" width="16" height="17" rx="3" /><path d="M8 8h8M8 12h5" /></svg></span><span><strong>Настройки приложений</strong><small>Маршрутизация через VPN</small></span>
+      </button>
+    </div>
+
+    {activeTab === 'general' ? <div className="settings-tab-panel" role="tabpanel">
+      <div className="settings-layout">
+        <div className="settings-card"><div className="settings-card-head"><div className="settings-symbol"><GearIcon /></div><div><h3>Runtime</h3><p>Как NEXUS управляет процессами.</p></div></div><SettingRow label="Автозапуск модулей" description="Запускать ранее включённые модули при старте приложения." checked={settings.autoStart} onChange={() => onChange({ ...settings, autoStart: !settings.autoStart })} /><SettingRow label="Уведомления о событиях" description="Системные уведомления при ошибках модулей и сворачивании в трей." checked={settings.notifications} onChange={() => onChange({ ...settings, notifications: !settings.notifications })} /><SettingRow label="Закрывать в трей" description="Крестик прячет окно. Полный выход — из меню трея." checked={settings.closeToTray} onChange={() => onChange({ ...settings, closeToTray: !settings.closeToTray })} /></div>
+        <div className="settings-card"><div className="settings-card-head"><div className="settings-symbol violet">◈</div><div><h3>Module registry</h3><p>Релизы с GitHub Flowseal и XTLS/Xray-core.</p></div></div><div className="source-list"><div><span>Flowseal / zapret-discord-youtube</span><b>{updates.find((item) => item.id === 'zapret')?.latestVersion ?? '—'}</b></div><div><span>Flowseal / tg-ws-proxy</span><b>{updates.find((item) => item.id === 'tg-ws-proxy')?.latestVersion ?? '—'}</b></div><div><span>XTLS / Xray-core</span><b>{updates.find((item) => item.id === 'jey2ray')?.latestVersion ?? '—'}</b></div></div><div className="path-setting"><span className="setting-label">ПОЛИТИКА ПРОЦЕССОВ</span><code>shell: false</code><small>stdout и stderr записываются в log_file манифеста.</small></div></div>
+      </div>
+      <div className="info-callout"><span>i</span><div><strong>Локальный профиль и обновления</strong><p>Имя и device key хранятся только локально. Автообновление принимает только HTTPS-релизы с github.com/Flowseal и сохраняет SHA-256 скачанного файла.</p></div></div>
+    </div> : <ApplicationSettings settings={settings} onChange={onChange} onToast={onToast} />}
+  </section>;
+}
+
+function ApplicationSettings({ settings, onChange, onToast }: {
+  settings: AppSettings;
+  onChange: (next: AppSettings) => void;
+  onToast: (message: string) => void;
+}) {
+  const [runtimeStatus, setRuntimeStatus] = useState<VpnStatus>('disconnected');
+  const desktop = Boolean(window.nexus);
+  const mode = settings.vpnMode === 'tun' ? 'tun' : 'proxy';
+  const splitApps = settings.vpnSplitApps ?? [];
+  const storedAppRouting: VpnAppRoutingMode = settings.vpnAppRouting === 'exclude' || settings.vpnAppRouting === 'include'
+    ? settings.vpnAppRouting
+    : settings.vpnSplitTunnel
+      ? 'include'
+      : 'system';
+  const appRouting: VpnAppRoutingMode = mode === 'tun' && splitApps.length ? storedAppRouting : 'system';
+  const routeSettingsLocked = runtimeStatus === 'connecting' || runtimeStatus === 'connected';
+
+  useEffect(() => {
+    const api = window.nexus;
+    if (!api?.getVpn) return;
+    let alive = true;
+    void api.getVpn().then((snapshot) => {
+      if (alive) setRuntimeStatus(snapshot.runtime.status);
+    }).catch((error: Error) => onToast(cleanError(error)));
+    const off = api.onVpnChanged((snapshot) => setRuntimeStatus(snapshot.runtime.status));
+    return () => { alive = false; off(); };
+  }, [onToast]);
+
+  const addSplitApps = async (activate: VpnAppRoutingMode = appRouting) => {
+    if (routeSettingsLocked) {
+      onToast('Сначала отключи VPN, затем измени список приложений');
+      return;
+    }
+    if (!desktop) {
+      onToast('Выбор .exe работает в окне Electron (npm start)');
+      return;
+    }
+    try {
+      const picked = await window.nexus?.pickVpnApps();
+      if (!picked?.length) return;
+      const merged = new Map(splitApps.map((app) => [app.executable.toLocaleLowerCase('en-US'), app]));
+      for (const app of picked) merged.set(app.executable.toLocaleLowerCase('en-US'), app);
+      onChange({
+        ...settings,
+        vpnMode: activate === 'system' ? mode : 'tun',
+        vpnAppRouting: activate,
+        vpnSplitTunnel: activate === 'include',
+        vpnSplitApps: [...merged.values()],
+      });
+    } catch (error) {
+      onToast(cleanError(error) || 'Не удалось выбрать приложение');
+    }
+  };
+
+  const selectAppRouting = (next: VpnAppRoutingMode) => {
+    if (routeSettingsLocked) {
+      onToast('Сначала отключи VPN, затем измени маршрутизацию приложений');
+      return;
+    }
+    if (next !== 'system' && !splitApps.length) {
+      void addSplitApps(next);
+      return;
+    }
+    onChange({
+      ...settings,
+      vpnMode: next === 'system' ? mode : 'tun',
+      vpnAppRouting: next,
+      vpnSplitTunnel: next === 'include',
+    });
+  };
+
+  const removeSplitApp = (executable: string) => {
+    if (routeSettingsLocked) {
+      onToast('Сначала отключи VPN, затем измени список приложений');
+      return;
+    }
+    const next = splitApps.filter((app) => app.executable !== executable);
+    const nextRouting: VpnAppRoutingMode = next.length ? appRouting : 'system';
+    onChange({
+      ...settings,
+      vpnSplitApps: next,
+      vpnAppRouting: nextRouting,
+      vpnSplitTunnel: nextRouting === 'include',
+    });
+  };
+
+  return <div className="settings-tab-panel settings-applications-panel" role="tabpanel">
+    <div className="settings-applications-intro">
+      <div><span>JEY2RAY ROUTING</span><h2>Настройки приложений</h2><p>Управляй автоподключением и маршрутами отдельных программ Windows из общего раздела настроек.</p></div>
+      <span className={`app-route-state ${appRouting !== 'system' ? 'is-on' : ''}`}><i />{appRouting !== 'system' ? 'Маршрутизация включена' : 'Общие настройки'}</span>
+    </div>
+
+    <div className="app-settings-scroll">
+      {routeSettingsLocked && <div className="app-settings-lock">
+        <span>i</span>
+        <div><strong>VPN сейчас работает</strong><p>Отключи подключение, чтобы изменить маршрутизацию или список приложений.</p></div>
+      </div>}
+
+      <section className="app-settings-card auto-settings-card">
+        <div className="app-settings-card-head compact">
+          <div><span className="settings-step">01</span><div><h3>Автоподключение</h3><p>Запускать последний сервер вместе с NEXUS.</p></div></div>
+          <button type="button" className={`settings-toggle ${settings.autoConnectVpn ? 'is-on' : ''}`} onClick={() => onChange({ ...settings, autoConnectVpn: !settings.autoConnectVpn })} aria-label={settings.autoConnectVpn ? 'Выключить автоподключение' : 'Включить автоподключение'}><i /></button>
+        </div>
+        <div className={`auto-status ${settings.autoConnectVpn ? 'is-on' : ''}`}><i />{settings.autoConnectVpn ? 'Включено' : 'Выключено'}</div>
+      </section>
+
+      <section className="app-settings-card routing-settings-card">
+        <div className="app-settings-card-head"><div><span className="settings-step">02</span><div><h3>Настройки прокси для приложений</h3><p>Выбери общую политику. Конкретные приложения можно добавить ниже.</p></div></div></div>
+        <div className="routing-choice-list" role="radiogroup" aria-label="Режим маршрутизации приложений">
+          <button type="button" role="radio" aria-checked={appRouting === 'system'} className={`routing-choice ${appRouting === 'system' ? 'is-active' : ''}`} disabled={routeSettingsLocked} onClick={() => selectAppRouting('system')}><i className="settings-radio" /><span><strong>Системные настройки</strong><small>Без отдельных правил. Используется общий режим {mode === 'tun' ? 'TUN' : 'PROXY'}.</small></span><em>По умолчанию</em></button>
+          <button type="button" role="radio" aria-checked={appRouting === 'exclude'} className={`routing-choice ${appRouting === 'exclude' ? 'is-active' : ''}`} disabled={routeSettingsLocked} onClick={() => selectAppRouting('exclude')}><i className="settings-radio" /><span><strong>Прямое подключение для выбранных приложений</strong><small>Выбранные приложения обходят VPN, все остальные идут через VPN.</small></span><em>Исключения</em></button>
+          <button type="button" role="radio" aria-checked={appRouting === 'include'} className={`routing-choice ${appRouting === 'include' ? 'is-active' : ''}`} disabled={routeSettingsLocked} onClick={() => selectAppRouting('include')}><i className="settings-radio" /><span><strong>VPN только для выбранных приложений</strong><small>Выбранные приложения идут через VPN, все остальные — напрямую.</small></span><em>Split Tunneling</em></button>
+        </div>
+      </section>
+
+      <section className="app-settings-card selected-apps-card">
+        <div className="app-settings-card-head selected-apps-head">
+          <div><span className="settings-step">03</span><div><h3>Выбранные приложения</h3><p>{splitApps.length ? `Добавлено: ${splitApps.length}` : 'Добавь приложения Windows, для которых будут действовать правила выше.'}</p></div></div>
+          <button type="button" className="app-add-button" disabled={routeSettingsLocked} onClick={() => void addSplitApps(appRouting)}><svg viewBox="0 0 16 16" aria-hidden><path d="M8 3v10M3 8h10" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" /></svg>Добавить приложение</button>
+        </div>
+        {splitApps.length ? <div className="selected-app-list">
+          {splitApps.map((app) => <div className="selected-app-row" key={app.executable.toLocaleLowerCase('en-US')} title={app.path}>
+            <span className="selected-app-icon"><svg viewBox="0 0 24 24" aria-hidden><rect x="4" y="3.5" width="16" height="17" rx="3" fill="none" stroke="currentColor" strokeWidth="1.5" /><path d="M8 8h8M8 12h5" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" /></svg></span>
+            <span className="selected-app-copy"><strong>{app.executable}</strong><small>{app.path}</small></span>
+            <span className={`selected-app-route ${appRouting === 'exclude' ? 'is-direct' : appRouting === 'include' ? 'is-vpn' : ''}`}>{appRouting === 'exclude' ? 'Напрямую' : appRouting === 'include' ? 'Через VPN' : 'Не активно'}</span>
+            <button type="button" className="selected-app-remove" disabled={routeSettingsLocked} onClick={() => removeSplitApp(app.executable)} aria-label={`Удалить ${app.executable}`}>×</button>
+          </div>)}
+        </div> : <div className="selected-app-empty"><span><svg viewBox="0 0 32 32" aria-hidden><rect x="7" y="5" width="18" height="22" rx="4" fill="none" stroke="currentColor" strokeWidth="1.5" /><path d="M12 12h8M12 17h6" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" /></svg></span><strong>Приложения ещё не выбраны</strong><p>Нажми «Добавить приложение» и выбери один или несколько файлов .exe.</p></div>}
+      </section>
+    </div>
+  </div>;
 }
 
 function SettingRow({ label, description, checked, onChange }: { label: string; description: string; checked: boolean; onChange: () => void }) {
