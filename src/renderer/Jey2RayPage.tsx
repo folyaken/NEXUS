@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import type { AppSettings, UpdateInfo, VpnProfile, VpnRuntime, VpnSubscriptionInfo } from '../main/types';
 import { canConnect, displayName } from '../main/vpn-classify';
 import { Flag } from './Flag';
@@ -60,6 +60,18 @@ function telegramOf(info?: VpnSubscriptionInfo): string | null {
   return info?.title || null;
 }
 
+function latencyScore(profile: VpnProfile): number {
+  if (typeof profile.pingMs === 'number' && profile.pingMs >= 0) return profile.pingMs;
+  if (profile.pingMs === -1) return 8_000;
+  return 40_000;
+}
+
+function pickFastest(list: VpnProfile[]): VpnProfile | null {
+  const ready = list.filter((item) => !canConnect(item));
+  if (!ready.length) return null;
+  return [...ready].sort((a, b) => latencyScore(a) - latencyScore(b))[0];
+}
+
 function Signal({ ms }: { ms?: number | null }) {
   if (ms == null) {
     return <span className="happ-ping off" title="Ещё не измеряли"><span className="happ-signal off">{[1, 2, 3, 4].map((bar) => <i key={bar} />)}</span><em>—</em></span>;
@@ -102,6 +114,7 @@ export function Jey2RayPage({
   const [action, setAction] = useState<'refresh' | 'ping' | null>(null);
   const [tab, setTab] = useState('all');
   const [selectedId, setSelectedId] = useState<string | null>(settings.lastVpnProfileId);
+  const autoPing = useRef(false);
   const desktop = Boolean(window.nexus);
   const xrayUpdate = updates.find((item) => item.id === 'jey2ray');
   const mode = settings.vpnMode === 'tun' ? 'tun' : 'proxy';
@@ -130,8 +143,10 @@ export function Jey2RayPage({
   const nodes = useMemo(() => profiles.filter((item) => item.kind !== 'notice'), [profiles]);
   const tabs = useMemo(() => ['all', ...new Set(nodes.map(subscriptionKey))], [nodes]);
   const visible = useMemo(() => tab === 'all' ? nodes : nodes.filter((item) => subscriptionKey(item) === tab), [nodes, tab]);
+  const fastest = useMemo(() => pickFastest(visible), [visible]);
+  const listed = useMemo(() => fastest ? [fastest, ...visible] : visible, [fastest, visible]);
   const info: VpnSubscriptionInfo | undefined = (runtime.subscriptions ?? []).find((item) => tab !== 'all' && item.url === tab) ?? runtime.subscriptions?.[0];
-  const selected = nodes.find((item) => item.id === selectedId) ?? nodes.find((item) => !canConnect(item)) ?? nodes[0] ?? null;
+  const selected = nodes.find((item) => item.id === selectedId) ?? fastest ?? nodes.find((item) => !canConnect(item)) ?? nodes[0] ?? null;
   const onAir = runtime.status === 'connected' && runtime.activeProfileId === selected?.id;
   const otherLive = runtime.status === 'connected' && runtime.activeProfileId !== selected?.id;
   const used = (info?.upload ?? 0) + (info?.download ?? 0);
@@ -234,6 +249,17 @@ export function Jey2RayPage({
     }
   }, 2200);
 
+  useEffect(() => {
+    if (runtime.activeProfileId) return;
+    if (fastest?.id) setSelectedId(fastest.id);
+  }, [fastest?.id, runtime.activeProfileId]);
+
+  useEffect(() => {
+    if (!desktop || autoPing.current || !nodes.length) return;
+    autoPing.current = true;
+    void ping();
+  }, [desktop, nodes.length]);
+
   const powerLabel = onAir
     ? `Работает · ${mode.toUpperCase()} · 127.0.0.1:${runtime.inboundPort + 1}`
     : otherLive
@@ -328,7 +354,7 @@ export function Jey2RayPage({
       </button>
       <div className="power-meta">
         {selected ? <Flag code={selected.country} /> : null}
-        <strong>{selected ? displayName(selected) : 'Сервер не выбран'}</strong>
+        <strong>{selected ? (fastest?.id === selected.id ? 'Самый быстрый' : displayName(selected)) : 'Сервер не выбран'}</strong>
         <small>{powerLabel}</small>
       </div>
       <div className="mode-switch">
