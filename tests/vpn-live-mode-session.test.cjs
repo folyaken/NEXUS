@@ -44,6 +44,13 @@ const app = fs.readFileSync(path.join(root, 'src', 'renderer', 'App.tsx'), 'utf8
 const page = fs.readFileSync(path.join(root, 'src', 'renderer', 'Jey2RayPage.tsx'), 'utf8');
 const vpnManager = fs.readFileSync(path.join(root, 'src', 'main', 'vpn-manager.ts'), 'utf8');
 const styles = fs.readFileSync(path.join(root, 'src', 'renderer', 'styles.css'), 'utf8');
+const packageJson = JSON.parse(fs.readFileSync(path.join(root, 'package.json'), 'utf8'));
+
+function pngDimensions(filePath) {
+  const image = fs.readFileSync(filePath);
+  assert.equal(image.subarray(0, 8).toString('hex'), '89504e470d0a1a0a', `${filePath} must be a PNG image`);
+  return { width: image.readUInt32BE(16), height: image.readUInt32BE(20) };
+}
 
 assert.match(preload, /switchVpnMode: \(mode: 'proxy' \| 'tun'\)/);
 assert.match(env, /switchVpnMode\(mode: 'proxy' \| 'tun'\): Promise<VpnRuntime>/);
@@ -124,4 +131,35 @@ assert.match(styles, /\.log-source-tabs \{[^}]*grid-template-columns: repeat\(6/
 assert.match(styles, /\.appearance-graphite \.app-shell \{ filter: grayscale\(1\) saturate\(0\); \}/);
 assert.doesNotMatch(styles, /\.settings-tab\.active \{|\.tunnel-ping|\.power-session/);
 
-console.log('Live VPN mode switching, session timer, pulse rings and separated settings regression checks passed.');
+assert.match(main, /const TRAY_FRAME_FILES = \{[\s\S]*disconnected:[\s\S]*connecting:[\s\S]*connected:/, 'tray branding must expose three visual VPN states');
+assert.match(main, /function stopTrayAnimation\(\): void/);
+assert.match(main, /if \(trayAnimation\) clearInterval\(trayAnimation\)/);
+assert.match(main, /visualState === 'connecting' \? 150 : 420/);
+assert.match(main, /trayAnimation\.unref\(\)/, 'tray animation must not keep the process alive');
+assert.match(main, /setTrayVpnStatus\(snapshot\.runtime\.status\)/, 'VPN state events must immediately update the tray');
+assert.match(main, /stopTrayAnimation\(\);[\s\S]*tray\?\.destroy\(\)/, 'quitting must release the tray timer before destroying the tray');
+assert.match(main, /icon: assetPath\('nexus-app\.png'\)/);
+assert.match(app, /function NexusMark\(\)[\s\S]*nexus-infinity-mark/);
+assert.match(app, /function NexusShowcaseMark\(\)/);
+assert.match(app, /<div className="about-mark"><NexusShowcaseMark \/><\/div>/);
+assert.match(styles, /\.nexus-infinity-mark \.nexus-ribbon/);
+assert.match(styles, /\.nexus-showcase-mark \{ animation: showcase-hover/);
+
+const resourceFilters = packageJson.build.extraResources.flatMap((entry) => entry.filter ?? []);
+for (const resource of ['nexus-tray.png', 'nexus-app.png', 'nexus.ico', 'tray/**/*']) {
+  assert.ok(resourceFilters.includes(resource), `${resource} must be copied outside ASAR for native window and tray use`);
+}
+const trayAssets = [
+  'nexus-off.png',
+  ...Array.from({ length: 8 }, (_, index) => `nexus-connecting-${index}.png`),
+  ...Array.from({ length: 6 }, (_, index) => `nexus-connected-${index}.png`),
+];
+for (const asset of trayAssets) {
+  assert.deepEqual(pngDimensions(path.join(root, 'assets', 'tray', asset)), { width: 32, height: 32 }, `${asset} must stay sharp at Windows tray density`);
+}
+assert.deepEqual(pngDimensions(path.join(root, 'assets', 'nexus-tray.png')), { width: 32, height: 32 });
+assert.deepEqual(pngDimensions(path.join(root, 'assets', 'nexus-app.png')), { width: 256, height: 256 });
+const icoHeader = fs.readFileSync(path.join(root, 'assets', 'nexus.ico')).subarray(0, 4).toString('hex');
+assert.equal(icoHeader, '00000100', 'the Windows build icon must remain a valid ICO container');
+
+console.log('Live VPN mode switching, session timer, pulse rings, separated settings and stateful tray branding regression checks passed.');

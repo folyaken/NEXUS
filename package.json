@@ -40,7 +40,9 @@
         "to": "assets",
         "filter": [
           "nexus-tray.png",
-          "nexus.ico"
+          "nexus-app.png",
+          "nexus.ico",
+          "tray/**/*"
         ]
       }
     ],

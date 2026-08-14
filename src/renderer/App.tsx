@@ -70,7 +70,28 @@ function IconMark({ children }: { children: string }) {
 }
 
 function NexusMark() {
-  return <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 4.5 12 2l5 2.5v5.8L12 13l-5-2.7Z" /><path d="m7 13.7 5 2.8 5-2.8v5.8L12 22l-5-2.5Z" /><path d="m7 4.5-3 1.8v5.4l3 2" /><path d="m17 4.5 3 1.8v5.4l-3 2" /><circle cx="12" cy="7.7" r="1.4" /></svg>;
+  return <svg className="nexus-infinity-mark" viewBox="0 0 24 24" aria-hidden="true">
+    <path className="nexus-ribbon-shadow" d="M4.2 14.2v-4l3-3 4.8 5.2 4.8-5.2 3 3v4l-3 3-4.8-5.2-4.8 5.2-3-3Z" />
+    <path className="nexus-ribbon" d="M4.2 13.6v-4l3-3 4.8 5.2 4.8-5.2 3 3v4l-3 3-4.8-5.2-4.8 5.2-3-3Z" />
+    <circle className="nexus-ribbon-core" cx="12" cy="11.8" r="1" />
+  </svg>;
+}
+
+function NexusShowcaseMark() {
+  return <svg className="nexus-showcase-mark" viewBox="0 0 220 170" aria-hidden="true">
+    <defs>
+      <linearGradient id="showcase-n-front" x1="65" y1="39" x2="154" y2="132" gradientUnits="userSpaceOnUse"><stop stopColor="#92f3b7" /><stop offset="1" stopColor="#39c77d" /></linearGradient>
+      <linearGradient id="showcase-n-side" x1="76" y1="58" x2="163" y2="140" gradientUnits="userSpaceOnUse"><stop stopColor="#7e63e8" /><stop offset="1" stopColor="#4c358e" /></linearGradient>
+      <linearGradient id="showcase-orbit" x1="35" y1="130" x2="192" y2="42" gradientUnits="userSpaceOnUse"><stop stopColor="#6ee9a2" /><stop offset=".52" stopColor="#a98cff" /><stop offset="1" stopColor="#7154dc" /></linearGradient>
+    </defs>
+    <ellipse className="showcase-orbit orbit-back" cx="111" cy="87" rx="89" ry="42" transform="rotate(-18 111 87)" />
+    <path className="showcase-n-extrusion" d="M66 128V45h27l42 52V45h27v83h-27L93 76v52H66Z" transform="translate(7 7)" />
+    <path className="showcase-n-face" d="M66 128V45h27l42 52V45h27v83h-27L93 76v52H66Z" />
+    <path className="showcase-n-highlight" d="M76 116V56h12l47 58M145 55v58" />
+    <path className="showcase-orbit orbit-front" d="M29 112c24 33 79 42 127 20 31-14 49-36 51-55" />
+    <circle className="showcase-orbit-node node-green" cx="31" cy="113" r="5" />
+    <circle className="showcase-orbit-node node-violet" cx="196" cy="51" r="4" />
+  </svg>;
 }
 
 function GearIcon() {
@@ -91,7 +112,7 @@ function NavGlyph({ name }: { name: string }) {
 
 function WindowBar({ fullscreen }: { fullscreen: boolean }) {
   return <div className="window-bar">
-    <div className="window-drag"><span className="window-brand-mark">✦</span><strong>NEXUS</strong><span className="window-separator">/</span><span>Network Control Plane</span></div>
+    <div className="window-drag"><span className="window-brand-mark"><NexusMark /></span><strong>NEXUS</strong><span className="window-separator">/</span><span>Network Control Plane</span></div>
     <div className="window-actions"><button className="window-control minimize" aria-label="Свернуть" onClick={() => void window.nexus?.minimizeWindow()}>−</button><button className="window-control fullscreen" aria-label={fullscreen ? 'Оконный режим' : 'На весь экран'} title={fullscreen ? 'Оконный режим (Esc)' : 'На весь экран'} onClick={() => void window.nexus?.toggleFullscreen()}>{fullscreen ? '❐' : '⛶'}</button><button className="window-control close" aria-label="Закрыть" onClick={() => void window.nexus?.closeWindow()}>×</button></div>
   </div>;
 }
@@ -254,7 +275,7 @@ function AboutPage() {
   return <section className="page-section about-page">
     <div className="page-heading"><div><span className="section-kicker">ABOUT NEXUS</span><h1>О программе</h1><p>Единый локальный центр управления сетевыми инструментами.</p></div><span className="about-version-pill">VERSION 1.0.0</span></div>
     <div className="about-hero-card">
-      <div className="about-mark"><NexusMark /></div>
+      <div className="about-mark"><NexusShowcaseMark /></div>
       <div className="about-hero-copy"><span>NETWORK CONTROL PLANE</span><h2>NEXUS</h2><p>Быстрое управление VPN, маршрутами и локальными сетевыми модулями в одном аккуратном интерфейсе.</p></div>
       <div className="about-build"><span>STABLE CHANNEL</span><strong>1.0.0</strong><small>Desktop for Windows</small></div>
     </div>

@@ -8,7 +8,7 @@ import { ModuleManager } from './module-manager';
 import { GithubUpdater } from './github-updater';
 import { VpnManager } from './vpn-manager';
 import { normalizeVpnSplitApps, resolveVpnAppRouting } from './split-tunnel';
-import { DEFAULT_SETTINGS, type AppSettings, type ModuleLog, type UserProfile, type VpnSplitApp } from './types';
+import { DEFAULT_SETTINGS, type AppSettings, type ModuleLog, type UserProfile, type VpnSplitApp, type VpnStatus } from './types';
 
 declare const __dirname: string;
 
@@ -25,6 +25,16 @@ let updater: GithubUpdater;
 let vpn: VpnManager;
 let settings: AppSettings = { ...DEFAULT_SETTINGS };
 let trayHintShown = false;
+let trayVpnStatus: VpnStatus = 'disconnected';
+let trayAnimation: NodeJS.Timeout | null = null;
+let trayFrameIndex = 0;
+const trayFrameCache = new Map<string, Electron.NativeImage>();
+
+const TRAY_FRAME_FILES = {
+  disconnected: ['nexus-off.png'],
+  connecting: Array.from({ length: 8 }, (_, index) => `nexus-connecting-${index}.png`),
+  connected: Array.from({ length: 6 }, (_, index) => `nexus-connected-${index}.png`),
+} as const;
 
 function assetPath(name: string): string {
   return app.isPackaged ? path.join(process.resourcesPath, 'assets', name) : path.join(app.getAppPath(), 'assets', name);
@@ -102,22 +112,81 @@ function notify(title: string, body: string): void {
   new Notification({ title, body }).show();
 }
 
-function createTray(): void {
-  if (tray) return;
-  const iconPath = assetPath('nexus-tray.png');
-  const icon = existsSync(iconPath)
-    ? nativeImage.createFromPath(iconPath).resize({ width: 16, height: 16 })
+function stopTrayAnimation(): void {
+  if (trayAnimation) clearInterval(trayAnimation);
+  trayAnimation = null;
+  trayFrameIndex = 0;
+}
+
+function loadTrayFrame(fileName: string): Electron.NativeImage {
+  const cached = trayFrameCache.get(fileName);
+  if (cached) return cached;
+
+  const framePath = assetPath(path.join('tray', fileName));
+  if (existsSync(framePath)) {
+    const frame = nativeImage.createFromPath(framePath);
+    if (!frame.isEmpty()) {
+      const resized = frame.resize({ width: 16, height: 16 });
+      trayFrameCache.set(fileName, resized);
+      return resized;
+    }
+  }
+  const fallbackPath = assetPath('nexus-tray.png');
+  const fallback = existsSync(fallbackPath)
+    ? nativeImage.createFromPath(fallbackPath).resize({ width: 16, height: 16 })
     : nativeImage.createEmpty();
-  tray = new Tray(icon);
-  tray.setToolTip('NEXUS — Network Control Plane');
+  trayFrameCache.set(fileName, fallback);
+  return fallback;
+}
+
+function trayStatusCopy(status: VpnStatus): { label: string; tooltip: string } {
+  if (status === 'connecting') return { label: 'VPN: подключение…', tooltip: 'NEXUS — VPN подключается…' };
+  if (status === 'connected') return { label: 'VPN: подключён', tooltip: 'NEXUS — VPN подключён' };
+  if (status === 'error') return { label: 'VPN: ошибка подключения', tooltip: 'NEXUS — ошибка VPN' };
+  return { label: 'VPN: отключён', tooltip: 'NEXUS — VPN отключён' };
+}
+
+function refreshTrayMenu(status: VpnStatus): void {
+  if (!tray) return;
+  const copy = trayStatusCopy(status);
+  tray.setToolTip(copy.tooltip);
   tray.setContextMenu(Menu.buildFromTemplate([
+    { label: copy.label, enabled: false },
+    { type: 'separator' },
     { label: 'Показать NEXUS', click: showWindow },
     { label: 'Скрыть окно', click: () => mainWindow?.hide() },
     { type: 'separator' },
     { label: 'Выйти', click: () => { void quitApp(); } },
   ]));
+}
+
+function setTrayVpnStatus(status: VpnStatus): void {
+  trayVpnStatus = status;
+  stopTrayAnimation();
+  if (!tray || tray.isDestroyed()) return;
+
+  const visualState = status === 'connected' ? 'connected' : status === 'connecting' ? 'connecting' : 'disconnected';
+  const frames = TRAY_FRAME_FILES[visualState];
+  const renderFrame = () => {
+    if (!tray || tray.isDestroyed()) return;
+    tray.setImage(loadTrayFrame(frames[trayFrameIndex % frames.length]));
+    trayFrameIndex = (trayFrameIndex + 1) % frames.length;
+  };
+
+  renderFrame();
+  refreshTrayMenu(status);
+  if (frames.length > 1) {
+    trayAnimation = setInterval(renderFrame, visualState === 'connecting' ? 150 : 420);
+    trayAnimation.unref();
+  }
+}
+
+function createTray(): void {
+  if (tray) return;
+  tray = new Tray(loadTrayFrame(TRAY_FRAME_FILES.disconnected[0]));
   tray.on('click', showWindow);
   tray.on('double-click', showWindow);
+  setTrayVpnStatus(trayVpnStatus);
 }
 
 function createWindow(): void {
@@ -131,7 +200,7 @@ function createWindow(): void {
     fullscreenable: true,
     center: true,
     frame: false,
-    icon: assetPath('nexus-tray.png'),
+    icon: assetPath('nexus-app.png'),
     backgroundColor: '#090d16',
     webPreferences: {
       preload: path.join(__dirname, 'preload.js'),
@@ -182,6 +251,7 @@ async function quitApp(): Promise<void> {
   } catch {
     /* still quit */
   }
+  stopTrayAnimation();
   tray?.destroy();
   tray = null;
   app.quit();
@@ -327,7 +397,10 @@ function wireIpc(): void {
   });
   manager.on('scan', (stamp: string) => mainWindow?.webContents.send('runtime:scan', stamp));
   updater.on('changed', (updates) => mainWindow?.webContents.send('updates:changed', updates));
-  vpn.on('changed', (snapshot) => mainWindow?.webContents.send('vpn:changed', snapshot));
+  vpn.on('changed', (snapshot: ReturnType<VpnManager['snapshot']>) => {
+    mainWindow?.webContents.send('vpn:changed', snapshot);
+    setTrayVpnStatus(snapshot.runtime.status);
+  });
   vpn.on('log', (log: ModuleLog) => mainWindow?.webContents.send('logs:append', log));
 }
 

@@ -93,7 +93,12 @@ h1, h2, h3, .brand strong, .window-drag strong { font-family: var(--font-heading
 
 .sidebar { z-index: 2; position: relative; display: flex; flex: 0 0 254px; flex-direction: column; min-height: 100%; padding: 30px 18px 23px; border-right: 1px solid var(--line); background: linear-gradient(180deg, rgba(13,18,29,.89), rgba(10,14,23,.58)); backdrop-filter: blur(24px); }
 .brand { display: flex; align-items: center; gap: 12px; padding: 0 11px 34px; }
-.brand-orb { display: grid; width: 39px; height: 39px; place-items: center; border: 1px solid rgba(123,242,213,.46); border-radius: 14px; background: linear-gradient(140deg, rgba(124,242,213,.22), rgba(168,149,255,.22)); box-shadow: inset 0 1px 1px rgba(255,255,255,.18), 0 0 28px rgba(124,242,213,.18); color: var(--cyan); }.brand-orb svg { width: 23px; height: 23px; fill: rgba(124,242,213,.08); stroke: currentColor; stroke-linecap: round; stroke-linejoin: round; stroke-width: 1.45; }
+.brand-orb { display: grid; width: 39px; height: 39px; place-items: center; border: 1px solid rgba(123,242,213,.46); border-radius: 14px; background: linear-gradient(140deg, rgba(124,242,213,.22), rgba(168,149,255,.22)); box-shadow: inset 0 1px 1px rgba(255,255,255,.18), 0 0 28px rgba(124,242,213,.18); color: var(--cyan); }.brand-orb svg { width: 23px; height: 23px; }
+.nexus-infinity-mark { overflow: visible; }
+.nexus-infinity-mark .nexus-ribbon-shadow { fill: none; stroke: #8264e8; stroke-linecap: square; stroke-linejoin: bevel; stroke-width: 3.2; transform: translateY(.7px); }
+.nexus-infinity-mark .nexus-ribbon { fill: none; stroke: #69e99d; stroke-linecap: square; stroke-linejoin: bevel; stroke-width: 2.35; }
+.nexus-infinity-mark .nexus-ribbon-core { fill: #9af3b9; stroke: rgba(231,255,239,.88); stroke-width: .35; }
+.brand-orb .nexus-infinity-mark { filter: drop-shadow(0 0 5px rgba(105,233,157,.22)); }
 .brand strong { display: block; font-size: 17px; letter-spacing: .22em; font-weight: 800; }
 .brand span:not(.brand-orb) { display: block; margin-top: 3px; color: var(--muted-2); font-family: var(--font-data); font-size: 8px; letter-spacing: .18em; }
 .workspace-selector { display: flex; align-items: center; gap: 10px; margin: 0 5px 35px; padding: 10px; border: 1px solid var(--line); border-radius: 17px; background: rgba(255,255,255,.035); box-shadow: inset 0 1px rgba(255,255,255,.05); }
@@ -929,9 +934,20 @@ kbd { padding: 3px 5px; border: 1px solid rgba(255,255,255,.1); border-radius: 5
 
 .about-page { max-width: 1180px; }
 .about-version-pill { padding: 8px 10px; border: 1px solid rgba(124,242,213,.13); border-radius: 9px; background: rgba(124,242,213,.05); color: var(--cyan); font-family: var(--font-data); font-size: 9px; letter-spacing: .09em; }
-.about-hero-card { position: relative; display: grid; grid-template-columns: 76px minmax(0,1fr) auto; align-items: center; gap: 20px; margin-top: 27px; padding: 30px; overflow: hidden; border: 1px solid rgba(140,161,255,.12); border-radius: 22px; background: radial-gradient(circle at 87% 20%, rgba(124,242,213,.1), transparent 26%), linear-gradient(125deg, rgba(32,42,63,.86), rgba(18,24,37,.88) 60%, rgba(42,37,76,.55)); box-shadow: 0 22px 55px rgba(0,0,0,.2), inset 0 1px rgba(255,255,255,.065); }
-.about-mark { display: grid; width: 76px; height: 76px; place-items: center; border: 1px solid rgba(124,242,213,.25); border-radius: 23px; background: linear-gradient(140deg, rgba(124,242,213,.15), rgba(168,149,255,.15)); box-shadow: inset 0 1px rgba(255,255,255,.12), 0 0 34px rgba(124,242,213,.1); color: var(--cyan); }
-.about-mark svg { width: 43px; height: 43px; fill: rgba(124,242,213,.045); stroke: currentColor; stroke-linecap: round; stroke-linejoin: round; stroke-width: 1.3; }
+.about-hero-card { position: relative; display: grid; grid-template-columns: 150px minmax(0,1fr) auto; align-items: center; gap: 20px; margin-top: 27px; padding: 30px; overflow: hidden; border: 1px solid rgba(140,161,255,.12); border-radius: 22px; background: radial-gradient(circle at 87% 20%, rgba(124,242,213,.1), transparent 26%), linear-gradient(125deg, rgba(32,42,63,.86), rgba(18,24,37,.88) 60%, rgba(42,37,76,.55)); box-shadow: 0 22px 55px rgba(0,0,0,.2), inset 0 1px rgba(255,255,255,.065); }
+.about-mark { display: grid; width: 150px; height: 114px; place-items: center; filter: drop-shadow(0 16px 20px rgba(0,0,0,.28)); }
+.about-mark svg { width: 154px; height: 119px; overflow: visible; }
+.showcase-orbit { fill: none; stroke: url(#showcase-orbit); stroke-linecap: round; }
+.showcase-orbit.orbit-back { stroke-width: 4; opacity: .46; stroke-dasharray: 25 7; }
+.showcase-orbit.orbit-front { stroke-width: 5; filter: drop-shadow(0 0 5px rgba(148,122,255,.42)); }
+.showcase-n-extrusion { fill: url(#showcase-n-side); }
+.showcase-n-face { fill: url(#showcase-n-front); stroke: rgba(214,255,230,.5); stroke-width: 1.2; }
+.showcase-n-highlight { fill: none; stroke: rgba(230,255,238,.58); stroke-linecap: round; stroke-linejoin: round; stroke-width: 2; }
+.showcase-orbit-node { stroke: rgba(238,255,245,.85); stroke-width: 1.5; }
+.showcase-orbit-node.node-green { fill: #69e99d; }
+.showcase-orbit-node.node-violet { fill: #a98cff; }
+.nexus-showcase-mark { animation: showcase-hover 5.6s ease-in-out infinite; }
+@keyframes showcase-hover { 0%,100% { transform: translateY(1px); } 50% { transform: translateY(-3px); } }
 .about-hero-copy > span,
 .about-card-kicker,
 .about-build > span,
@@ -976,11 +992,12 @@ kbd { padding: 3px 5px; border: 1px solid rgba(255,255,255,.1); border-radius: 5
 
 @media (max-width: 1260px) {
   .log-source-tabs button { padding-right: 4px; padding-left: 4px; font-size: 9px; }
-  .about-hero-card { grid-template-columns: 66px minmax(0,1fr) auto; padding: 24px; }
-  .about-mark { width: 66px; height: 66px; }
+  .about-hero-card { grid-template-columns: 96px minmax(0,1fr) auto; gap: 16px; padding: 24px; }
+  .about-mark { width: 96px; height: 82px; }
+  .about-mark svg { width: 108px; height: 88px; }
 }
 
 @media (prefers-reduced-motion: reduce) {
   .sidebar, .main-content, .sidebar-copy, .sidebar-collapse-button, .sidebar-collapse-button svg, .profile-chevron { transition-duration: .01ms; }
-  .logs-live-state i { animation: none; }
+  .logs-live-state i, .nexus-showcase-mark { animation: none; }
 }
