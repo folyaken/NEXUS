@@ -1,5 +1,5 @@
-import { createHash, randomUUID } from 'node:crypto';
-import type { VpnLinkParams, VpnProfile, VpnProtocol } from './types';
+import type { VpnLinkParams, VpnProfile } from './types';
+import { stableProfileId } from './vpn-identity';
 
 function decodeBase64(value: string): string {
   const normalized = value.replace(/-/g, '+').replace(/_/g, '/');
@@ -162,9 +162,8 @@ function parseHysteria2(raw: string): { params: VpnLinkParams; name: string } {
 export function createProfileFromLink(input: string, explicitName?: string): VpnProfile {
   const { params, name } = parseShareLink(input);
   if (!params.address) throw new Error('В ссылке нет адреса сервера');
-  const id = createHash('sha1').update(input.trim()).digest('hex').slice(0, 12);
-  return {
-    id: id || randomUUID().slice(0, 12),
+  const profile: VpnProfile = {
+    id: '',
     name: (explicitName?.trim() || name).slice(0, 64),
     protocol: params.protocol,
     server: params.address,
@@ -173,6 +172,8 @@ export function createProfileFromLink(input: string, explicitName?: string): Vpn
     params,
     createdAt: new Date().toISOString(),
   };
+  profile.id = stableProfileId(profile);
+  return profile;
 }
 
 export function extractShareLinks(payload: string): string[] {

@@ -1,7 +1,7 @@
-import { createHash, randomUUID } from 'node:crypto';
 import type { VpnLinkParams, VpnProfile, VpnSubscriptionInfo } from './types';
 import { extractShareLinks } from './share-link';
 import { enrichProfile } from './vpn-classify';
+import { profileConnectionKey, stableProfileId } from './vpn-identity';
 
 const CLIENT_UAS = [
   'Happ/3.4.6',
@@ -96,8 +96,8 @@ function clashBlockToProfile(block: string): VpnProfile | null {
   };
   if (type && !['vless', 'vmess', 'trojan', 'ss', 'shadowsocks', 'hysteria2', 'hy2'].includes(type)) return null;
   const shareLink = `clash://${params.protocol}/${server}:${port}#${encodeURIComponent(name)}`;
-  return enrichProfile({
-    id: createHash('sha1').update(`${name}|${server}|${port}|${params.uuid || params.password || ''}`).digest('hex').slice(0, 12) || randomUUID().slice(0, 12),
+  const profile = enrichProfile({
+    id: '',
     name: name.slice(0, 80),
     protocol: params.protocol,
     server,
@@ -106,6 +106,8 @@ function clashBlockToProfile(block: string): VpnProfile | null {
     params,
     createdAt: new Date().toISOString(),
   });
+  profile.id = stableProfileId(profile);
+  return profile;
 }
 
 export function extractClashProfiles(text: string): VpnProfile[] {
@@ -189,8 +191,9 @@ export async function fetchSubscriptionMaterial(url: string, hwid: string, log: 
   const take = (nextLinks: string[], nextClash: VpnProfile[], nextInfo?: VpnSubscriptionInfo) => {
     for (const link of nextLinks) links.add(link);
     for (const profile of nextClash) {
-      if (seenClash.has(profile.id)) continue;
-      seenClash.add(profile.id);
+      const identity = profileConnectionKey(profile);
+      if (seenClash.has(identity)) continue;
+      seenClash.add(identity);
       clash.push(profile);
     }
     if (nextInfo && (!info || (nextInfo.expireAt && !info.expireAt))) info = nextInfo;

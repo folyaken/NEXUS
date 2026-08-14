@@ -283,7 +283,7 @@ if (gotLock) {
     vpn.setHwid(profile.deviceId);
     wireIpc();
     await manager.init();
-    await vpn.init();
+    await vpn.init(settings.lastVpnProfileId);
     createTray();
     createWindow();
     if (settings.autoStart) void manager.startEnabled();

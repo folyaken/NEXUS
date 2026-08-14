@@ -7,16 +7,30 @@ import { spawn, type ChildProcess } from 'node:child_process';
 import { createProfileFromLink, isSubscriptionUrl } from './share-link';
 import { fetchSubscriptionMaterial } from './subscription';
 import { canConnect, enrichProfile, isServiceNode, looksLikeHost } from './vpn-classify';
-
-function looksHuman(name: string): boolean {
-  return Boolean(name.trim()) && !looksLikeHost(name);
-}
+import { profileConnectionKey, profileIdentityKey, profileSourceKey, stableProfileId } from './vpn-identity';
 import { applyGeo } from './vpn-geo';
 import { buildXrayConfig } from './xray-config';
 import { buildSingboxConfig } from './singbox-config';
 import { clearSystemProxy, setSystemProxy } from './system-proxy';
 import type { ModuleLog, VpnProfile, VpnRuntime, VpnStatus, VpnSubscriptionInfo } from './types';
 import { waitForExit } from './process-watch';
+
+function looksHuman(name: string): boolean {
+  return Boolean(name.trim()) && !looksLikeHost(name);
+}
+
+function betterNamedProfile(current: VpnProfile, candidate: VpnProfile): VpnProfile {
+  return looksHuman(candidate.name) && !looksHuman(current.name) ? candidate : current;
+}
+
+type LoadedProfile = { profile: VpnProfile; filePath: string };
+
+function isSafeProfileId(id: string): boolean {
+  if (!/^[a-z0-9_-]{1,64}$/i.test(id)) return false;
+  if (/^(?:subscriptions|geo-cache)$/i.test(id) || /^generated_/i.test(id)) return false;
+  if (/^(?:con|prn|aux|nul|com[1-9]|lpt[1-9])$/i.test(id)) return false;
+  return true;
+}
 
 export class VpnManager extends EventEmitter {
   private profiles = new Map<string, VpnProfile>();
@@ -87,21 +101,25 @@ export class VpnManager extends EventEmitter {
     return [...this.profiles.values()].sort((a, b) => b.createdAt.localeCompare(a.createdAt));
   }
 
-  async init(): Promise<void> {
+  async init(preferredProfileId: string | null = null): Promise<void> {
     await fs.mkdir(this.configsDir(), { recursive: true });
     await fs.mkdir(path.join(this.vpnRoot(), 'bin'), { recursive: true });
     await fs.mkdir(path.dirname(this.logPath()), { recursive: true });
-    const entries = await fs.readdir(this.configsDir(), { withFileTypes: true });
+    const entries = (await fs.readdir(this.configsDir(), { withFileTypes: true }))
+      .sort((a, b) => a.name.localeCompare(b.name));
+    const loaded: LoadedProfile[] = [];
     for (const entry of entries) {
-      if (!entry.isFile() || !entry.name.endsWith('.json') || entry.name.startsWith('generated_') || entry.name === 'subscriptions.json') continue;
+      if (!entry.isFile() || !entry.name.endsWith('.json') || entry.name.startsWith('generated_') || entry.name === 'subscriptions.json' || entry.name === 'geo-cache.json') continue;
+      const filePath = path.join(this.configsDir(), entry.name);
       try {
-        const profile = enrichProfile(JSON.parse(await fs.readFile(path.join(this.configsDir(), entry.name), 'utf8')) as VpnProfile);
-        if (profile.id && profile.shareLink && profile.kind !== 'notice') this.profiles.set(profile.id, profile);
-        else if (profile.kind === 'notice') await fs.rm(path.join(this.configsDir(), entry.name), { force: true });
+        const profile = enrichProfile(JSON.parse(await fs.readFile(filePath, 'utf8')) as VpnProfile);
+        if (profile.id && profile.shareLink && profile.kind !== 'notice') loaded.push({ profile, filePath });
+        else if (profile.kind === 'notice') await fs.rm(filePath, { force: true });
       } catch {
         this.emitLog('warn', `Пропущен повреждённый профиль ${entry.name}`);
       }
     }
+    await this.reconcileLoadedProfiles(loaded, preferredProfileId);
     try {
       const raw = JSON.parse(await fs.readFile(path.join(this.configsDir(), 'subscriptions.json'), 'utf8')) as VpnSubscriptionInfo[];
       for (const item of raw) if (item.url) this.subscriptions.set(item.url, item);
@@ -109,6 +127,71 @@ export class VpnManager extends EventEmitter {
     const located = await applyGeo(this.list(), path.join(this.configsDir(), 'geo-cache.json'));
     for (const profile of located) this.profiles.set(profile.id, profile);
     this.emit('changed', this.snapshot());
+  }
+
+  private async reconcileLoadedProfiles(loaded: LoadedProfile[], preferredProfileId: string | null): Promise<void> {
+    this.profiles.clear();
+    const groups = new Map<string, LoadedProfile[]>();
+    for (const item of loaded) {
+      const identity = profileIdentityKey(item.profile);
+      const group = groups.get(identity) ?? [];
+      group.push(item);
+      groups.set(identity, group);
+    }
+
+    const grouped = [...groups.entries()].sort(([, left], [, right]) => {
+      const leftPreferred = left.some((item) => item.profile.id === preferredProfileId);
+      const rightPreferred = right.some((item) => item.profile.id === preferredProfileId);
+      return Number(rightPreferred) - Number(leftPreferred);
+    });
+    const usedIds = new Set<string>();
+    const destinations = new Set<string>();
+    let repairedIds = 0;
+
+    for (const [, group] of grouped) {
+      let best = group[0];
+      for (const candidate of group.slice(1)) {
+        if (betterNamedProfile(best.profile, candidate.profile) === candidate.profile) best = candidate;
+      }
+      const keeper = group.find((item) => item.profile.id === preferredProfileId) ?? best;
+      const measured = group.find((item) => typeof item.profile.pingMs === 'number')?.profile.pingMs;
+      const profile = enrichProfile({
+        ...best.profile,
+        id: keeper.profile.id,
+        createdAt: keeper.profile.createdAt || best.profile.createdAt,
+        pingMs: keeper.profile.pingMs ?? best.profile.pingMs ?? measured,
+      });
+
+      if (!isSafeProfileId(profile.id) || usedIds.has(profile.id)) {
+        profile.id = this.availableStableId(profile, (candidate) => usedIds.has(candidate));
+        repairedIds += 1;
+      }
+      usedIds.add(profile.id);
+      const destination = path.join(this.configsDir(), `${profile.id}.json`);
+      await this.persist(profile);
+      this.profiles.set(profile.id, profile);
+      destinations.add(path.resolve(destination));
+    }
+
+    for (const item of loaded) {
+      if (!destinations.has(path.resolve(item.filePath))) await fs.rm(item.filePath, { force: true });
+    }
+
+    const duplicates = loaded.length - groups.size;
+    if (duplicates || repairedIds) {
+      this.emitLog('info', `Профили очищены: дубликатов ${duplicates}, конфликтов ID ${repairedIds}`);
+    }
+  }
+
+  private availableStableId(profile: VpnProfile, occupied: (candidate: string) => boolean): string {
+    const base = stableProfileId(profile, profile.subscriptionUrl);
+    let candidate = base;
+    let suffix = 2;
+    while (occupied(candidate)) {
+      candidate = `${base}-${suffix}`;
+      suffix += 1;
+    }
+    return candidate;
   }
 
   snapshot(): { profiles: VpnProfile[]; runtime: VpnRuntime } {
@@ -122,6 +205,15 @@ export class VpnManager extends EventEmitter {
     if (profile.kind === 'notice') {
       this.emitLog('warn', `Служебная ссылка пропущена: ${profile.name}`);
       throw new Error('Это служебное уведомление панели, не сервер. Нужна подписка с HWID или обычная vless-ссылка.');
+    }
+    const connection = profileConnectionKey(profile);
+    const existing = this.list().find((item) => !item.subscriptionUrl && profileConnectionKey(item) === connection);
+    if (existing) {
+      profile.id = existing.id;
+      profile.createdAt = existing.createdAt;
+      profile.pingMs = existing.pingMs;
+    } else {
+      profile.id = stableProfileId(profile);
     }
     await this.saveProfile(profile);
     this.emitLog('success', `Профиль «${profile.name}» сохранён (${profile.protocol} ${profile.server}:${profile.port})`);
@@ -139,59 +231,81 @@ export class VpnManager extends EventEmitter {
     if (parsed.protocol !== 'https:') throw new Error('Подписка только по HTTPS');
     this.emitLog('info', `Загрузка подписки ${parsed.host} (HWID ${this.hwid.slice(0, 8)}…)…`);
     const material = await fetchSubscriptionMaterial(url, this.hwid, (message) => this.emitLog('info', message));
-    const imported: VpnProfile[] = [];
-    const keep = new Set<string>();
+    const candidates: VpnProfile[] = [];
     let notices = 0;
 
-    const accept = async (profile: VpnProfile) => {
-      profile.subscriptionUrl = url;
-      const next = enrichProfile(profile);
+    const accept = (profile: VpnProfile) => {
+      const next = enrichProfile({ ...profile, subscriptionUrl: url });
       if (next.kind === 'notice' || isServiceNode(next)) {
         notices += 1;
         return;
       }
-      await this.saveProfile(next);
-      imported.push(next);
-      keep.add(next.id);
+      candidates.push(next);
     };
 
     for (const profile of material.clash) {
-      try { await accept(profile); }
+      try { accept(profile); }
       catch (error) { this.emitLog('warn', `Пропуск clash-узла: ${error instanceof Error ? error.message : 'ошибка'}`); }
     }
     for (const link of material.links) {
-      try { await accept(createProfileFromLink(link)); }
+      try { accept(createProfileFromLink(link)); }
       catch (error) { this.emitLog('warn', `Пропуск узла: ${error instanceof Error ? error.message : 'битая ссылка'}`); }
     }
 
     if (!material.links.length && !material.clash.length) {
       throw new Error('Панель отдала лендинг или формат Happ. Jey2Ray запрашивает как v2rayN/Clash. Вставь полный URL и обнови ещё раз.');
     }
-    for (const profile of this.list()) {
-      if (profile.subscriptionUrl === url && !keep.has(profile.id) && profile.kind !== 'notice') {
-        this.profiles.delete(profile.id);
-        await fs.rm(path.join(this.configsDir(), `${profile.id}.json`), { force: true });
-      }
-    }
-    if (!imported.length) {
+    if (!candidates.length) {
       throw new Error(notices
         ? `Панель вернула только уведомления (${notices}), без серверов.`
         : 'Ссылки в подписке не удалось разобрать');
     }
+
     const unique = new Map<string, VpnProfile>();
-    for (const profile of imported) {
-      const key = `${profile.protocol}|${profile.server}|${profile.port}|${profile.params.network}|${profile.params.security}`;
-      const prev = unique.get(key);
-      if (!prev || (looksHuman(profile.name) && !looksHuman(prev.name))) unique.set(key, profile);
+    for (const profile of candidates) {
+      const connection = profileConnectionKey(profile);
+      const previous = unique.get(connection);
+      unique.set(connection, previous ? betterNamedProfile(previous, profile) : profile);
     }
-    imported.length = 0;
-    imported.push(...unique.values());
-    const located = await applyGeo(imported, path.join(this.configsDir(), 'geo-cache.json'));
-    imported.length = 0;
+
+    const source = profileSourceKey(url);
+    const existingProfiles = this.list().filter((profile) => profileSourceKey(profile.subscriptionUrl) === source);
+    const existingByConnection = new Map<string, VpnProfile>();
+    for (const profile of existingProfiles) {
+      const connection = profileConnectionKey(profile);
+      const previous = existingByConnection.get(connection);
+      if (!previous || profile.id === this.activeProfileId || betterNamedProfile(previous, profile) === profile) {
+        existingByConnection.set(connection, profile);
+      }
+    }
+
+    const prepared: VpnProfile[] = [];
+    for (const [connection, profile] of unique) {
+      const existing = existingByConnection.get(connection);
+      profile.id = existing?.id ?? stableProfileId(profile, url);
+      profile.createdAt = existing?.createdAt ?? profile.createdAt;
+      profile.pingMs = existing?.pingMs;
+      prepared.push(profile);
+    }
+
+    const imported: VpnProfile[] = [];
+    const keep = new Set<string>();
+    const located = await applyGeo(prepared, path.join(this.configsDir(), 'geo-cache.json'));
     for (const profile of located) {
       await this.saveProfile(profile);
       imported.push(profile);
       keep.add(profile.id);
+    }
+
+    for (const profile of existingProfiles) {
+      if (!keep.has(profile.id) && profile.kind !== 'notice') {
+        this.profiles.delete(profile.id);
+        await fs.rm(path.join(this.configsDir(), `${profile.id}.json`), { force: true });
+      }
+    }
+
+    for (const existingUrl of this.subscriptions.keys()) {
+      if (existingUrl !== url && profileSourceKey(existingUrl) === source) this.subscriptions.delete(existingUrl);
     }
     this.subscriptions.set(url, {
       url,
@@ -254,10 +368,20 @@ export class VpnManager extends EventEmitter {
   }
 
   private async saveProfile(profile: VpnProfile): Promise<void> {
-    const existing = this.profiles.get(profile.id);
+    const identity = profileIdentityKey(profile);
+    let existing = this.profiles.get(profile.id);
+    if (existing && profileIdentityKey(existing) !== identity) {
+      profile.id = this.availableStableId(profile, (candidate) => {
+        const occupied = this.profiles.get(candidate);
+        return Boolean(occupied && profileIdentityKey(occupied) !== identity);
+      });
+      existing = this.profiles.get(profile.id);
+    }
     if (existing) profile.createdAt = existing.createdAt;
-    this.profiles.set(profile.id, enrichProfile(profile));
-    await this.persist(profile);
+    const next = enrichProfile(profile);
+    Object.assign(profile, next);
+    await this.persist(next);
+    this.profiles.set(profile.id, next);
   }
 
   async remove(id: string): Promise<void> {
