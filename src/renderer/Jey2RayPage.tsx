@@ -552,20 +552,14 @@ export function Jey2RayPage({
             aria-pressed={mode === 'proxy'}
             disabled={routeSettingsLocked}
             onClick={() => selectConnectionMode('proxy')}
-          >
-            <strong>PROXY</strong>
-            <small><i />{mode === 'proxy' ? 'АКТИВЕН' : 'ВЫБРАТЬ'}</small>
-          </button>
+          >PROXY</button>
           <button
             type="button"
             className={mode === 'tun' ? 'active' : ''}
             aria-pressed={mode === 'tun'}
             disabled={routeSettingsLocked}
             onClick={() => selectConnectionMode('tun')}
-          >
-            <strong>TUN</strong>
-            <small><i />{mode === 'tun' ? 'АКТИВЕН' : 'ВЫБРАТЬ'}</small>
-          </button>
+          >TUN</button>
         </div>
       </div>
       <div className={`routing-summary ${appRoutingActive ? 'is-on' : ''}`}>
