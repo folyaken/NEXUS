@@ -5,6 +5,7 @@ import { promises as fs, createReadStream } from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { Readable } from 'node:stream';
+import { pipeline } from 'node:stream/promises';
 import { Open } from 'unzipper';
 import type { ModuleManifest, UpdateInfo, UpdateStatus } from './types';
 import { ModuleManager } from './module-manager';
@@ -28,6 +29,9 @@ type UpdateTarget = {
 type VersionRecord = { version: string; asset: string; sha256: string; installedAt: string };
 
 const GITHUB_API = 'https://api.github.com/repos';
+const MAX_DOWNLOAD_REDIRECTS = 5;
+const REDIRECT_STATUS_CODES = new Set([301, 302, 303, 307, 308]);
+const TRUSTED_MIRROR_HOSTS = new Set(['ghproxy.net', 'mirror.ghproxy.com']);
 
 export class GithubUpdater extends EventEmitter {
   private readonly updates = new Map<string, UpdateInfo>();
@@ -112,6 +116,7 @@ export class GithubUpdater extends EventEmitter {
 
   private async syncOne(target: UpdateTarget): Promise<void> {
     this.setStatus(target, 'checking');
+    let tempPath: string | undefined;
     try {
       const release = await this.fetchRelease(target.repo);
       const asset = target.selectAsset(release.assets);
@@ -130,7 +135,7 @@ export class GithubUpdater extends EventEmitter {
       this.setStatus(target, 'downloading', { latestVersion: release.tag_name, asset: asset.name });
       const tempDir = path.join(this.modulesDir, '.cache');
       await fs.mkdir(tempDir, { recursive: true });
-      const tempPath = path.join(tempDir, `${target.id}-${release.tag_name.replace(/[^a-z0-9._-]/gi, '_')}-${asset.name}`);
+      tempPath = path.join(tempDir, `${target.id}-${release.tag_name.replace(/[^a-z0-9._-]/gi, '_')}-${asset.name}`);
       await this.downloadAsset(asset.browser_download_url, tempPath, target.repo);
       await this.assertAsset(tempPath, target.assetKind, asset.size, asset.name);
       const hash = await this.sha256(tempPath);
@@ -139,10 +144,11 @@ export class GithubUpdater extends EventEmitter {
       await this.saveVersionRecords();
       await this.manager.reload();
       this.setStatus(target, 'installed', { latestVersion: release.tag_name, installedVersion: release.tag_name, asset: asset.name, executable, sha256: hash });
-      await fs.rm(tempPath, { force: true });
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Неизвестная ошибка GitHub updater';
       this.setStatus(target, 'error', { error: message });
+    } finally {
+      if (tempPath) await fs.rm(tempPath, { force: true }).catch(() => undefined);
     }
   }
 
@@ -164,32 +170,91 @@ export class GithubUpdater extends EventEmitter {
     throw lastError ?? new Error('GitHub API недоступен');
   }
 
+  private validateDownloadUrl(rawUrl: string | URL, repo: string, allowGithubAssetHost: boolean): URL {
+    let parsed: URL;
+    try {
+      parsed = new URL(rawUrl.toString());
+    } catch {
+      throw new Error(`Загрузка заблокирована: некорректный URL (${repo})`);
+    }
+
+    const hostname = parsed.hostname.toLowerCase();
+    if (parsed.protocol !== 'https:' || parsed.username || parsed.password) {
+      throw new Error(`Загрузка заблокирована: недоверенный адрес ${hostname || 'unknown'} (${repo})`);
+    }
+
+    const repoPrefix = `/${repo}/`.toLowerCase();
+    if (hostname === 'github.com') {
+      if (!parsed.pathname.toLowerCase().startsWith(repoPrefix)) {
+        throw new Error(`Загрузка заблокирована: asset не принадлежит https://github.com/${repo}`);
+      }
+      return parsed;
+    }
+
+    if (TRUSTED_MIRROR_HOSTS.has(hostname)) {
+      const mirrorTarget = parsed.pathname.slice(1).toLowerCase();
+      if (!mirrorTarget.startsWith(`https://github.com${repoPrefix}`)) {
+        throw new Error(`Загрузка заблокирована: зеркало ${hostname} запрашивает другой репозиторий`);
+      }
+      return parsed;
+    }
+
+    const githubAssetHost = hostname === 'githubusercontent.com' || hostname.endsWith('.githubusercontent.com');
+    if (allowGithubAssetHost && githubAssetHost) return parsed;
+
+    throw new Error(`Загрузка заблокирована: недоверенный домен ${hostname || 'unknown'} (${repo})`);
+  }
+
   private async downloadAsset(url: string, destination: string, repo: string): Promise<void> {
-    const parsed = new URL(url);
-    const owner = repo.split('/')[0];
-    const allowedHost = parsed.hostname === 'github.com' || parsed.hostname.endsWith('githubusercontent.com') || parsed.hostname.includes('ghproxy');
-    if (parsed.protocol !== 'https:' || !allowedHost) {
-      throw new Error(`Загрузка заблокирована: ${parsed.hostname} (${repo})`);
+    await fs.rm(destination, { force: true }).catch(() => undefined);
+    try {
+      let currentUrl = url;
+      for (let redirectCount = 0; ; redirectCount += 1) {
+        const parsed = this.validateDownloadUrl(currentUrl, repo, redirectCount > 0);
+        const response = await fetch(parsed, {
+          headers: { 'User-Agent': 'NEXUS-Network-Control-Plane' },
+          redirect: 'manual',
+        });
+
+        if (REDIRECT_STATUS_CODES.has(response.status)) {
+          const location = response.headers.get('location');
+          await response.body?.cancel().catch(() => undefined);
+          if (!location) throw new Error(`GitHub asset: перенаправление HTTP ${response.status} без адреса`);
+          if (redirectCount >= MAX_DOWNLOAD_REDIRECTS) {
+            throw new Error(`GitHub asset: превышен лимит перенаправлений (${MAX_DOWNLOAD_REDIRECTS})`);
+          }
+          let redirected: URL;
+          try {
+            redirected = new URL(location, parsed);
+          } catch {
+            throw new Error('GitHub asset: получен некорректный адрес перенаправления');
+          }
+          this.validateDownloadUrl(redirected, repo, true);
+          currentUrl = redirected.toString();
+          continue;
+        }
+
+        this.validateDownloadUrl(response.url || parsed, repo, redirectCount > 0);
+        if (!response.ok || !response.body) {
+          await response.body?.cancel().catch(() => undefined);
+          throw new Error(`GitHub asset: HTTP ${response.status}`);
+        }
+
+        const totalBytes = Number(response.headers.get('content-length') ?? 0);
+        let downloadedBytes = 0;
+        const target = this.targets.find((item) => item.repo === repo);
+        const input = Readable.fromWeb(response.body as Parameters<typeof Readable.fromWeb>[0]);
+        input.on('data', (chunk: Buffer) => {
+          downloadedBytes += chunk.length;
+          if (target) this.setStatus(target, 'downloading', { downloadedBytes, totalBytes: totalBytes || undefined, asset: path.basename(destination) });
+        });
+        await pipeline(input, createWriteStream(destination, { flags: 'w' }));
+        return;
+      }
+    } catch (error) {
+      await fs.rm(destination, { force: true }).catch(() => undefined);
+      throw error;
     }
-    if (parsed.hostname === 'github.com' && owner && !parsed.pathname.includes(`/${owner}/`)) {
-      throw new Error(`Загрузка заблокирована: asset не принадлежит https://github.com/${owner}`);
-    }
-    const response = await fetch(url, { headers: { 'User-Agent': 'NEXUS-Network-Control-Plane' }, redirect: 'follow' });
-    if (!response.ok || !response.body) throw new Error(`GitHub asset: HTTP ${response.status}`);
-    const totalBytes = Number(response.headers.get('content-length') ?? 0);
-    let downloadedBytes = 0;
-    const target = this.targets.find((item) => item.repo === repo);
-    await new Promise<void>((resolve, reject) => {
-      const output = createWriteStream(destination, { flags: 'w' });
-      output.once('finish', resolve);
-      output.once('error', reject);
-      const input = Readable.fromWeb(response.body as Parameters<typeof Readable.fromWeb>[0]);
-      input.on('data', (chunk: Buffer) => {
-        downloadedBytes += chunk.length;
-        if (target) this.setStatus(target, 'downloading', { downloadedBytes, totalBytes: totalBytes || undefined, asset: path.basename(destination) });
-      });
-      input.once('error', reject).pipe(output);
-    });
   }
 
   private async assertAsset(filePath: string, kind: UpdateTarget['assetKind'], expectedSize: number, assetName: string): Promise<void> {
@@ -236,46 +301,52 @@ export class GithubUpdater extends EventEmitter {
     const tempPath = path.join(this.modulesDir, '.cache', file);
     await fs.mkdir(path.dirname(tempPath), { recursive: true });
     let lastError = 'Не удалось скачать Xray ни с одного зеркала';
-    for (const url of mirrors) {
-      try {
-        if (jey) this.setStatus(jey, 'downloading', { asset: file });
-        await this.downloadAsset(url, tempPath, 'XTLS/Xray-core');
-        await this.assertAsset(tempPath, 'zip', 0, file);
-        await this.installXray(tempPath, 'latest');
-        await fs.rm(tempPath, { force: true });
-        return;
-      } catch (error) {
-        lastError = error instanceof Error ? error.message : lastError;
+    try {
+      for (const url of mirrors) {
+        try {
+          if (jey) this.setStatus(jey, 'downloading', { asset: file });
+          await this.downloadAsset(url, tempPath, 'XTLS/Xray-core');
+          await this.assertAsset(tempPath, 'zip', 0, file);
+          await this.installXray(tempPath, 'latest');
+          return;
+        } catch (error) {
+          lastError = error instanceof Error ? error.message : lastError;
+        }
       }
+      throw new Error(lastError);
+    } finally {
+      await fs.rm(tempPath, { force: true }).catch(() => undefined);
     }
-    throw new Error(lastError);
   }
 
   private async installXray(assetPath: string, version: string): Promise<string> {
     const extractRoot = path.join(this.modulesDir, '.cache', 'xray-extract');
     await fs.rm(extractRoot, { recursive: true, force: true });
     await fs.mkdir(extractRoot, { recursive: true });
-    await (await Open.file(assetPath)).extract({ path: extractRoot });
-    const binaryName = process.platform === 'win32' ? 'xray.exe' : 'xray';
-    const found = await this.findFile(extractRoot, binaryName);
-    if (!found) throw new Error(`В ZIP Xray-core не найден ${binaryName}`);
-    const destination = path.join(this.modulesDir, 'bin', binaryName);
-    await fs.mkdir(path.dirname(destination), { recursive: true });
-    await fs.copyFile(found, destination);
-    if (process.platform !== 'win32') await fs.chmod(destination, 0o755);
-    const geoip = await this.findFile(extractRoot, 'geoip.dat');
-    const geosite = await this.findFile(extractRoot, 'geosite.dat');
-    if (geoip) await fs.copyFile(geoip, path.join(this.modulesDir, 'bin', 'geoip.dat'));
-    if (geosite) await fs.copyFile(geosite, path.join(this.modulesDir, 'bin', 'geosite.dat'));
-    await this.updateManifest('jey2ray', {
-      executable: `./bin/${binaryName}`,
-      working_dir: './bin',
-      args: ['-config', './configs/vpn/generated_config.json'],
-      installed_version: version,
-      development: false,
-    });
-    await fs.rm(extractRoot, { recursive: true, force: true });
-    return `./bin/${binaryName}`;
+    try {
+      await (await Open.file(assetPath)).extract({ path: extractRoot });
+      const binaryName = process.platform === 'win32' ? 'xray.exe' : 'xray';
+      const found = await this.findFile(extractRoot, binaryName);
+      if (!found) throw new Error(`В ZIP Xray-core не найден ${binaryName}`);
+      const destination = path.join(this.modulesDir, 'bin', binaryName);
+      await fs.mkdir(path.dirname(destination), { recursive: true });
+      await fs.copyFile(found, destination);
+      if (process.platform !== 'win32') await fs.chmod(destination, 0o755);
+      const geoip = await this.findFile(extractRoot, 'geoip.dat');
+      const geosite = await this.findFile(extractRoot, 'geosite.dat');
+      if (geoip) await fs.copyFile(geoip, path.join(this.modulesDir, 'bin', 'geoip.dat'));
+      if (geosite) await fs.copyFile(geosite, path.join(this.modulesDir, 'bin', 'geosite.dat'));
+      await this.updateManifest('jey2ray', {
+        executable: `./bin/${binaryName}`,
+        working_dir: './bin',
+        args: ['-config', './configs/vpn/generated_config.json'],
+        installed_version: version,
+        development: false,
+      });
+      return `./bin/${binaryName}`;
+    } finally {
+      await fs.rm(extractRoot, { recursive: true, force: true }).catch(() => undefined);
+    }
   }
 
   private async installDirect(assetPath: string, version: string): Promise<string> {
