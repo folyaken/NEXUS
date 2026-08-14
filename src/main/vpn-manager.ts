@@ -12,7 +12,7 @@ import { applyGeo } from './vpn-geo';
 import { buildXrayConfig } from './xray-config';
 import { buildSingboxConfig } from './singbox-config';
 import { clearSystemProxy, setSystemProxy } from './system-proxy';
-import type { ModuleLog, VpnProfile, VpnRuntime, VpnSplitApp, VpnStatus, VpnSubscriptionInfo } from './types';
+import type { ModuleLog, VpnAppRoutingMode, VpnProfile, VpnRuntime, VpnSplitApp, VpnStatus, VpnSubscriptionInfo } from './types';
 import { waitForExit } from './process-watch';
 
 function looksHuman(name: string): boolean {
@@ -398,6 +398,7 @@ export class VpnManager extends EventEmitter {
     preferredPort = 10808,
     mode: 'proxy' | 'tun' = 'proxy',
     splitApps: VpnSplitApp[] = [],
+    appRouting: VpnAppRoutingMode = 'include',
   ): Promise<VpnRuntime> {
     const profile = this.profiles.get(id);
     if (!profile) throw new Error('Профиль не найден');
@@ -418,10 +419,13 @@ export class VpnManager extends EventEmitter {
     this.setState('connecting', id, null);
     const port = await this.pickPort(preferredPort);
     this.inboundPort = port;
-    const activeSplitApps = mode === 'tun' ? splitApps : [];
+    const activeAppRouting: VpnAppRoutingMode = mode === 'tun' && splitApps.length && appRouting !== 'system'
+      ? appRouting
+      : 'system';
+    const activeSplitApps = activeAppRouting === 'system' ? [] : splitApps;
     const config = useSingbox
-      ? buildSingboxConfig(profile.params, port, mode, activeSplitApps)
-      : buildXrayConfig(profile.params, port, mode, activeSplitApps);
+      ? buildSingboxConfig(profile.params, port, mode, activeSplitApps, activeAppRouting)
+      : buildXrayConfig(profile.params, port, mode, activeSplitApps, activeAppRouting);
     const configFile = useSingbox ? this.singboxConfigPath() : this.generatedPath();
     await fs.mkdir(this.configsDir(), { recursive: true });
     await fs.writeFile(configFile, `${JSON.stringify(config, null, 2)}\n`, 'utf8');
@@ -482,7 +486,11 @@ export class VpnManager extends EventEmitter {
       }
     }
     this.setState('connected', id, child.pid ?? null);
-    const routeMode = activeSplitApps.length ? `TUN Split · приложений ${activeSplitApps.length}` : mode.toUpperCase();
+    const routeMode = activeAppRouting === 'include'
+      ? `TUN · через VPN только ${activeSplitApps.length} прилож.`
+      : activeAppRouting === 'exclude'
+        ? `TUN · напрямую ${activeSplitApps.length} прилож.`
+        : mode.toUpperCase();
     this.emitLog('success', `Включено: ${profile.name} · ${routeMode} · HTTP 127.0.0.1:${port + 1}`);
     return this.runtime();
   }

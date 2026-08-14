@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import type { AppSettings, UpdateInfo, VpnProfile, VpnRuntime, VpnSubscriptionInfo } from '../main/types';
+import type { AppSettings, UpdateInfo, VpnAppRoutingMode, VpnProfile, VpnRuntime, VpnSubscriptionInfo } from '../main/types';
 import { canConnect, displayName } from '../main/vpn-classify';
 import { Flag } from './Flag';
 
@@ -107,6 +107,7 @@ export function Jey2RayPage({
   const [link, setLink] = useState('');
   const [name, setName] = useState('');
   const [importOpen, setImportOpen] = useState(false);
+  const [settingsOpen, setSettingsOpen] = useState(false);
   const [profiles, setProfiles] = useState<VpnProfile[]>([]);
   const [runtime, setRuntime] = useState<VpnRuntime>(EMPTY_RUNTIME);
   const [busy, setBusy] = useState(false);
@@ -118,7 +119,13 @@ export function Jey2RayPage({
   const xrayUpdate = updates.find((item) => item.id === 'jey2ray');
   const mode = settings.vpnMode === 'tun' ? 'tun' : 'proxy';
   const splitApps = settings.vpnSplitApps ?? [];
-  const splitEnabled = mode === 'tun' && settings.vpnSplitTunnel && splitApps.length > 0;
+  const storedAppRouting: VpnAppRoutingMode = settings.vpnAppRouting === 'exclude' || settings.vpnAppRouting === 'include'
+    ? settings.vpnAppRouting
+    : settings.vpnSplitTunnel
+      ? 'include'
+      : 'system';
+  const appRouting: VpnAppRoutingMode = mode === 'tun' && splitApps.length ? storedAppRouting : 'system';
+  const appRoutingActive = appRouting === 'include' || appRouting === 'exclude';
   const routeSettingsLocked = runtime.status === 'connecting' || runtime.status === 'connected';
 
   useEffect(() => {
@@ -180,7 +187,7 @@ export function Jey2RayPage({
     }
   };
 
-  const addSplitApps = async () => {
+  const addSplitApps = async (activate: VpnAppRoutingMode = appRouting) => {
     if (routeSettingsLocked) {
       onToast('Сначала отключи VPN, затем измени список приложений');
       return;
@@ -196,8 +203,9 @@ export function Jey2RayPage({
       for (const app of picked) merged.set(app.executable.toLocaleLowerCase('en-US'), app);
       onSettings({
         ...settings,
-        vpnMode: 'tun',
-        vpnSplitTunnel: true,
+        vpnMode: activate === 'system' ? mode : 'tun',
+        vpnAppRouting: activate,
+        vpnSplitTunnel: activate === 'include',
         vpnSplitApps: [...merged.values()],
       });
     } catch (error) {
@@ -205,20 +213,34 @@ export function Jey2RayPage({
     }
   };
 
-  const toggleSplitTunnel = () => {
+  const selectAppRouting = (next: VpnAppRoutingMode) => {
     if (routeSettingsLocked) {
-      onToast('Сначала отключи VPN, затем измени Split Tunneling');
+      onToast('Сначала отключи VPN, затем измени маршрутизацию приложений');
       return;
     }
-    if (splitEnabled) {
-      onSettings({ ...settings, vpnSplitTunnel: false });
+    if (next !== 'system' && !splitApps.length) {
+      void addSplitApps(next);
       return;
     }
-    if (!splitApps.length) {
-      void addSplitApps();
+    onSettings({
+      ...settings,
+      vpnMode: next === 'system' ? mode : 'tun',
+      vpnAppRouting: next,
+      vpnSplitTunnel: next === 'include',
+    });
+  };
+
+  const selectConnectionMode = (next: 'proxy' | 'tun') => {
+    if (routeSettingsLocked) {
+      onToast('Сначала отключи VPN, затем измени режим подключения');
       return;
     }
-    onSettings({ ...settings, vpnMode: 'tun', vpnSplitTunnel: true });
+    onSettings({
+      ...settings,
+      vpnMode: next,
+      vpnAppRouting: next === 'proxy' ? 'system' : appRouting,
+      vpnSplitTunnel: next === 'tun' && appRouting === 'include',
+    });
   };
 
   const removeSplitApp = (executable: string) => {
@@ -227,7 +249,13 @@ export function Jey2RayPage({
       return;
     }
     const next = splitApps.filter((app) => app.executable !== executable);
-    onSettings({ ...settings, vpnSplitApps: next, vpnSplitTunnel: splitEnabled && next.length > 0 });
+    const nextRouting: VpnAppRoutingMode = next.length ? appRouting : 'system';
+    onSettings({
+      ...settings,
+      vpnSplitApps: next,
+      vpnAppRouting: nextRouting,
+      vpnSplitTunnel: nextRouting === 'include',
+    });
   };
 
   const connect = async (id: string) => {
@@ -315,8 +343,22 @@ export function Jey2RayPage({
     void ping();
   }, [desktop, nodes.length]);
 
+  const routeLabel = appRouting === 'include'
+    ? `VPN только для выбранных · ${splitApps.length}`
+    : appRouting === 'exclude'
+      ? `Напрямую выбранные · ${splitApps.length}`
+      : mode === 'tun'
+        ? 'Весь трафик через VPN'
+        : 'Системный Proxy';
+  const routeDescription = appRouting === 'include'
+    ? 'Остальные приложения подключаются напрямую.'
+    : appRouting === 'exclude'
+      ? 'Остальные приложения используют VPN.'
+      : mode === 'tun'
+        ? 'Общий TUN без правил для отдельных приложений.'
+        : 'HTTP-прокси Windows без маршрутизации по приложениям.';
   const powerLabel = onAir
-    ? `Работает · ${splitEnabled ? `TUN SPLIT · ${splitApps.length} прил.` : mode.toUpperCase()} · 127.0.0.1:${runtime.inboundPort + 1}`
+    ? `Работает · ${routeLabel} · 127.0.0.1:${runtime.inboundPort + 1}`
     : otherLive
       ? 'Другой сервер онлайн. Нажми — переключить сюда'
       : runtime.status === 'connecting'
@@ -325,11 +367,121 @@ export function Jey2RayPage({
           ? (runtime.error || 'Ошибка')
           : 'Выключено';
 
+  if (settingsOpen) return <section className="page-section jey-page app-settings-page">
+    <div className="app-settings-toolbar">
+      <button type="button" className="app-settings-back" onClick={() => setSettingsOpen(false)} aria-label="Вернуться к серверам">
+        <svg viewBox="0 0 20 20" aria-hidden><path d="m12.5 4.5-5 5.5 5 5.5" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" /></svg>
+        Серверы
+      </button>
+      <div>
+        <span>Jey2Ray</span>
+        <h2>Настройки приложений</h2>
+      </div>
+      <span className={`app-route-state ${appRoutingActive ? 'is-on' : ''}`}>
+        <i />{appRoutingActive ? 'Маршрутизация включена' : 'Общие настройки'}
+      </span>
+    </div>
+
+    <div className="app-settings-scroll">
+      {routeSettingsLocked && <div className="app-settings-lock">
+        <span>i</span>
+        <div><strong>VPN сейчас работает</strong><p>Отключи подключение, чтобы изменить режим или список приложений.</p></div>
+      </div>}
+
+      <div className="app-settings-grid">
+        <section className="app-settings-card connection-settings-card">
+          <div className="app-settings-card-head">
+            <div><span className="settings-step">01</span><div><h3>Режим подключения</h3><p>Как NEXUS направляет сетевой трафик Windows.</p></div></div>
+          </div>
+          <div className="connection-choice-grid">
+            <button type="button" className={`connection-choice ${mode === 'proxy' ? 'is-active' : ''}`} disabled={routeSettingsLocked} onClick={() => selectConnectionMode('proxy')}>
+              <span className="connection-choice-icon">P</span>
+              <span><strong>Proxy</strong><small>Системный HTTP-прокси</small></span>
+              <i className="settings-radio" />
+            </button>
+            <button type="button" className={`connection-choice ${mode === 'tun' ? 'is-active' : ''}`} disabled={routeSettingsLocked} onClick={() => selectConnectionMode('tun')}>
+              <span className="connection-choice-icon">T</span>
+              <span><strong>TUN</strong><small>Весь трафик и правила приложений</small></span>
+              <i className="settings-radio" />
+            </button>
+          </div>
+          <p className="settings-footnote">Для маршрутизации отдельных приложений автоматически используется TUN. В Windows ему нужны права администратора.</p>
+        </section>
+
+        <section className="app-settings-card auto-settings-card">
+          <div className="app-settings-card-head compact">
+            <div><span className="settings-step">02</span><div><h3>Автоподключение</h3><p>Запускать последний сервер вместе с NEXUS.</p></div></div>
+            <button
+              type="button"
+              className={`settings-toggle ${settings.autoConnectVpn ? 'is-on' : ''}`}
+              onClick={() => onSettings({ ...settings, autoConnectVpn: !settings.autoConnectVpn })}
+              aria-label={settings.autoConnectVpn ? 'Выключить автоподключение' : 'Включить автоподключение'}
+            ><i /></button>
+          </div>
+          <div className={`auto-status ${settings.autoConnectVpn ? 'is-on' : ''}`}><i />{settings.autoConnectVpn ? 'Включено' : 'Выключено'}</div>
+        </section>
+      </div>
+
+      <section className="app-settings-card routing-settings-card">
+        <div className="app-settings-card-head">
+          <div><span className="settings-step">03</span><div><h3>Настройки прокси для приложений</h3><p>Выбери общую политику. Конкретные приложения можно добавить ниже.</p></div></div>
+        </div>
+        <div className="routing-choice-list" role="radiogroup" aria-label="Режим маршрутизации приложений">
+          <button type="button" role="radio" aria-checked={appRouting === 'system'} className={`routing-choice ${appRouting === 'system' ? 'is-active' : ''}`} disabled={routeSettingsLocked} onClick={() => selectAppRouting('system')}>
+            <i className="settings-radio" />
+            <span><strong>Системные настройки</strong><small>Без отдельных правил. Используется общий режим {mode === 'tun' ? 'TUN' : 'Proxy'}.</small></span>
+            <em>По умолчанию</em>
+          </button>
+          <button type="button" role="radio" aria-checked={appRouting === 'exclude'} className={`routing-choice ${appRouting === 'exclude' ? 'is-active' : ''}`} disabled={routeSettingsLocked} onClick={() => selectAppRouting('exclude')}>
+            <i className="settings-radio" />
+            <span><strong>Прямое подключение для выбранных приложений</strong><small>Выбранные приложения обходят VPN, все остальные идут через VPN.</small></span>
+            <em>Исключения</em>
+          </button>
+          <button type="button" role="radio" aria-checked={appRouting === 'include'} className={`routing-choice ${appRouting === 'include' ? 'is-active' : ''}`} disabled={routeSettingsLocked} onClick={() => selectAppRouting('include')}>
+            <i className="settings-radio" />
+            <span><strong>VPN только для выбранных приложений</strong><small>Выбранные приложения идут через VPN, все остальные — напрямую.</small></span>
+            <em>Split Tunneling</em>
+          </button>
+        </div>
+      </section>
+
+      <section className="app-settings-card selected-apps-card">
+        <div className="app-settings-card-head selected-apps-head">
+          <div><span className="settings-step">04</span><div><h3>Выбранные приложения</h3><p>{splitApps.length ? `Добавлено: ${splitApps.length}` : 'Добавь приложения Windows, для которых будут действовать правила выше.'}</p></div></div>
+          <button type="button" className="app-add-button" disabled={routeSettingsLocked} onClick={() => void addSplitApps(appRouting)}>
+            <svg viewBox="0 0 16 16" aria-hidden><path d="M8 3v10M3 8h10" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" /></svg>
+            Добавить приложение
+          </button>
+        </div>
+        {splitApps.length ? <div className="selected-app-list">
+          {splitApps.map((app) => <div className="selected-app-row" key={app.executable.toLocaleLowerCase('en-US')} title={app.path}>
+            <span className="selected-app-icon"><svg viewBox="0 0 24 24" aria-hidden><rect x="4" y="3.5" width="16" height="17" rx="3" fill="none" stroke="currentColor" strokeWidth="1.5" /><path d="M8 8h8M8 12h5" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" /></svg></span>
+            <span className="selected-app-copy"><strong>{app.executable}</strong><small>{app.path}</small></span>
+            <span className={`selected-app-route ${appRouting === 'exclude' ? 'is-direct' : appRouting === 'include' ? 'is-vpn' : ''}`}>
+              {appRouting === 'exclude' ? 'Напрямую' : appRouting === 'include' ? 'Через VPN' : 'Не активно'}
+            </span>
+            <button type="button" className="selected-app-remove" disabled={routeSettingsLocked} onClick={() => removeSplitApp(app.executable)} aria-label={`Удалить ${app.executable}`}>×</button>
+          </div>)}
+        </div> : <div className="selected-app-empty">
+          <span><svg viewBox="0 0 32 32" aria-hidden><rect x="7" y="5" width="18" height="22" rx="4" fill="none" stroke="currentColor" strokeWidth="1.5" /><path d="M12 12h8M12 17h6" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" /></svg></span>
+          <strong>Приложения ещё не выбраны</strong>
+          <p>Нажми «Добавить приложение» и выбери один или несколько файлов .exe.</p>
+        </div>}
+      </section>
+    </div>
+  </section>;
+
   return <section className="page-section jey-page happ-shell">
     <div className="happ-left">
       <div className="jey-toolbar tight">
         <h2>Серверы</h2>
         <div className="jey-toolbar-actions">
+          <button type="button" className="ghost-action settings-gear-button" onClick={() => setSettingsOpen(true)} title="Настройки приложений" aria-label="Открыть настройки приложений">
+            <svg className="ico" viewBox="0 0 20 20" aria-hidden>
+              <path d="M7.9 2.7h4.2l.45 1.75c.4.17.78.39 1.13.65l1.72-.5 2.1 3.65-1.27 1.25c.03.2.04.42.04.64s-.01.43-.04.64l1.27 1.25-2.1 3.65-1.72-.5c-.35.26-.73.48-1.13.65l-.45 1.75H7.9l-.45-1.75a6.4 6.4 0 0 1-1.13-.65l-1.72.5-2.1-3.65 1.27-1.25a4.7 4.7 0 0 1 0-1.28L2.5 8.25 4.6 4.6l1.72.5c.35-.26.73-.48 1.13-.65L7.9 2.7Z" fill="none" stroke="currentColor" strokeWidth="1.35" strokeLinejoin="round" />
+              <circle cx="10" cy="10.15" r="2.35" fill="none" stroke="currentColor" strokeWidth="1.35" />
+            </svg>
+          </button>
           <button className="ghost-action" onClick={() => setImportOpen((value) => !value)}>
             <svg className="ico" viewBox="0 0 16 16" aria-hidden><path d="M8 3v10M3 8h10" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" /></svg>
             Добавить подписку
@@ -412,56 +564,18 @@ export function Jey2RayPage({
         <strong>{selected ? (fastest?.id === selected.id ? 'Самый быстрый' : displayName(selected)) : 'Сервер не выбран'}</strong>
         <small>{powerLabel}</small>
       </div>
-      <div className="mode-switch">
-        <button
-          className={mode === 'proxy' ? 'active' : ''}
-          disabled={routeSettingsLocked}
-          onClick={() => onSettings({ ...settings, vpnMode: 'proxy', vpnSplitTunnel: false })}
-        >Proxy</button>
-        <button
-          className={mode === 'tun' ? 'active' : ''}
-          disabled={routeSettingsLocked}
-          onClick={() => onSettings({ ...settings, vpnMode: 'tun' })}
-        >TUN</button>
+      <div className={`routing-summary ${appRoutingActive ? 'is-on' : ''}`}>
+        <span className="routing-summary-icon">
+          <svg viewBox="0 0 24 24" aria-hidden><path d="M6 5v8a4 4 0 0 0 4 4h8M14.5 13.5 18 17l-3.5 3.5M10 8.5 6 4.5 2 8.5" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" /></svg>
+        </span>
+        <span><small>{mode.toUpperCase()} · приложения</small><strong>{routeLabel}</strong><em>{routeDescription}</em></span>
       </div>
-      <p className="mode-hint">
-        {mode === 'proxy'
-          ? 'Proxy: системный HTTP-прокси. Split Tunneling для приложений работает только в TUN.'
-          : splitEnabled
-            ? `TUN Split: через VPN идут только выбранные приложения (${splitApps.length}), остальные — напрямую.`
-            : 'TUN: весь трафик системы через VPN. Нужны права администратора.'}
-      </p>
-
-      <div className={`split-panel ${splitEnabled ? 'is-on' : ''}`}>
-        <div className="split-panel-head">
-          <div>
-            <strong>Split Tunneling</strong>
-            <small>Только выбранные .exe через VPN</small>
-          </div>
-          <button
-            type="button"
-            className={`split-toggle ${splitEnabled ? 'is-on' : ''}`}
-            disabled={routeSettingsLocked}
-            onClick={toggleSplitTunnel}
-            aria-label={splitEnabled ? 'Выключить Split Tunneling' : 'Включить Split Tunneling'}
-          ><i /></button>
-        </div>
-        {splitApps.length ? <div className="split-app-list">
-          {splitApps.map((app) => <div className="split-app" key={app.executable.toLocaleLowerCase('en-US')} title={app.path}>
-            <span><strong>{app.executable}</strong><small>{app.path}</small></span>
-            <button type="button" disabled={routeSettingsLocked} onClick={() => removeSplitApp(app.executable)} aria-label={`Удалить ${app.executable}`}>×</button>
-          </div>)}
-        </div> : <p className="split-empty">Список пуст. Выбери одно или несколько приложений Windows.</p>}
-        <button type="button" className="split-add" disabled={routeSettingsLocked} onClick={() => void addSplitApps()}>
-          <span>＋</span> Выбрать .exe
-        </button>
-        {routeSettingsLocked && <small className="split-locked">Для изменения сначала отключи VPN.</small>}
-      </div>
-
-      <button type="button" className={`nx-switch ${settings.autoConnectVpn ? 'is-on' : ''}`} onClick={() => onSettings({ ...settings, autoConnectVpn: !settings.autoConnectVpn })}>
-        <i />
-        <span>Автоподключение</span>
+      <button type="button" className="routing-manage-button" onClick={() => setSettingsOpen(true)}>
+        <svg viewBox="0 0 20 20" aria-hidden><path d="M7.9 2.7h4.2l.45 1.75c.4.17.78.39 1.13.65l1.72-.5 2.1 3.65-1.27 1.25c.03.2.04.42.04.64s-.01.43-.04.64l1.27 1.25-2.1 3.65-1.72-.5c-.35.26-.73.48-1.13.65l-.45 1.75H7.9l-.45-1.75a6.4 6.4 0 0 1-1.13-.65l-1.72.5-2.1-3.65 1.27-1.25a4.7 4.7 0 0 1 0-1.28L2.5 8.25 4.6 4.6l1.72.5c.35-.26.73-.48 1.13-.65L7.9 2.7Z" fill="none" stroke="currentColor" strokeWidth="1.35" strokeLinejoin="round" /><circle cx="10" cy="10.15" r="2.35" fill="none" stroke="currentColor" strokeWidth="1.35" /></svg>
+        Настройки приложений
+        <span>›</span>
       </button>
+      <div className={`auto-connect-summary ${settings.autoConnectVpn ? 'is-on' : ''}`}><i /><span>Автоподключение {settings.autoConnectVpn ? 'включено' : 'выключено'}</span></div>
       {!runtime.xrayReady && <div className="jey-note"><span>i</span><div><strong>Ставим ядро</strong><p>{xrayUpdate?.error || 'Качаем Xray / sing-box. Потом нажми большую кнопку.'}</p></div></div>}
     </aside>
   </section>;

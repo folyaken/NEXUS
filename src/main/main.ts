@@ -7,7 +7,7 @@ import os from 'node:os';
 import { ModuleManager } from './module-manager';
 import { GithubUpdater } from './github-updater';
 import { VpnManager } from './vpn-manager';
-import { normalizeVpnSplitApps } from './split-tunnel';
+import { normalizeVpnSplitApps, resolveVpnAppRouting } from './split-tunnel';
 import { DEFAULT_SETTINGS, type AppSettings, type ModuleLog, type UserProfile, type VpnSplitApp } from './types';
 
 declare const __dirname: string;
@@ -37,6 +37,7 @@ function settingsPath(): string {
 function normalizeSettings(raw: Partial<AppSettings>): AppSettings {
   const vpnMode = raw.vpnMode === 'tun' ? 'tun' : 'proxy';
   const vpnSplitApps = normalizeVpnSplitApps(raw.vpnSplitApps);
+  const vpnAppRouting = resolveVpnAppRouting(raw.vpnAppRouting, raw.vpnSplitTunnel, vpnMode, vpnSplitApps);
   return {
     autoStart: Boolean(raw.autoStart),
     notifications: raw.notifications !== false,
@@ -45,7 +46,8 @@ function normalizeSettings(raw: Partial<AppSettings>): AppSettings {
     lastVpnProfileId: typeof raw.lastVpnProfileId === 'string' ? raw.lastVpnProfileId : null,
     vpnInboundPort: Number(raw.vpnInboundPort) > 0 ? Number(raw.vpnInboundPort) : 10808,
     vpnMode,
-    vpnSplitTunnel: vpnMode === 'tun' && Boolean(raw.vpnSplitTunnel) && vpnSplitApps.length > 0,
+    vpnAppRouting,
+    vpnSplitTunnel: vpnAppRouting === 'include',
     vpnSplitApps,
   };
 }
@@ -253,8 +255,14 @@ function wireIpc(): void {
       mainWindow?.webContents.send('logs:append', { id: 'jey2ray', level: 'info', message: 'Скачиваем Xray-core…', timestamp: new Date().toISOString() });
       await updater.ensure('jey2ray');
     }
-    const splitApps = settings.vpnSplitTunnel ? settings.vpnSplitApps : [];
-    const runtime = await vpn.connect(String(id ?? ''), settings.vpnInboundPort, settings.vpnMode, splitApps);
+    const splitApps = settings.vpnAppRouting === 'system' ? [] : settings.vpnSplitApps;
+    const runtime = await vpn.connect(
+      String(id ?? ''),
+      settings.vpnInboundPort,
+      settings.vpnMode,
+      splitApps,
+      settings.vpnAppRouting,
+    );
     await saveSettings({ ...settings, lastVpnProfileId: String(id ?? '') });
     return runtime;
   });
@@ -304,8 +312,14 @@ if (gotLock) {
     createWindow();
     if (settings.autoStart) void manager.startEnabled();
     if (settings.autoConnectVpn && settings.lastVpnProfileId) {
-      const splitApps = settings.vpnSplitTunnel ? settings.vpnSplitApps : [];
-      void vpn.connect(settings.lastVpnProfileId, settings.vpnInboundPort, settings.vpnMode, splitApps).catch((error: Error) => {
+      const splitApps = settings.vpnAppRouting === 'system' ? [] : settings.vpnSplitApps;
+      void vpn.connect(
+        settings.lastVpnProfileId,
+        settings.vpnInboundPort,
+        settings.vpnMode,
+        splitApps,
+        settings.vpnAppRouting,
+      ).catch((error: Error) => {
         notify('Jey2Ray', error.message);
       });
     }

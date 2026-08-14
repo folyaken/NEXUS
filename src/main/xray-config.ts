@@ -1,5 +1,5 @@
 import { xrayProcessSelectors } from './split-tunnel';
-import type { VpnLinkParams, VpnSplitApp } from './types';
+import type { VpnAppRoutingMode, VpnLinkParams, VpnSplitApp } from './types';
 
 function vlessFlow(params: VpnLinkParams): string {
   const network = (params.network || 'tcp').toLowerCase();
@@ -142,6 +142,7 @@ export function buildXrayConfig(
   inboundPort: number,
   mode: 'proxy' | 'tun' = 'proxy',
   splitApps: VpnSplitApp[] = [],
+  appRouting: VpnAppRoutingMode = 'include',
 ): Record<string, unknown> {
   const inbounds: Record<string, unknown>[] = [{
     tag: 'socks-in',
@@ -173,13 +174,15 @@ export function buildXrayConfig(
     });
   }
 
-  const process = mode === 'tun' ? xrayProcessSelectors(splitApps) : [];
+  const process = mode === 'tun' && appRouting !== 'system' ? xrayProcessSelectors(splitApps) : [];
+  const selectedOutbound = appRouting === 'exclude' ? 'direct' : 'proxy';
+  const fallbackOutbound = appRouting === 'exclude' ? 'proxy' : 'direct';
   const routing = process.length ? {
     domainStrategy: 'AsIs',
     rules: [
       { type: 'field', process: ['self/', 'xray/'], outboundTag: 'direct' },
-      { type: 'field', inboundTag: ['tun-in'], process, outboundTag: 'proxy' },
-      { type: 'field', inboundTag: ['tun-in'], outboundTag: 'direct' },
+      { type: 'field', inboundTag: ['tun-in'], process, outboundTag: selectedOutbound },
+      { type: 'field', inboundTag: ['tun-in'], outboundTag: fallbackOutbound },
     ],
   } : undefined;
 

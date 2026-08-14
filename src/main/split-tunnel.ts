@@ -1,4 +1,4 @@
-import type { VpnSplitApp } from './types';
+import type { VpnAppRoutingMode, VpnSplitApp } from './types';
 
 const MAX_SPLIT_APPS = 64;
 const MAX_PATH_LENGTH = 1024;
@@ -35,6 +35,17 @@ export function normalizeVpnSplitApps(input: unknown): VpnSplitApp[] {
   }
 
   return apps;
+}
+
+export function resolveVpnAppRouting(
+  input: unknown,
+  legacySplitTunnel: unknown,
+  vpnMode: 'proxy' | 'tun',
+  apps: VpnSplitApp[],
+): VpnAppRoutingMode {
+  if (vpnMode !== 'tun' || !normalizeVpnSplitApps(apps).length) return 'system';
+  if (input === 'system' || input === 'exclude' || input === 'include') return input;
+  return legacySplitTunnel ? 'include' : 'system';
 }
 
 export function xrayProcessSelectors(apps: VpnSplitApp[]): string[] {

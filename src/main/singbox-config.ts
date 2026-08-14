@@ -1,11 +1,12 @@
 import { singboxProcessNames, singboxProcessPaths } from './split-tunnel';
-import type { VpnLinkParams, VpnSplitApp } from './types';
+import type { VpnAppRoutingMode, VpnLinkParams, VpnSplitApp } from './types';
 
 export function buildSingboxConfig(
   params: VpnLinkParams,
   inboundPort: number,
   mode: 'proxy' | 'tun' = 'proxy',
   splitApps: VpnSplitApp[] = [],
+  appRouting: VpnAppRoutingMode = 'include',
 ): Record<string, unknown> {
   const inbounds: Record<string, unknown>[] = [
     { type: 'socks', tag: 'socks-in', listen: '127.0.0.1', listen_port: inboundPort },
@@ -24,12 +25,14 @@ export function buildSingboxConfig(
     });
   }
 
-  const processNames = mode === 'tun' ? singboxProcessNames(splitApps) : [];
-  const processPaths = mode === 'tun' ? singboxProcessPaths(splitApps) : [];
+  const processNames = mode === 'tun' && appRouting !== 'system' ? singboxProcessNames(splitApps) : [];
+  const processPaths = mode === 'tun' && appRouting !== 'system' ? singboxProcessPaths(splitApps) : [];
+  const selectedOutbound = appRouting === 'exclude' ? 'direct' : 'proxy';
+  const fallbackOutbound = appRouting === 'exclude' ? 'proxy' : 'direct';
   const splitRules: Record<string, unknown>[] = processNames.length ? [
-    { inbound: ['tun-in'], process_name: processNames, action: 'route', outbound: 'proxy' },
-    { inbound: ['tun-in'], process_path: processPaths, action: 'route', outbound: 'proxy' },
-    { inbound: ['tun-in'], action: 'route', outbound: 'direct' },
+    { inbound: ['tun-in'], process_name: processNames, action: 'route', outbound: selectedOutbound },
+    { inbound: ['tun-in'], process_path: processPaths, action: 'route', outbound: selectedOutbound },
+    { inbound: ['tun-in'], action: 'route', outbound: fallbackOutbound },
   ] : [];
 
   return {

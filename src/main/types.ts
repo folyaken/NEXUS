@@ -2,6 +2,7 @@ export type ModuleStatus = 'running' | 'stopped' | 'error' | 'starting' | 'stopp
 export type UpdateStatus = 'idle' | 'checking' | 'downloading' | 'installed' | 'up-to-date' | 'unsupported' | 'error';
 export type VpnProtocol = 'vless' | 'vmess' | 'trojan' | 'shadowsocks' | 'hysteria2';
 export type VpnStatus = 'disconnected' | 'connecting' | 'connected' | 'error';
+export type VpnAppRoutingMode = 'system' | 'exclude' | 'include';
 
 export interface ModuleManifest {
   id: string;
@@ -66,7 +67,9 @@ export interface AppSettings {
   lastVpnProfileId: string | null;
   vpnInboundPort: number;
   vpnMode: 'proxy' | 'tun';
-  vpnSplitTunnel: boolean;
+  vpnAppRouting: VpnAppRoutingMode;
+  /** Legacy mirror retained while settings created by patch 09 are migrated. */
+  vpnSplitTunnel?: boolean;
   vpnSplitApps: VpnSplitApp[];
 }
 
@@ -78,6 +81,7 @@ export const DEFAULT_SETTINGS: AppSettings = {
   lastVpnProfileId: null,
   vpnInboundPort: 10808,
   vpnMode: 'proxy',
+  vpnAppRouting: 'system',
   vpnSplitTunnel: false,
   vpnSplitApps: [],
 };
