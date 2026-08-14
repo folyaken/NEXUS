@@ -274,11 +274,28 @@ export class GithubUpdater extends EventEmitter {
       `https://ghproxy.net/${asset.browser_download_url}`,
       `https://mirror.ghproxy.com/${asset.browser_download_url}`,
     ];
+    // Опубликованная GitHub контрольная сумма проверяется здесь, внутри перебора
+    // зеркал. Раньше проверка стояла после цикла: подменённый или обрезанный ответ
+    // зеркала принимался как успешная загрузка и валил всё обновление ошибкой
+    // «Контрольная сумма GitHub asset … не совпала», хотя оставались рабочие источники.
+    const publishedDigest = asset.digest?.trim();
+    const digestMatch = publishedDigest?.match(/^sha256:([a-f0-9]{64})$/i);
+    if (publishedDigest && !digestMatch) {
+      throw new Error(`GitHub опубликовал неподдерживаемый формат контрольной суммы для ${asset.name}`);
+    }
+    const expectedDigest = digestMatch?.[1].toLowerCase();
+
     let lastError: unknown = new Error('Не удалось скачать GitHub asset');
     for (const url of urls) {
       try {
         await this.downloadAsset(url, destination, target.repo);
         await this.assertAsset(destination, target.assetKind, asset.size, asset.name);
+        if (expectedDigest) {
+          const hash = (await this.sha256(destination)).toLowerCase();
+          if (hash !== expectedDigest) {
+            throw new Error(`Контрольная сумма GitHub asset ${asset.name} не совпала`);
+          }
+        }
         return;
       } catch (error) {
         lastError = error;

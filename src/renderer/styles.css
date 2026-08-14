@@ -91,6 +91,48 @@ h1, h2, h3, .brand strong, .window-drag strong { font-family: var(--font-heading
 .window-control.close:hover { background: #d94b62; color: white; }
 
 .app-shell { position: relative; display: flex; min-height: calc(100vh - 36px); height: calc(100vh - 36px); overflow: hidden; background: radial-gradient(circle at 76% -12%, rgba(115,92,244,.12), transparent 32%), radial-gradient(circle at 42% 110%, rgba(51,177,170,.09), transparent 32%), var(--bg); }
+
+/*
+ * Устойчивость к захвату экрана.
+ *
+ * Полупрозрачные панели с backdrop-filter рисуются отдельными GPU-слоями.
+ * Скриншотеры и запись экрана (Win+Shift+S, OBS, Steam overlay, RDP) часто
+ * копируют только основной слой, и в кадре панели пропадают — остаётся голый фон.
+ * Непрозрачная подложка того же цвета кладётся ПОД стеклянный слой: на экране
+ * вид не меняется, но в кадре панель всегда остаётся видимой.
+ */
+.sidebar,
+.stat-card,
+.module-card-inner,
+.pulse-panel,
+.profile-popover { isolation: isolate; }
+.stat-card,
+.module-card-inner,
+.pulse-panel { position: relative; }
+
+.sidebar::before,
+.stat-card::before,
+.module-card-inner::before,
+.pulse-panel::before,
+.profile-popover::before {
+  content: "";
+  position: absolute;
+  z-index: -1;
+  border-radius: inherit;
+  inset: 0;
+  pointer-events: none;
+}
+.sidebar::before { background: #0d1421; }
+.stat-card::before { background: #151d2c; }
+.module-card-inner::before { background: #1a2334; }
+.pulse-panel::before { background: #16242c; }
+.profile-popover::before { background: #141d2b; }
+
+.appearance-graphite .sidebar::before { background: #111; }
+.appearance-graphite .stat-card::before,
+.appearance-graphite .module-card-inner::before,
+.appearance-graphite .pulse-panel::before,
+.appearance-graphite .profile-popover::before { background: #161616; }
 .ambient { position: fixed; pointer-events: none; border-radius: 999px; filter: blur(70px); opacity: .23; }
 .ambient-one { width: 410px; height: 410px; top: -240px; right: 17%; background: #5e51d7; }
 .ambient-two { width: 330px; height: 330px; bottom: -220px; left: 31%; background: #168f88; }

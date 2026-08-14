@@ -33,6 +33,8 @@ Thumbs.db
 *.swp
 
 # archives and installers (keep source only)
+# Патч-архивы собираются локально через `npm run patch` и в репозиторий не попадают.
+NEXUS-patch-*.zip
 *.rar
 *.7z
 *.exe

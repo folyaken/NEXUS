@@ -53,6 +53,19 @@ function reservePort() {
   });
 }
 
+/**
+ * ModuleManager, изолированный от процессов операционной системы.
+ *
+ * Без этого обнаружение «уже запущенного» модуля читает реальный список процессов
+ * машины: запущенный у разработчика TgWsProxy.exe или winws.exe ломает обновление
+ * ошибкой «Остановите модуль перед обновлением». Тест обязан быть детерминированным.
+ */
+function isolatedManager(dir, pidsByImage = {}) {
+  const manager = new ModuleManager(dir);
+  manager.setProcessScanner(async (image) => pidsByImage[image] ?? []);
+  return manager;
+}
+
 function manifest(overrides) {
   return {
     id: overrides.id,
@@ -79,7 +92,7 @@ async function runAtomicLockPreservationTest() {
     const destination = path.join(temp, 'installed.bin');
     await fsp.writeFile(source, 'new release');
     await fsp.writeFile(destination, 'working old release');
-    const manager = new ModuleManager(temp);
+    const manager = isolatedManager(temp);
     await manager.init();
     const updater = new GithubUpdater(temp, manager);
     fsp.rename = async (from, to) => {
@@ -115,7 +128,7 @@ async function runZapretRollbackTest() {
       'base64',
     ));
 
-    const manager = new ModuleManager(temp);
+    const manager = isolatedManager(temp);
     await manager.init();
     const updater = new GithubUpdater(temp, manager);
     await assert.rejects(updater.installZapret(archive, 'test-version'));
@@ -160,7 +173,9 @@ async function runTgPortableRuntimeTest() {
       executable: `./bin/${assetName}`,
     }, null, 2));
 
-    const manager = new ModuleManager(temp);
+    // Запущенный на машине настоящий TgWsProxy.exe иначе будет подхвачен как
+    // «уже работающий», и модуль не пройдёт штатный путь запуска.
+    const manager = isolatedManager(temp);
     await manager.init();
     try {
       const running = await manager.start('tg-ws-proxy');
@@ -222,7 +237,7 @@ async function runMockGithubUpdateTest() {
         }), { status: 200, headers: { 'content-type': 'application/json' } });
       }
       if (url === assetUrl) return new Response('temporary release-assets failure', { status: 503 });
-      if (url === `https://ghproxy.net/${assetUrl}`) {
+      if (url === `https://ghproxy.net/${assetUrl}` || url === `https://mirror.ghproxy.com/${assetUrl}`) {
         return new Response(fakeExecutable, {
           status: 200,
           headers: { 'content-length': String(fakeExecutable.length), 'content-type': 'application/octet-stream' },
@@ -231,7 +246,7 @@ async function runMockGithubUpdateTest() {
       throw new Error(`unexpected mock URL: ${url}`);
     };
 
-    const manager = new ModuleManager(temp);
+    const manager = isolatedManager(temp);
     await manager.init();
     const updater = new GithubUpdater(temp, manager);
     await updater.ensure('tg-ws-proxy');
@@ -257,7 +272,14 @@ async function runMockGithubUpdateTest() {
     await assert.rejects(updater.ensure('tg-ws-proxy'), /Контрольная сумма GitHub asset .* не совпала/);
     assert.equal(fs.existsSync(installedPath), false, 'an asset with a mismatched GitHub digest must not be installed');
     assert.equal(updater.list().find((item) => item.id === 'tg-ws-proxy')?.status, 'error');
-    assert.deepEqual(requests, expectedRequests, 'digest validation must run after the same direct-to-mirror fallback');
+    // Несовпадение суммы проверяется для каждого источника отдельно: повреждённое
+    // зеркало не должно обрывать обновление, пока остаются непроверенные зеркала.
+    assert.deepEqual(requests, [
+      'https://api.github.com/repos/Flowseal/tg-ws-proxy/releases/latest',
+      assetUrl,
+      `https://ghproxy.net/${assetUrl}`,
+      `https://mirror.ghproxy.com/${assetUrl}`,
+    ], 'a digest mismatch must move on to the next mirror instead of aborting');
   } finally {
     global.fetch = realFetch;
     await fsp.rm(temp, { recursive: true, force: true });
@@ -283,7 +305,12 @@ async function run() {
 
     if (process.platform !== 'win32') {
       const workerFixture = path.join(temp, 'batch-worker.cjs');
-      const workerBinary = path.join(temp, 'winws.exe');
+      // Уникальное имя образа на прогон: «осиротевший» воркер от прерванного
+      // запуска иначе будет найден как уже работающий и сломает следующий прогон.
+      // Имя должно укладываться в 15 символов: pgrep -x на Linux сравнивает
+      // усечённое comm, а более длинное имя никогда не совпадёт.
+      const workerImage = `nx${process.pid.toString(36)}w.exe`;
+      const workerBinary = path.join(temp, workerImage);
       const fakeCommand = path.join(temp, 'fake-cmd');
       const fakeCommandWithoutWorker = path.join(temp, 'fake-cmd-no-worker');
       const strategyFile = path.join(temp, 'general (ALT10).bat');
@@ -304,12 +331,12 @@ async function run() {
       await fsp.writeFile(fakeCommandWithoutWorker, '#!/usr/bin/env node\nprocess.exit(0);\n');
       await fsp.chmod(fakeCommandWithoutWorker, 0o755);
       await fsp.writeFile(strategyFile, '@echo off\r\n');
-      await fsp.writeFile(path.join(temp, 'zapret.module.json'), JSON.stringify({
-        ...manifest({ id: 'zapret', working_dir: temp }),
+      await fsp.writeFile(path.join(temp, 'batch-worker.module.json'), JSON.stringify({
+        ...manifest({ id: 'batch-worker', working_dir: temp }),
         launch_mode: 'batch',
         strategy: 'general (ALT10)',
         strategies: { 'general (ALT10)': './general (ALT10).bat' },
-        worker_name: 'winws.exe',
+        worker_name: workerImage,
       }, null, 2));
       await fsp.writeFile(path.join(temp, 'batch-no-worker.module.json'), JSON.stringify({
         ...manifest({ id: 'batch-no-worker', working_dir: temp }),
@@ -347,12 +374,12 @@ async function run() {
       const previousComSpec = process.env.ComSpec;
       process.env.ComSpec = path.join(temp, 'fake-cmd');
       try {
-        const batch = await manager.start('zapret');
+        const batch = await manager.start('batch-worker');
         assert.equal(batch.status, 'running');
         assert.ok(batch.pid > 0, 'batch status must expose the real worker PID');
-        assert.equal(manager.isRunning('zapret'), true);
-        await manager.stop('zapret');
-        assert.equal(manager.isRunning('zapret'), false);
+        assert.equal(manager.isRunning('batch-worker'), true);
+        await manager.stop('batch-worker');
+        assert.equal(manager.isRunning('batch-worker'), false);
         process.env.ComSpec = path.join(temp, 'fake-cmd-no-worker');
         await assert.rejects(manager.start('batch-no-worker'), /рабочий процесс не появился/);
         assert.equal(manager.list().find((item) => item.id === 'batch-no-worker').status, 'error');
@@ -360,7 +387,7 @@ async function run() {
       } finally {
         if (previousComSpec === undefined) delete process.env.ComSpec;
         else process.env.ComSpec = previousComSpec;
-        await manager.stop('zapret').catch(() => undefined);
+        await manager.stop('batch-worker').catch(() => undefined);
       }
     }
 

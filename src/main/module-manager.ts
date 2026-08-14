@@ -35,7 +35,21 @@ export class ModuleManager extends EventEmitter {
   private readonly upstreamLogLines = new Map<string, Set<string>>();
   private lastScanAt: string | null = null;
 
+  /**
+   * Поиск уже запущенных «чужих» процессов модуля по имени образа.
+   *
+   * Вынесен в поле, чтобы тесты могли подставить детерминированную заглушку:
+   * иначе прогон зависит от того, что реально работает на машине, и, например,
+   * запущенный TgWsProxy.exe валит обновление с «Остановите модуль перед обновлением».
+   */
+  private discoverPids: (imageName: string) => Promise<number[]> = listPidsByImage;
+
   constructor(private readonly modulesDir: string) { super(); }
+
+  /** Только для тестов: подменяет сканер процессов операционной системы. */
+  setProcessScanner(scanner: (imageName: string) => Promise<number[]>): void {
+    this.discoverPids = scanner;
+  }
 
   async init(): Promise<void> { await this.reload(); }
 
@@ -481,7 +495,7 @@ export class ModuleManager extends EventEmitter {
     const images = this.workerImages(module);
     if (!images.length) return this.workerPids.get(module.id) ?? null;
     for (const image of images) {
-      const pids = await listPidsByImage(image);
+      const pids = await this.discoverPids(image);
       if (pids[0]) return pids[0];
     }
     return null;
