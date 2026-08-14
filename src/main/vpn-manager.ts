@@ -13,7 +13,7 @@ import { buildXrayConfig } from './xray-config';
 import { buildSingboxConfig } from './singbox-config';
 import { clearSystemProxy, setSystemProxy } from './system-proxy';
 import { createVpnDiagnostics } from './vpn-diagnostics';
-import type { ModuleLog, VpnAppRoutingMode, VpnDiagnosticCheck, VpnDiagnostics, VpnProfile, VpnRuntime, VpnSplitApp, VpnStatus, VpnSubscriptionInfo } from './types';
+import type { ModuleLog, VpnAppRoutingMode, VpnDiagnosticCheck, VpnDiagnostics, VpnLatencySample, VpnProfile, VpnRuntime, VpnSplitApp, VpnStatus, VpnSubscriptionInfo } from './types';
 import { waitForExit } from './process-watch';
 import { commitAtomicFileTransaction, recoverAtomicFileTransactions } from './atomic-files';
 
@@ -49,6 +49,8 @@ export class VpnManager extends EventEmitter {
   private diagnosticEvents: ModuleLog[] = [];
   private profileMutationQueue: Promise<void> = Promise.resolve();
   private refreshInFlight: Promise<number> | null = null;
+  private latencyProbeInFlight: Promise<VpnLatencySample | null> | null = null;
+  private lastLatencySample: VpnLatencySample | null = null;
 
   constructor(private readonly modulesDir: string) {
     super();
@@ -421,6 +423,68 @@ export class VpnManager extends EventEmitter {
       socket.once('timeout', () => done(null));
       socket.once('error', () => done(null));
       socket.connect(port, host);
+    });
+  }
+
+  sampleLatency(): Promise<VpnLatencySample | null> {
+    if (this.status !== 'connected' || !this.activeProfileId) return Promise.resolve(null);
+    const cachedAt = this.lastLatencySample ? Date.parse(this.lastLatencySample.measuredAt) : 0;
+    if (this.lastLatencySample && Number.isFinite(cachedAt) && Date.now() - cachedAt < 1500) {
+      return Promise.resolve(this.lastLatencySample);
+    }
+    if (this.latencyProbeInFlight) return this.latencyProbeInFlight;
+
+    const activeProfileId = this.activeProfileId;
+    const task = this.measureTunnelLatency().then((sample) => {
+      if (this.status !== 'connected' || this.activeProfileId !== activeProfileId) return null;
+      if (sample) this.lastLatencySample = sample;
+      return sample;
+    }).finally(() => {
+      if (this.latencyProbeInFlight === task) this.latencyProbeInFlight = null;
+    });
+    this.latencyProbeInFlight = task;
+    return task;
+  }
+
+  private measureTunnelLatency(timeoutMs = 4500): Promise<VpnLatencySample | null> {
+    return new Promise((resolve) => {
+      const started = Date.now();
+      const socket = new Socket();
+      let settled = false;
+      let response = '';
+      const done = (sample: VpnLatencySample | null) => {
+        if (settled) return;
+        settled = true;
+        socket.destroy();
+        resolve(sample);
+      };
+
+      socket.setNoDelay(true);
+      socket.setTimeout(timeoutMs);
+      socket.once('timeout', () => done(null));
+      socket.once('error', () => done(null));
+      socket.once('close', () => done(null));
+      socket.on('data', (chunk: Buffer) => {
+        response += chunk.toString('latin1');
+        if (response.length > 4096) {
+          done(null);
+          return;
+        }
+        const end = response.indexOf('\r\n\r\n');
+        if (end < 0) return;
+        const statusLine = response.slice(0, response.indexOf('\r\n'));
+        if (!/^HTTP\/1\.[01]\s+200\b/i.test(statusLine)) {
+          done(null);
+          return;
+        }
+        done({
+          pingMs: Math.max(1, Date.now() - started),
+          measuredAt: new Date().toISOString(),
+        });
+      });
+      socket.connect({ host: '127.0.0.1', port: this.inboundPort + 1 }, () => {
+        socket.write('CONNECT 1.1.1.1:443 HTTP/1.1\r\nHost: 1.1.1.1:443\r\nProxy-Connection: keep-alive\r\n\r\n');
+      });
     });
   }
 
@@ -884,6 +948,7 @@ export class VpnManager extends EventEmitter {
   }
 
   private setState(status: VpnStatus, profileId: string | null, pid: number | null, error?: string): void {
+    if (status !== 'connected' || profileId !== this.activeProfileId) this.lastLatencySample = null;
     this.status = status;
     this.activeProfileId = profileId;
     this.pid = pid;

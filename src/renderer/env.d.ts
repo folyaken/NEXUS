@@ -1,4 +1,4 @@
-import type { AppSettings, ModuleLog, ModuleManifest, UpdateInfo, UserProfile, VpnDiagnostics, VpnProfile, VpnRuntime, VpnSplitApp } from '../main/types';
+import type { AppSettings, ModuleLog, ModuleManifest, UpdateInfo, UserProfile, VpnDiagnostics, VpnLatencySample, VpnProfile, VpnRuntime, VpnSplitApp } from '../main/types';
 
 declare global {
   interface Window {
@@ -31,6 +31,7 @@ declare global {
       disconnectVpn(): Promise<VpnRuntime>;
       ensureVpnCore(): Promise<void>;
       pingVpn(): Promise<VpnProfile[]>;
+      sampleVpnLatency(): Promise<VpnLatencySample | null>;
       onModulesChanged(callback: (modules: ModuleManifest[]) => void): () => void;
       onLog(callback: (log: ModuleLog) => void): () => void;
       onUpdatesChanged(callback: (updates: UpdateInfo[]) => void): () => void;

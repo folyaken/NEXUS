@@ -276,6 +276,7 @@ function wireIpc(): void {
   ipcMain.handle('vpn:disconnect', () => vpn.disconnect());
   ipcMain.handle('vpn:ensure-core', () => updater.ensure('jey2ray'));
   ipcMain.handle('vpn:ping', () => vpn.pingAll());
+  ipcMain.handle('vpn:latency-sample', () => vpn.sampleLatency());
   ipcMain.handle('runtime:last-scan', () => manager.getLastScanAt());
   ipcMain.handle('window:minimize', () => mainWindow?.minimize());
   ipcMain.handle('window:toggle-fullscreen', () => {

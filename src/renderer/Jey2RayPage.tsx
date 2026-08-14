@@ -104,6 +104,45 @@ function Signal({ ms }: { ms?: number | null }) {
   </span>;
 }
 
+function PingSparkline({ samples, fallback }: { samples: number[]; fallback?: number | null }) {
+  const clean = samples.filter((value) => Number.isFinite(value) && value > 0 && value < 10_000);
+  const fallbackValue = typeof fallback === 'number' && fallback > 0 ? fallback : null;
+  const values = clean.length ? clean : fallbackValue != null ? [fallbackValue] : [];
+  const displayValue = values.length ? Math.round(values[values.length - 1]) : null;
+  const plot = values.length === 1 ? [values[0], values[0]] : values;
+  const width = 244;
+  const height = 38;
+  const xInset = 4;
+  const yInset = 5;
+  const min = plot.length ? Math.min(...plot) : 0;
+  const max = plot.length ? Math.max(...plot) : 0;
+  const padding = Math.max(7, (max - min) * .25);
+  const floor = Math.max(0, min - padding);
+  const ceiling = Math.max(floor + 1, max + padding);
+  const points = plot.map((value, index) => {
+    const x = xInset + (index / Math.max(1, plot.length - 1)) * (width - xInset * 2);
+    const y = height - yInset - ((value - floor) / (ceiling - floor)) * (height - yInset * 2);
+    return { x, y };
+  });
+  const pointString = points.map(({ x, y }) => `${x.toFixed(1)},${y.toFixed(1)}`).join(' ');
+  const areaPath = points.length
+    ? `M ${points[0].x.toFixed(1)} ${height} L ${pointString.replaceAll(',', ' ')} L ${points[points.length - 1].x.toFixed(1)} ${height} Z`
+    : '';
+  const tone = displayValue == null ? 'idle' : displayValue < 120 ? 'good' : displayValue < 230 ? 'ok' : 'weak';
+  const lastPoint = points[points.length - 1];
+
+  return <div className={`tunnel-ping ${tone}`} aria-label={displayValue == null ? 'Задержка туннеля измеряется' : `Задержка туннеля ${displayValue} миллисекунд`}>
+    <div className="tunnel-ping-head"><span>Задержка туннеля</span><strong>{displayValue == null ? '—' : displayValue} <small>ms</small></strong></div>
+    <svg viewBox={`0 0 ${width} ${height}`} role="img" aria-hidden>
+      <defs><linearGradient id="tunnel-ping-area" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stopColor="currentColor" stopOpacity=".24" /><stop offset="1" stopColor="currentColor" stopOpacity="0" /></linearGradient></defs>
+      <path className="tunnel-ping-grid" d={`M4 ${height - 5.5}H${width - 4}`} />
+      {areaPath && <path className="tunnel-ping-area" d={areaPath} />}
+      {pointString && <polyline className="tunnel-ping-line" points={pointString} />}
+      {lastPoint && <circle className="tunnel-ping-point" cx={lastPoint.x} cy={lastPoint.y} r="2.7" />}
+    </svg>
+  </div>;
+}
+
 export function Jey2RayPage({
   settings,
   updates,
@@ -132,6 +171,7 @@ export function Jey2RayPage({
   const [subscriptionAction, setSubscriptionAction] = useState<SubscriptionAction | null>(null);
   const [tab, setTab] = useState('all');
   const [selectedId, setSelectedId] = useState<string | null>(settings.lastVpnProfileId);
+  const [latencySamples, setLatencySamples] = useState<number[]>([]);
   const autoPing = useRef(false);
   const desktop = Boolean(window.nexus);
   const xrayUpdate = updates.find((item) => item.id === 'jey2ray');
@@ -179,6 +219,7 @@ export function Jey2RayPage({
     ? (runtime.subscriptions ?? []).find((item) => item.url === tab)
     : undefined;
   const selected = nodes.find((item) => item.id === selectedId) ?? fastest ?? nodes.find((item) => !canConnect(item)) ?? nodes[0] ?? null;
+  const activeProfile = nodes.find((item) => item.id === runtime.activeProfileId) ?? null;
   const onAir = runtime.status === 'connected' && runtime.activeProfileId === selected?.id;
   const otherLive = runtime.status === 'connected' && runtime.activeProfileId !== selected?.id;
   const used = (info?.upload ?? 0) + (info?.download ?? 0);
@@ -431,6 +472,33 @@ export function Jey2RayPage({
     void ping();
   }, [desktop, nodes.length]);
 
+  useEffect(() => {
+    setLatencySamples([]);
+    if (!desktop || runtime.status !== 'connected' || !runtime.activeProfileId || settingsOpen || subscriptionsOpen || diagnosticsOpen) return;
+    let cancelled = false;
+    let pending = false;
+    const sample = async () => {
+      if (pending) return;
+      pending = true;
+      try {
+        const next = await window.nexus?.sampleVpnLatency();
+        if (!cancelled && next && Number.isFinite(next.pingMs) && next.pingMs > 0) {
+          setLatencySamples((current) => [...current, Math.round(next.pingMs)].slice(-18));
+        }
+      } catch {
+        // A missed point should not interrupt a working VPN or distract the user.
+      } finally {
+        pending = false;
+      }
+    };
+    void sample();
+    const timer = window.setInterval(() => void sample(), 6500);
+    return () => {
+      cancelled = true;
+      window.clearInterval(timer);
+    };
+  }, [desktop, runtime.status, runtime.activeProfileId, settingsOpen, subscriptionsOpen, diagnosticsOpen]);
+
   const routeLabel = appRouting === 'include'
     ? `VPN только для выбранных · ${splitApps.length}`
     : appRouting === 'exclude'
@@ -655,6 +723,13 @@ export function Jey2RayPage({
     </div>
 
     <aside className="happ-right">
+      {runtime.status === 'connected' && (activeProfile || selected) && <div className="tunnel-route" aria-label={`Защищённый маршрут к серверу ${displayName(activeProfile || selected!)}`}>
+        <span className="tunnel-route-device" title="Это устройство">
+          <svg viewBox="0 0 24 24" aria-hidden><rect x="4" y="3.5" width="16" height="12" rx="2" /><path d="M8 20h8M10 15.5 9 20m5-4.5 1 4.5" /></svg>
+        </span>
+        <span className="tunnel-route-track" aria-hidden><i /></span>
+        <span className="tunnel-route-server" title={displayName(activeProfile || selected!)}><Flag code={(activeProfile || selected!)?.country} /></span>
+      </div>}
       <button
         className={`power-orb ${onAir ? 'is-on' : ''} ${otherLive ? 'is-other' : ''} ${runtime.status === 'connecting' ? 'is-wait' : ''}`}
         disabled={busy}
@@ -669,6 +744,7 @@ export function Jey2RayPage({
         <strong>{selected ? (fastest?.id === selected.id ? 'Самый быстрый' : displayName(selected)) : 'Сервер не выбран'}</strong>
         <small>{powerLabel}</small>
       </div>
+      {runtime.status === 'connected' && <PingSparkline samples={latencySamples} fallback={activeProfile?.pingMs} />}
       <div className="mode-switch" aria-label="Режим подключения">
         <span className="mode-switch-title">Режим подключения</span>
         <div className="mode-switch-options">

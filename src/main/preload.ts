@@ -1,5 +1,5 @@
 import { contextBridge, ipcRenderer } from 'electron';
-import type { AppSettings, ModuleLog, ModuleManifest, UpdateInfo, UserProfile, VpnDiagnostics, VpnProfile, VpnRuntime, VpnSplitApp } from './types';
+import type { AppSettings, ModuleLog, ModuleManifest, UpdateInfo, UserProfile, VpnDiagnostics, VpnLatencySample, VpnProfile, VpnRuntime, VpnSplitApp } from './types';
 
 contextBridge.exposeInMainWorld('nexus', {
   getModules: (): Promise<ModuleManifest[]> => ipcRenderer.invoke('modules:list'),
@@ -30,6 +30,7 @@ contextBridge.exposeInMainWorld('nexus', {
   disconnectVpn: (): Promise<VpnRuntime> => ipcRenderer.invoke('vpn:disconnect'),
   ensureVpnCore: (): Promise<void> => ipcRenderer.invoke('vpn:ensure-core'),
   pingVpn: (): Promise<VpnProfile[]> => ipcRenderer.invoke('vpn:ping'),
+  sampleVpnLatency: (): Promise<VpnLatencySample | null> => ipcRenderer.invoke('vpn:latency-sample'),
   onVpnChanged: (callback: (snapshot: { profiles: VpnProfile[]; runtime: VpnRuntime }) => void) => {
     const listener = (_event: Electron.IpcRendererEvent, snapshot: { profiles: VpnProfile[]; runtime: VpnRuntime }) => callback(snapshot);
     ipcRenderer.on('vpn:changed', listener);

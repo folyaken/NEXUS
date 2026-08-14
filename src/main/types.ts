@@ -158,6 +158,11 @@ export interface VpnRuntime {
   subscriptions?: VpnSubscriptionInfo[];
 }
 
+export interface VpnLatencySample {
+  pingMs: number;
+  measuredAt: string;
+}
+
 export type VpnDiagnosticTone = 'ok' | 'warning' | 'error' | 'info';
 
 export interface VpnDiagnosticCheck {
