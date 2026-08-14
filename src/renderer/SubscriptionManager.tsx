@@ -133,7 +133,7 @@ export function SubscriptionManager({
           <span className="subscription-source-icon">
             <svg viewBox="0 0 24 24" aria-hidden><path d="M9.5 14.5 14.5 9M7.2 16.8l-1 1a3.5 3.5 0 0 1-5-5l4-4a3.5 3.5 0 0 1 5 0M16.8 7.2l1-1a3.5 3.5 0 0 1 5 5l-4 4a3.5 3.5 0 0 1-5 0" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" /></svg>
           </span>
-          <div><strong>Новая подписка</strong><p>Вставь полный HTTPS-адрес, выданный провайдером. Адрес и его секретный токен не показываются в списке.</p></div>
+          <div><strong>Новая подписка</strong><p>Вставьте полный HTTPS-адрес, выданный провайдером. Адрес и его секретный токен не показываются в списке.</p></div>
         </div>
         <div className="subscription-add-form">
           <input
@@ -214,7 +214,7 @@ export function SubscriptionManager({
           <svg viewBox="0 0 24 24" aria-hidden><path d="M9.5 14.5 14.5 9M7.2 16.8l-1 1a3.5 3.5 0 0 1-5-5l4-4a3.5 3.5 0 0 1 5 0M16.8 7.2l1-1a3.5 3.5 0 0 1 5 5l-4 4a3.5 3.5 0 0 1-5 0" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" /></svg>
         </span>
         <strong>Подписок пока нет</strong>
-        <p>Добавь HTTPS-ссылку провайдера — серверы появятся в общем списке автоматически.</p>
+        <p>Добавьте HTTPS-ссылку провайдера — серверы появятся в общем списке автоматически.</p>
         <button type="button" onClick={() => setAddOpen(true)}>Добавить первую подписку</button>
       </div>}
     </div>

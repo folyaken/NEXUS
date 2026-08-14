@@ -39,6 +39,8 @@ const TRUSTED_MIRROR_HOSTS = new Set(['ghproxy.net', 'mirror.ghproxy.com']);
 
 export class GithubUpdater extends EventEmitter {
   private readonly updates = new Map<string, UpdateInfo>();
+  private readonly syncInFlight = new Map<string, Promise<void>>();
+  private readonly ensureInFlight = new Map<string, Promise<void>>();
   private readonly versionsFile: string;
   private versions: Record<string, VersionRecord> = {};
 
@@ -60,7 +62,20 @@ export class GithubUpdater extends EventEmitter {
     return this.list();
   }
 
-  async ensure(id: string): Promise<void> {
+  ensure(id: string): Promise<void> {
+    const active = this.ensureInFlight.get(id);
+    if (active) return active;
+
+    const task = this.ensureTarget(id);
+    this.ensureInFlight.set(id, task);
+    task.then(
+      () => this.ensureInFlight.delete(id),
+      () => this.ensureInFlight.delete(id),
+    );
+    return task;
+  }
+
+  private async ensureTarget(id: string): Promise<void> {
     const target = this.targets.find((item) => item.id === id);
     if (!target) throw new Error(`Нет цели обновления: ${id}`);
     if (this.moduleExecutableExists(id)) return;
@@ -68,7 +83,7 @@ export class GithubUpdater extends EventEmitter {
     if (this.moduleExecutableExists(id)) return;
     if (id === 'jey2ray') await this.installXrayFromMirrors();
     if (!this.moduleExecutableExists(id)) {
-      throw new Error(this.updates.get(id)?.error || 'Не удалось скачать Xray-core. Проверь интернет / GitHub, затем «Скачать Xray».');
+      throw new Error(this.updates.get(id)?.error || 'Не удалось скачать Xray-core. Проверьте подключение к интернету и повторите попытку.');
     }
   }
 
@@ -119,14 +134,27 @@ export class GithubUpdater extends EventEmitter {
     }
   }
 
-  private async syncOne(target: UpdateTarget): Promise<void> {
+  private syncOne(target: UpdateTarget): Promise<void> {
+    const active = this.syncInFlight.get(target.id);
+    if (active) return active;
+
+    const task = this.performSync(target);
+    this.syncInFlight.set(target.id, task);
+    task.then(
+      () => this.syncInFlight.delete(target.id),
+      () => this.syncInFlight.delete(target.id),
+    );
+    return task;
+  }
+
+  private async performSync(target: UpdateTarget): Promise<void> {
     this.setStatus(target, 'checking');
-    let tempPath: string | undefined;
+    let temporaryDirectory: string | undefined;
     try {
       const release = await this.fetchRelease(target.repo, target.releaseTag);
       const asset = target.selectAsset(release.assets);
       if (!asset) {
-        this.setStatus(target, 'unsupported', { latestVersion: release.tag_name, error: `Для ${process.platform}/${os.arch()} нет подходящего GitHub asset` });
+        this.setStatus(target, 'unsupported', { latestVersion: release.tag_name, error: `Для ${process.platform}/${os.arch()} нет подходящего файла релиза` });
         return;
       }
       const installed = this.versions[target.id];
@@ -138,22 +166,21 @@ export class GithubUpdater extends EventEmitter {
       if (this.manager.isRunning(target.id)) throw new Error('Остановите модуль перед обновлением');
 
       this.setStatus(target, 'downloading', { latestVersion: release.tag_name, asset: asset.name });
-      const tempDir = path.join(this.modulesDir, '.cache');
-      await fs.mkdir(tempDir, { recursive: true });
-      tempPath = path.join(tempDir, `${target.id}-${release.tag_name.replace(/[^a-z0-9._-]/gi, '_')}-${asset.name}`);
-      await this.downloadAsset(asset.browser_download_url, tempPath, target.repo);
-      await this.assertAsset(tempPath, target.assetKind, asset.size, asset.name);
-      const hash = await this.sha256(tempPath);
-      const executable = await target.install(tempPath, release.tag_name);
+      temporaryDirectory = await fs.mkdtemp(path.join(os.tmpdir(), 'nexus-updater-'));
+      const safeAssetName = path.basename(asset.name).replace(/[^a-z0-9._-]/gi, '_');
+      const temporaryAsset = path.join(temporaryDirectory, safeAssetName);
+      await this.downloadAsset(asset.browser_download_url, temporaryAsset, target.repo);
+      await this.assertAsset(temporaryAsset, target.assetKind, asset.size, asset.name);
+      const hash = await this.sha256(temporaryAsset);
+      const executable = await target.install(temporaryAsset, release.tag_name);
       this.versions[target.id] = { version: release.tag_name, asset: asset.name, sha256: hash, installedAt: new Date().toISOString() };
       await this.saveVersionRecords();
       await this.manager.reload();
       this.setStatus(target, 'installed', { latestVersion: release.tag_name, installedVersion: release.tag_name, asset: asset.name, executable, sha256: hash });
     } catch (error) {
-      const message = error instanceof Error ? error.message : 'Неизвестная ошибка GitHub updater';
-      this.setStatus(target, 'error', { error: message });
+      this.setStatus(target, 'error', { error: this.userFacingError(error) });
     } finally {
-      if (tempPath) await fs.rm(tempPath, { force: true }).catch(() => undefined);
+      if (temporaryDirectory) await fs.rm(temporaryDirectory, { recursive: true, force: true }).catch(() => undefined);
     }
   }
 
@@ -305,31 +332,46 @@ export class GithubUpdater extends EventEmitter {
       `https://mirror.ghproxy.com/https://github.com/XTLS/Xray-core/${releasePath}/${file}`,
     ];
     const jey = this.targets.find((item) => item.id === 'jey2ray');
-    const tempPath = path.join(this.modulesDir, '.cache', file);
-    await fs.mkdir(path.dirname(tempPath), { recursive: true });
+    const temporaryDirectory = await fs.mkdtemp(path.join(os.tmpdir(), 'nexus-xray-download-'));
+    const temporaryAsset = path.join(temporaryDirectory, file);
     let lastError = 'Не удалось скачать Xray ни с одного зеркала';
     try {
       for (const url of mirrors) {
         try {
           if (jey) this.setStatus(jey, 'downloading', { asset: file });
-          await this.downloadAsset(url, tempPath, 'XTLS/Xray-core');
-          await this.assertAsset(tempPath, 'zip', 0, file);
-          await this.installXray(tempPath, XRAY_TUN_RELEASE);
+          await this.downloadAsset(url, temporaryAsset, 'XTLS/Xray-core');
+          await this.assertAsset(temporaryAsset, 'zip', 0, file);
+          const hash = await this.sha256(temporaryAsset);
+          const executable = await this.installXray(temporaryAsset, XRAY_TUN_RELEASE);
+          this.versions.jey2ray = {
+            version: XRAY_TUN_RELEASE,
+            asset: file,
+            sha256: hash,
+            installedAt: new Date().toISOString(),
+          };
+          await this.saveVersionRecords();
+          await this.manager.reload();
+          if (jey) this.setStatus(jey, 'installed', {
+            latestVersion: XRAY_TUN_RELEASE,
+            installedVersion: XRAY_TUN_RELEASE,
+            asset: file,
+            executable,
+            sha256: hash,
+            error: undefined,
+          });
           return;
         } catch (error) {
-          lastError = error instanceof Error ? error.message : lastError;
+          lastError = this.userFacingError(error);
         }
       }
       throw new Error(lastError);
     } finally {
-      await fs.rm(tempPath, { force: true }).catch(() => undefined);
+      await fs.rm(temporaryDirectory, { recursive: true, force: true }).catch(() => undefined);
     }
   }
 
   private async installXray(assetPath: string, version: string): Promise<string> {
-    const extractRoot = path.join(this.modulesDir, '.cache', 'xray-extract');
-    await fs.rm(extractRoot, { recursive: true, force: true });
-    await fs.mkdir(extractRoot, { recursive: true });
+    const extractRoot = await fs.mkdtemp(path.join(os.tmpdir(), 'nexus-xray-extract-'));
     try {
       await (await Open.file(assetPath)).extract({ path: extractRoot });
       const binaryName = process.platform === 'win32' ? 'xray.exe' : 'xray';
@@ -396,6 +438,22 @@ export class GithubUpdater extends EventEmitter {
       installed_version: version,
     });
     return relativeExecutable;
+  }
+
+  private userFacingError(error: unknown): string {
+    const candidate = error as NodeJS.ErrnoException;
+    const message = error instanceof Error ? error.message : 'Неизвестная ошибка обновления';
+    const code = candidate?.code?.toUpperCase();
+    if (code === 'EPERM' || code === 'EACCES' || code === 'EBUSY' || /\b(?:EPERM|EACCES|EBUSY)\b/i.test(message)) {
+      return 'Windows временно заблокировал файл обновления. Закройте лишние экземпляры NEXUS и повторите попытку.';
+    }
+    if (code === 'ENOSPC' || /\bENOSPC\b/i.test(message)) {
+      return 'Недостаточно свободного места для обновления. Освободите место на системном диске и повторите попытку.';
+    }
+    if (/fetch failed|network error|socket hang up/i.test(message)) {
+      return 'Не удалось связаться с сервером обновлений. Проверьте подключение к интернету и повторите попытку.';
+    }
+    return message;
   }
 
   private async updateManifest(id: string, patch: Record<string, unknown>): Promise<void> {

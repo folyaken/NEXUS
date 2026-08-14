@@ -1,4 +1,5 @@
 const fs = require('node:fs');
+const os = require('node:os');
 const path = require('node:path');
 const { Open } = require('unzipper');
 const {
@@ -10,7 +11,6 @@ const {
 
 const root = path.resolve(__dirname, '..');
 const binDir = path.join(root, 'modules', 'bin');
-const cacheDir = path.join(root, 'modules', '.cache');
 const isWin = process.platform === 'win32';
 const binary = isWin ? 'sing-box.exe' : 'sing-box';
 const dest = path.join(binDir, binary);
@@ -19,6 +19,18 @@ const userAgent = 'NEXUS-sing-box-Bootstrap';
 
 function ok() {
   return fs.existsSync(dest) && fs.statSync(dest).size > 4_000_000;
+}
+
+function setupErrorMessage(error) {
+  const message = error instanceof Error ? error.message : String(error);
+  const code = typeof error === 'object' && error && 'code' in error ? String(error.code).toUpperCase() : '';
+  if (['EPERM', 'EACCES', 'EBUSY'].includes(code) || /\b(?:EPERM|EACCES|EBUSY)\b/i.test(message)) {
+    return 'Windows временно заблокировал файл установки. Закройте лишние экземпляры NEXUS и повторите запуск.';
+  }
+  if (code === 'ENOSPC' || /\bENOSPC\b/i.test(message)) {
+    return 'Недостаточно свободного места. Освободите место на системном диске и повторите запуск.';
+  }
+  return message;
 }
 
 async function download(url, file) {
@@ -72,15 +84,15 @@ function walk(dir, name) {
 
 async function main() {
   if (ok()) {
-    console.log(`sing-box уже на месте: ${path.relative(root, dest)}`);
+    console.log(`sing-box уже установлен: ${path.relative(root, dest)}`);
     return;
   }
   if (!isWin) {
-    console.warn('Автоустановка sing-box сейчас только для Windows.');
+    console.warn('Автоматическая установка sing-box сейчас доступна только для Windows.');
     return;
   }
 
-  console.log('Ставим sing-box (Hysteria2, как в Happ)…');
+  console.log('Установка sing-box для подключений Hysteria2…');
   const release = await getJson(`https://api.github.com/repos/${repo}/releases/latest`, {
     repo,
     userAgent,
@@ -91,31 +103,33 @@ async function main() {
     return;
   }
 
-  const zipPath = path.join(cacheDir, asset.name);
   const urls = [asset.url, `https://ghproxy.net/${asset.url}`];
   let last = 'не удалось скачать';
   for (const url of urls) {
+    const attemptDir = fs.mkdtempSync(path.join(os.tmpdir(), 'nexus-singbox-setup-'));
+    const zipPath = path.join(attemptDir, asset.name);
+    const extractDir = path.join(attemptDir, 'extract');
     try {
-      console.log(`  качаем ${safeUrlForLog(url)}`);
+      console.log(`  загрузка ${safeUrlForLog(url)}`);
       await download(url, zipPath);
-      const extractDir = path.join(cacheDir, 'singbox-extract');
-      fs.rmSync(extractDir, { recursive: true, force: true });
       await (await Open.file(zipPath)).extract({ path: extractDir });
       const found = walk(extractDir, binary);
-      if (!found) throw new Error(`${binary} нет в архиве`);
+      if (!found) throw new Error(`${binary} не найден в архиве`);
       fs.mkdirSync(binDir, { recursive: true });
       fs.copyFileSync(found, dest);
       if (!ok()) throw new Error('скопированный бинарник пустой');
       console.log(`sing-box установлен: ${path.relative(root, dest)}`);
       return;
     } catch (error) {
-      last = error instanceof Error ? error.message : String(error);
-      console.warn(`  не вышло: ${last}`);
+      last = setupErrorMessage(error);
+      console.warn(`  попытка не удалась: ${last}`);
+    } finally {
+      try { fs.rmSync(attemptDir, { recursive: true, force: true }); } catch { /* system temp is cleaned later */ }
     }
   }
-  console.warn(`sing-box не установлен (${last}). Hysteria заработает после удачной загрузки GitHub.`);
+  console.warn(`sing-box не установлен (${last}). Hysteria2 станет доступна после успешной загрузки с GitHub.`);
 }
 
 main().catch((error) => {
-  console.warn(error.message);
+  console.warn(setupErrorMessage(error));
 });

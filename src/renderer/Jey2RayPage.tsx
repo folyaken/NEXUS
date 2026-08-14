@@ -98,24 +98,24 @@ function pickFastest(list: VpnProfile[]): VpnProfile | null {
 
 function Signal({ ms }: { ms?: number | null }) {
   if (ms == null) {
-    return <span className="happ-ping off" title="Ещё не измеряли"><span className="happ-signal off">{[1, 2, 3, 4].map((bar) => <i key={bar} />)}</span><em>—</em></span>;
+    return <span className="server-ping off" title="Ещё не измеряли"><span className="server-signal off">{[1, 2, 3, 4].map((bar) => <i key={bar} />)}</span><em>—</em></span>;
   }
   if (ms < 0) {
-    return <span className="happ-ping soft" title="Порт не отвечает на TCP, но узел рабочий (часто Reality / Hysteria)">
-      <span className="happ-signal soft">{[1, 2, 3, 4].map((bar) => <i key={bar} className={bar <= 3 ? 'on' : ''} />)}</span>
+    return <span className="server-ping soft" title="Порт не отвечает на TCP, но узел рабочий (часто Reality / Hysteria)">
+      <span className="server-signal soft">{[1, 2, 3, 4].map((bar) => <i key={bar} className={bar <= 3 ? 'on' : ''} />)}</span>
       <em>ок</em>
     </span>;
   }
   const level = ms < 60 ? 4 : ms < 120 ? 3 : ms < 220 ? 2 : 1;
   const tone = level >= 3 ? 'good' : level === 2 ? 'ok' : 'weak';
-  return <span className={`happ-ping ${tone}`} title={`${ms} мс`}>
-    <span className={`happ-signal ${tone}`}>{[1, 2, 3, 4].map((bar) => <i key={bar} className={bar <= level ? 'on' : ''} />)}</span>
+  return <span className={`server-ping ${tone}`} title={`${ms} мс`}>
+    <span className={`server-signal ${tone}`}>{[1, 2, 3, 4].map((bar) => <i key={bar} className={bar <= level ? 'on' : ''} />)}</span>
     <em>{ms}</em>
   </span>;
 }
 
 function profileLocation(profile: VpnProfile | null): { country: string; detail: string } {
-  if (!profile) return { country: 'Сервер не выбран', detail: 'Выбери сервер слева' };
+  if (!profile) return { country: 'Сервер не выбран', detail: 'Выберите сервер слева' };
   const shownName = displayName(profile).trim();
   const knownCountry = profile.countryName?.trim();
   const country = knownCountry && knownCountry !== 'Другие' ? knownCountry : shownName;
@@ -253,7 +253,7 @@ export function Jey2RayPage({
 
   const addSplitApps = async (activate: VpnAppRoutingMode = appRouting) => {
     if (routeSettingsLocked) {
-      onToast('Сначала отключи VPN, затем измени список приложений');
+      onToast('Сначала отключите VPN, затем измените список приложений');
       return;
     }
     if (!desktop) {
@@ -279,7 +279,7 @@ export function Jey2RayPage({
 
   const selectAppRouting = (next: VpnAppRoutingMode) => {
     if (routeSettingsLocked) {
-      onToast('Сначала отключи VPN, затем измени маршрутизацию приложений');
+      onToast('Сначала отключите VPN, затем измените маршрутизацию приложений');
       return;
     }
     if (next !== 'system' && !splitApps.length) {
@@ -296,7 +296,7 @@ export function Jey2RayPage({
 
   const removeSplitApp = (executable: string) => {
     if (routeSettingsLocked) {
-      onToast('Сначала отключи VPN, затем измени список приложений');
+      onToast('Сначала отключите VPN, затем измените список приложений');
       return;
     }
     const next = splitApps.filter((app) => app.executable !== executable);
@@ -378,7 +378,7 @@ export function Jey2RayPage({
 
   const togglePower = async () => {
     if (!selected) {
-      onToast('Сначала выбери сервер слева');
+      onToast('Сначала выберите сервер слева');
       return;
     }
     if (onAir) await disconnect();
@@ -600,7 +600,7 @@ export function Jey2RayPage({
 
         <section className="app-settings-card fragmentation-settings-card">
           <div className="app-settings-card-head compact">
-            <div><span className="settings-step">02</span><div><h3>Включить фрагментацию</h3><p>Разделять TLS ClientHello как в Happ, чтобы соединение устойчивее проходило DPI-фильтрацию.</p></div></div>
+            <div><span className="settings-step">02</span><div><h3>Включить фрагментацию</h3><p>Разделять TLS ClientHello на небольшие фрагменты, чтобы повысить устойчивость соединения при DPI-фильтрации.</p></div></div>
             <button
               type="button"
               className={`settings-toggle ${settings.vpnFragmentation ? 'is-on' : ''}`}
@@ -619,12 +619,12 @@ export function Jey2RayPage({
       </> : <>
         {routeSettingsLocked && <div className="app-settings-lock">
           <span>i</span>
-          <div><strong>VPN сейчас работает</strong><p>Отключи подключение, чтобы изменить маршрутизацию или список приложений.</p></div>
+          <div><strong>VPN сейчас работает</strong><p>Отключите подключение, чтобы изменить маршрутизацию или список приложений.</p></div>
         </div>}
 
         <section className="app-settings-card routing-settings-card">
           <div className="app-settings-card-head">
-            <div><span className="settings-step">01</span><div><h3>Настройки прокси для приложений</h3><p>Выбери общую политику. Конкретные приложения можно добавить ниже.</p></div></div>
+            <div><span className="settings-step">01</span><div><h3>Настройки прокси для приложений</h3><p>Выберите общую политику. Конкретные приложения можно добавить ниже.</p></div></div>
           </div>
           <div className="routing-choice-list" role="radiogroup" aria-label="Режим маршрутизации приложений">
             <button type="button" role="radio" aria-checked={appRouting === 'system'} className={`routing-choice ${appRouting === 'system' ? 'is-active' : ''}`} disabled={routeSettingsLocked} onClick={() => selectAppRouting('system')}>
@@ -647,7 +647,7 @@ export function Jey2RayPage({
 
         <section className="app-settings-card selected-apps-card">
           <div className="app-settings-card-head selected-apps-head">
-            <div><span className="settings-step">02</span><div><h3>Выбранные приложения</h3><p>{splitApps.length ? `Добавлено: ${splitApps.length}` : 'Добавь приложения Windows, для которых будут действовать правила выше.'}</p></div></div>
+            <div><span className="settings-step">02</span><div><h3>Выбранные приложения</h3><p>{splitApps.length ? `Добавлено: ${splitApps.length}` : 'Добавьте приложения Windows, для которых будут действовать правила выше.'}</p></div></div>
             <button type="button" className="app-add-button" disabled={routeSettingsLocked} onClick={() => void addSplitApps(appRouting)}>
               <svg viewBox="0 0 16 16" aria-hidden><path d="M8 3v10M3 8h10" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" /></svg>
               Добавить приложение
@@ -665,7 +665,7 @@ export function Jey2RayPage({
           </div> : <div className="selected-app-empty">
             <span><svg viewBox="0 0 32 32" aria-hidden><rect x="7" y="5" width="18" height="22" rx="4" fill="none" stroke="currentColor" strokeWidth="1.5" /><path d="M12 12h8M12 17h6" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" /></svg></span>
             <strong>Приложения ещё не выбраны</strong>
-            <p>Нажми «Добавить приложение» и выбери один или несколько файлов .exe.</p>
+            <p>Нажмите «Добавить приложение» и выберите один или несколько файлов .exe.</p>
           </div>}
         </section>
       </>}
@@ -689,8 +689,8 @@ export function Jey2RayPage({
     onToast={onToast}
   />;
 
-  return <section className="page-section jey-page happ-shell">
-    <div className="happ-left">
+  return <section className="page-section jey-page server-shell">
+    <div className="server-left">
       <div className="jey-toolbar tight">
         <h2>Серверы</h2>
         <div className="jey-toolbar-actions">
@@ -744,12 +744,12 @@ export function Jey2RayPage({
         </button>)}
       </div>}
 
-      <div className={`happ-card ${info ? 'is-subscription' : 'is-overview'}`}>
-        <div className="happ-card-main">
-          <span className="happ-card-symbol" aria-hidden>
+      <div className={`server-card ${info ? 'is-subscription' : 'is-overview'}`}>
+        <div className="server-card-main">
+          <span className="server-card-symbol" aria-hidden>
             <svg viewBox="0 0 24 24"><rect x="4" y="4" width="16" height="6" rx="2" fill="none" stroke="currentColor" strokeWidth="1.45" /><rect x="4" y="14" width="16" height="6" rx="2" fill="none" stroke="currentColor" strokeWidth="1.45" /><circle cx="7.5" cy="7" r=".9" fill="currentColor" /><circle cx="7.5" cy="17" r=".9" fill="currentColor" /><path d="M11 7h5.5M11 17h5.5" fill="none" stroke="currentColor" strokeWidth="1.35" strokeLinecap="round" /></svg>
           </span>
-          <div className="happ-card-copy">
+          <div className="server-card-copy">
             <small>{info ? 'Выбранная подписка' : 'Текущая выборка'}</small>
             <strong>{title}</strong>
             <span>{info
@@ -759,36 +759,36 @@ export function Jey2RayPage({
                 : 'Серверы из всех доступных источников'}</span>
           </div>
         </div>
-        <div className="happ-card-metrics">
+        <div className="server-card-metrics">
           <span><small>Серверов</small><strong>{visible.length}</strong></span>
           <span><small>{info ? 'Трафик' : 'Подписок'}</small><strong>{info ? `${formatBytes(used)} / ${quota}` : runtime.subscriptions?.length ?? 0}</strong></span>
         </div>
-        {info && <div className="happ-card-details">
-          <span className="happ-expire">Истекает {formatExpire(info.expireAt)}</span>
+        {info && <div className="server-card-details">
+          <span className="server-expire">Истекает {formatExpire(info.expireAt)}</span>
           <span>{info.updateHours ? `Автообновление: каждые ${info.updateHours} ч.` : 'Интервал обновления не задан'}</span>
         </div>}
-        {info?.announce && <div className="happ-ribbon">{info.announce}</div>}
+        {info?.announce && <div className="server-ribbon">{info.announce}</div>}
       </div>
 
-      <div className="happ-list">
+      <div className="server-list">
         {listed.map((profile) => {
           const live = runtime.status === 'connected' && runtime.activeProfileId === profile.id;
           const picked = selected?.id === profile.id;
           const blocked = canConnect(profile);
-          return <button key={profile.id} className={`happ-row ${live ? 'is-live' : ''} ${picked ? 'is-active' : ''} ${blocked ? 'is-off' : ''}`} onClick={() => setSelectedId(profile.id)} onDoubleClick={() => { if (blocked) onToast(blocked); else void connect(profile.id); }}>
+          return <button key={profile.id} className={`server-row ${live ? 'is-live' : ''} ${picked ? 'is-active' : ''} ${blocked ? 'is-off' : ''}`} onClick={() => setSelectedId(profile.id)} onDoubleClick={() => { if (blocked) onToast(blocked); else void connect(profile.id); }}>
             <Flag code={profile.country} />
-            <span className="happ-copy">
+            <span className="server-copy">
               <strong>{displayName(profile)}</strong>
               <small>{blocked || stackOf(profile)}</small>
             </span>
-            {live ? <em className="happ-on">ВКЛ</em> : <Signal ms={profile.pingMs} />}
-            <span className="happ-go">›</span>
+            {live ? <em className="server-on">ВКЛ</em> : <Signal ms={profile.pingMs} />}
+            <span className="server-go">›</span>
           </button>;
         })}
       </div>
     </div>
 
-    <aside className="happ-right">
+    <aside className="server-right">
       {runtime.status === 'connected' && <span className="tunnel-session-counter" aria-label={`Время подключения ${sessionDuration}`}>{sessionDuration}</span>}
       {runtime.status === 'connected' && panelProfile && <div className="tunnel-route" aria-label={`Защищённый маршрут к серверу ${panelLocation.detail}`}>
         <span className="tunnel-route-device" title="Это устройство">
@@ -839,7 +839,7 @@ export function Jey2RayPage({
         <b>→</b>
       </button>
       <div className={`auto-connect-summary ${settings.autoConnectVpn ? 'is-on' : ''}`}><i /><span>Автоподключение {settings.autoConnectVpn ? 'включено' : 'выключено'}</span></div>
-      {!runtime.xrayReady && <div className="jey-note"><span>i</span><div><strong>Ставим ядро</strong><p>{xrayUpdate?.error || 'Качаем Xray / sing-box. Потом нажми большую кнопку.'}</p></div></div>}
+      {!runtime.xrayReady && <div className="jey-note"><span>i</span><div><strong>Подготовка VPN-ядра</strong><p>{xrayUpdate?.error || 'Выполняется загрузка Xray / sing-box. Кнопка подключения станет доступна после установки.'}</p></div></div>}
     </aside>
   </section>;
 }

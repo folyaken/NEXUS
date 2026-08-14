@@ -106,14 +106,19 @@ function NavGlyph({ name }: { name: string }) {
   if (name === 'settings') return <GearIcon />;
   if (name === 'jey') return <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="7" /><path d="M12 5V2M12 22v-3M5 12H2M22 12h-3M7 7 5 5M19 19l-2-2M17 7l2-2M7 17l-2 2" /></svg>;
   if (name === 'logs') return <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 5h14M5 12h14M5 19h9" /></svg>;
-  if (name === 'about') return <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9" /><path d="M12 11v6M12 7h.01" /></svg>;
+  if (name === 'about') return <svg className="about-nav-icon" viewBox="0 0 24 24" aria-hidden="true"><circle className="about-nav-ring" cx="12" cy="12" r="9" /><path className="about-nav-stem" d="M12 11.25v5.5" /><circle className="about-nav-dot" cx="12" cy="7.25" r="1.2" /></svg>;
   return <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="5" y="5" width="5" height="5" rx="1" /><rect x="14" y="5" width="5" height="5" rx="1" /><rect x="5" y="14" width="5" height="5" rx="1" /><rect x="14" y="14" width="5" height="5" rx="1" /></svg>;
 }
 
 function WindowBar({ maximized }: { maximized: boolean }) {
+  const maximizeLabel = maximized ? 'Восстановить окно' : 'Развернуть окно';
   return <div className="window-bar">
     <div className="window-drag"><span className="window-brand-mark"><NexusMark /></span><strong>NEXUS</strong><span className="window-separator">/</span><span>Network Control Plane</span></div>
-    <div className="window-actions"><button className="window-control minimize" aria-label="Свернуть" onClick={() => void window.nexus?.minimizeWindow()}>−</button><button className="window-control maximize" aria-label={maximized ? 'Восстановить окно' : 'Развернуть окно'} title={maximized ? 'Восстановить окно' : 'Развернуть окно'} onClick={() => void window.nexus?.toggleMaximize()}><svg viewBox="0 0 20 20" aria-hidden="true">{maximized ? <><rect x="4.5" y="6.5" width="9" height="9" rx=".5" /><path d="M7 6.5v-2h8.5v8.5h-2" /></> : <rect x="4.5" y="4.5" width="11" height="11" rx=".5" />}</svg></button><button className="window-control close" aria-label="Закрыть" onClick={() => void window.nexus?.closeWindow()}>×</button></div>
+    <div className="window-actions">
+      <button type="button" className="window-control minimize" aria-label="Свернуть" title="Свернуть" onClick={() => void window.nexus?.minimizeWindow()}><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M3 8.5h10" /></svg></button>
+      <button type="button" className="window-control maximize" aria-label={maximizeLabel} title={maximizeLabel} onClick={() => void window.nexus?.toggleMaximize()}><svg viewBox="0 0 16 16" aria-hidden="true">{maximized ? <><rect x="3.5" y="5.5" width="7" height="7" rx=".5" /><path d="M5.5 5.5v-2h7v7h-2" /></> : <rect x="3.5" y="3.5" width="9" height="9" rx=".5" />}</svg></button>
+      <button type="button" className="window-control close" aria-label="Закрыть" title="Закрыть" onClick={() => void window.nexus?.closeWindow()}><svg viewBox="0 0 16 16" aria-hidden="true"><path d="m4 4 8 8M12 4l-8 8" /></svg></button>
+    </div>
   </div>;
 }
 
@@ -155,15 +160,14 @@ function PulsePanel({ running, total, errors }: { running: number; total: number
 }
 
 function HeroVisual() {
-  const orbitA = useSpring({ from: { turn: 0, scale: 1 }, to: { turn: 360, scale: 1.04 }, loop: { reverse: true }, config: { duration: 18000 } });
-  const orbitB = useSpring({ from: { turn: 360, scale: 1.05 }, to: { turn: 0, scale: .96 }, loop: { reverse: true }, config: { duration: 24000 } });
-  const core = useSpring({ from: { scale: .92, opacity: .72 }, to: { scale: 1.08, opacity: 1 }, loop: { reverse: true }, config: { duration: 2200 } });
-  return <div className="hero-visual">
-    <animated.div className="orbit orbit-a" style={{ transform: orbitA.turn.to((turn) => `rotate(${turn}deg) scale(${1 + (turn % 180) / 1800})`) }} />
-    <animated.div className="orbit orbit-b" style={{ transform: orbitB.turn.to((turn) => `rotate(${turn - 35}deg) scale(${1 + (turn % 180) / 2200})`) }} />
-    <animated.div className="planet-track track-a" style={{ transform: orbitA.turn.to((turn) => `rotate(${turn}deg)`) }}><span className="planet planet-a" /></animated.div>
-    <animated.div className="planet-track track-b" style={{ transform: orbitB.turn.to((turn) => `rotate(${turn}deg)`) }}><span className="planet planet-b" /></animated.div>
-    <animated.div className="core-glow" style={{ transform: core.scale.to((scale) => `scale(${scale})`), opacity: core.opacity }}><span>✦</span></animated.div>
+  const linear = (value: number) => value;
+  const orbitA = useSpring({ from: { turn: -18 }, to: { turn: 342 }, loop: true, config: { duration: 22000, easing: linear } });
+  const orbitB = useSpring({ from: { turn: 24 }, to: { turn: 384 }, loop: true, config: { duration: 31000, easing: linear } });
+  return <div className="hero-visual" aria-hidden="true">
+    <div className="visual-grid" />
+    <animated.div className="orbit orbit-a" style={{ transform: orbitA.turn.to((turn) => `rotate(${turn}deg)`) }}><span className="planet planet-a" /><span className="orbit-node orbit-node-a" /></animated.div>
+    <animated.div className="orbit orbit-b" style={{ transform: orbitB.turn.to((turn) => `rotate(${turn}deg)`) }}><span className="planet planet-b" /><span className="orbit-node orbit-node-b" /></animated.div>
+    <div className="core-glow"><span className="core-ring" /><span className="core-mark"><NexusMark /></span></div>
     <div className="visual-caption"><span className="visual-live"><i /> LIVE</span><span>LOCAL / ENCRYPTED</span></div>
   </div>;
 }
@@ -174,12 +178,12 @@ function GithubUpdateStrip({ updates, syncing, onSync }: { updates: UpdateInfo[]
   const downloading = updates.find((item) => item.status === 'downloading');
   const progress = downloading && downloading.totalBytes ? Math.round(((downloading.downloadedBytes ?? 0) / downloading.totalBytes) * 100) : null;
   const failed = updates.find((item) => item.status === 'error');
-  return <div className="github-strip"><div className="github-logo">◉</div><div className="github-copy"><strong>Flowseal GitHub · автообновление модулей</strong><span className={failed ? 'github-error' : ''}>{failed?.error || latest || 'Проверяем последние релизы…'}{progress !== null ? ` · загрузка ${progress}%` : ''}{installed ? ` · обновлено: ${installed}` : ''}</span></div><span className="github-lock">Только github.com/Flowseal</span><button className="github-button" disabled={syncing} onClick={onSync}>{syncing ? (progress !== null ? `${progress}%` : 'Синхронизация…') : 'Проверить GitHub'} <span>↗</span></button></div>;
+  return <div className="github-strip"><div className="github-logo"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 7.5A7 7 0 0 1 18.2 6L20 8M20 4v4h-4M17 16.5A7 7 0 0 1 5.8 18L4 16m0 4v-4h4" /></svg></div><div className="github-copy"><strong>Обновление сетевых модулей</strong><span className={failed ? 'github-error' : ''}>{failed?.error || latest || 'Проверяются последние релизы…'}{progress !== null ? ` · загрузка ${progress}%` : ''}{installed ? ` · обновлено: ${installed}` : ''}</span></div><span className="github-lock">Проверенные репозитории GitHub</span><button className="github-button" disabled={syncing} onClick={onSync}>{syncing ? (progress !== null ? `${progress}%` : 'Синхронизация…') : 'Проверить обновления'} <span>↗</span></button></div>;
 }
 
 function ProfilePopover({ open, profile, draft, setDraft, onSave }: { open: boolean; profile: UserProfile; draft: string; setDraft: (value: string) => void; onSave: () => void }) {
   const spring = useSpring({ opacity: open ? 1 : 0, y: open ? 0 : -8, config: config.gentle });
-  return <animated.div className="profile-popover" style={{ opacity: spring.opacity, transform: spring.y.to((y) => `translateY(${y}px)`), pointerEvents: open ? 'auto' : 'none' }}><span className="popover-label">ЛОКАЛЬНЫЙ ПРОФИЛЬ</span><strong>{profile.deviceId || 'NX-LOCAL'}</strong><label>Ваше имя<input autoFocus={open} value={draft} maxLength={32} onChange={(event) => setDraft(event.target.value)} placeholder="Введите имя" /></label><button onClick={onSave}>Сохранить профиль <span>✓</span></button><small>Настройки сохраняются локально и привязаны к этому устройству.</small></animated.div>;
+  return <animated.div className="profile-popover" role="dialog" aria-label="Локальный профиль" aria-hidden={!open} style={{ opacity: spring.opacity, transform: spring.y.to((y) => `translateY(${y}px)`), pointerEvents: open ? 'auto' : 'none', visibility: open ? 'visible' : 'hidden' }}><span className="popover-label">ЛОКАЛЬНЫЙ ПРОФИЛЬ</span><strong>{profile.deviceId || 'NX-LOCAL'}</strong><label>Ваше имя<input autoFocus={open} value={draft} maxLength={32} onChange={(event) => setDraft(event.target.value)} placeholder="Введите имя" /></label><button onClick={onSave}>Сохранить профиль <span>✓</span></button><small>Настройки сохраняются локально и привязаны к этому устройству.</small></animated.div>;
 }
 
 const LOG_CATEGORIES: { id: LogCategory; label: string }[] = [
@@ -273,7 +277,7 @@ function LogsPage({ logs, category, setCategory, onNotice }: { logs: ModuleLog[]
 
 function AboutPage() {
   const [info, setInfo] = useState<AboutSystemInfo>({
-    nexusVersion: '1.1.0',
+    nexusVersion: '1.1.1',
     xrayVersion: null,
     singBoxVersion: null,
     hwid: 'NX-LOCAL',
@@ -387,6 +391,7 @@ function App() {
   const [profile, setProfile] = useState<UserProfile>({ displayName: '', deviceId: 'NX-LOCAL', deviceName: 'Локальное устройство' });
   const [profileDraft, setProfileDraft] = useState('');
   const [profileOpen, setProfileOpen] = useState(false);
+  const profileWrapRef = useRef<HTMLDivElement>(null);
   const desktop = Boolean(window.nexus);
 
   useEffect(() => {
@@ -422,6 +427,27 @@ function App() {
     try { localStorage.setItem('nexus-sidebar-collapsed', String(sidebarCollapsed)); }
     catch { /* preference persistence is optional */ }
   }, [sidebarCollapsed]);
+  useEffect(() => {
+    if (!profileOpen) return undefined;
+    const closeOnOutsidePress = (event: PointerEvent) => {
+      const target = event.target;
+      if (target instanceof Node && profileWrapRef.current?.contains(target)) return;
+      setProfileOpen(false);
+    };
+    const closeOnEscape = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') setProfileOpen(false);
+    };
+    const closeOnWindowBlur = () => setProfileOpen(false);
+    document.addEventListener('pointerdown', closeOnOutsidePress, true);
+    document.addEventListener('keydown', closeOnEscape);
+    window.addEventListener('blur', closeOnWindowBlur);
+    return () => {
+      document.removeEventListener('pointerdown', closeOnOutsidePress, true);
+      document.removeEventListener('keydown', closeOnEscape);
+      window.removeEventListener('blur', closeOnWindowBlur);
+    };
+  }, [profileOpen]);
+  useEffect(() => { setProfileOpen(false); }, [page]);
 
   const filteredModules = useMemo(() => modules.filter((module) => {
     // const matchesQuery = `${module.name} ${module.description} ${module.category}`.toLowerCase().includes(query.toLowerCase());
@@ -485,7 +511,7 @@ function App() {
       } else {
         setUpdates((current) => current.map((item) => ({ ...item, status: 'up-to-date', installedVersion: item.latestVersion })));
       }
-      setToast('Проверка Flowseal GitHub завершена');
+      setToast('Проверка обновлений завершена');
     } catch (error) { setToast(error instanceof Error ? error.message : 'Не удалось проверить GitHub'); }
     finally { setSyncing(false); }
   };
@@ -526,13 +552,13 @@ function App() {
       <div className="sidebar-bottom">
         <button type="button" aria-label="О программе" title={sidebarCollapsed ? 'О программе' : undefined} className={`nav-item sidebar-about ${page === 'about' ? 'active' : ''}`} onClick={() => setPage('about')}><span className="nav-glyph"><NavGlyph name="about" /></span><span className="nav-item-label sidebar-copy">О программе</span></button>
         <div className="system-status" title={sidebarCollapsed ? `${systemTitle}: ${systemNote}` : undefined}><StatusDot tone={systemTone} /><div className="sidebar-copy"><span>{systemTitle}</span><small>{systemNote}</small></div></div>
-        <div className="version-row sidebar-copy"><span>NEXUS v1.1.0</span><span className="online-dot" /> LOCAL</div>
+        <div className="version-row sidebar-copy"><span>NEXUS v1.1.1</span><span className="online-dot" /> LOCAL</div>
       </div>
     </aside>
 
-    <main className="main-content"><header className="topbar"><div className="breadcrumb"><span>CONTROL CENTER</span><b>/</b><strong>{page === 'about' ? 'О программе' : navItems.find((item) => item.id === page)?.label}</strong></div><div className="top-actions"><button className={`logs-shortcut ${page === 'logs' ? 'is-active' : ''}`} aria-label="Открыть логи" onClick={() => setPage('logs')}><span className="logs-shortcut-icon"><NavGlyph name="logs" /></span><span>Логи</span>{logs.some((log) => log.level === 'error') ? <i /> : null}</button><div className="profile-wrap"><button className={`user-chip ${profileOpen ? 'is-open' : ''}`} aria-expanded={profileOpen} aria-haspopup="dialog" onClick={() => setProfileOpen((value) => !value)}><span className="user-avatar">{profileInitial}</span><span>{profileName}</span><span className="profile-chevron"><svg viewBox="0 0 20 20" aria-hidden="true"><path d="m5.5 7.5 4.5 4.5 4.5-4.5" /></svg></span></button><ProfilePopover open={profileOpen} profile={profile} draft={profileDraft} setDraft={setProfileDraft} onSave={handleSaveProfile} /></div></div></header>
+    <main className="main-content"><header className="topbar"><div className="breadcrumb"><span>CONTROL CENTER</span><b>/</b><strong>{page === 'about' ? 'О программе' : navItems.find((item) => item.id === page)?.label}</strong></div><div className="top-actions"><button className={`logs-shortcut ${page === 'logs' ? 'is-active' : ''}`} aria-label="Открыть логи" onClick={() => setPage('logs')}><span className="logs-shortcut-icon"><NavGlyph name="logs" /></span><span>Логи</span>{logs.some((log) => log.level === 'error') ? <i /> : null}</button><div className="profile-wrap" ref={profileWrapRef}><button className={`user-chip ${profileOpen ? 'is-open' : ''}`} aria-expanded={profileOpen} aria-haspopup="dialog" onClick={() => setProfileOpen((value) => !value)}><span className="user-avatar">{profileInitial}</span><span>{profileName}</span><span className="profile-chevron"><svg viewBox="0 0 20 20" aria-hidden="true"><path d="m5.5 7.5 4.5 4.5 4.5-4.5" /></svg></span></button><ProfilePopover open={profileOpen} profile={profile} draft={profileDraft} setDraft={setProfileDraft} onSave={handleSaveProfile} /></div></div></header>
 
-      {page === 'dashboard' && <><section className="hero"><div className="hero-copy"><div className="hero-kicker"><span className="spark-line">✦</span> LOCAL NETWORK ORCHESTRATOR <span className="hero-line" /></div><h1>Сеть, которая<br /><span>работает на тебя.</span></h1><p>Единый центр для спокойного управления сетевыми инструментами,<br />локальными прокси и профилями маршрутизации.</p><div className="hero-actions"><button className="primary-button" onClick={() => setPage('modules')}><span>Открыть модули</span><b>↗</b></button><button className="quiet-button" onClick={handleReload}><span>⟳</span> Сканировать заново</button></div></div><HeroVisual /></section><section className="stats-grid"><StatCard label="ВСЕГО МОДУЛЕЙ" value={String(modules.length).padStart(2, '0')} note="обнаружено локально" icon="◈" tone="cyan" index={0} /><StatCard label="АКТИВНЫЕ" value={String(running).padStart(2, '0')} note={running ? 'контур запущен' : 'готовы к запуску'} icon="ϟ" tone="violet" index={1} /><StatCard label="ЗДОРОВЬЕ" value={`${modules.length ? Math.round((healthy / modules.length) * 100) : 100}%`} note={errors ? `${errors} с ошибкой` : 'без критических ошибок'} icon="⌁" tone="mint" index={2} /><StatCard label="ПОСЛЕДНИЙ СКАН" value={lastScanLabel} note={settings.autoStart ? 'автозапуск включён' : 'автозапуск выключен'} icon="◷" tone="amber" index={3} /></section><section className="section-heading"><div><span className="section-kicker">YOUR TOOLKIT</span><h2>Быстрый доступ</h2></div><button className="text-button" onClick={() => setPage('modules')}>Все модули <span>→</span></button></section><div className="dashboard-grid"><div className="module-grid compact">{filteredModules.slice(0, 4).map((module, index) => <ModuleCard key={module.id} module={module} index={index} onToggle={handleToggle} onStrategyChange={handleStrategyChange} />)}</div><PulsePanel running={running} total={modules.length} errors={errors} /></div></>}
+      {page === 'dashboard' && <><section className="hero"><div className="hero-copy"><div className="hero-kicker"><span className="spark-line">✦</span> LOCAL NETWORK ORCHESTRATOR <span className="hero-line" /></div><h1>Сеть, которая<br /><span>остаётся под контролем.</span></h1><p>Единый центр для спокойного управления сетевыми инструментами,<br />локальными прокси и профилями маршрутизации.</p><div className="hero-actions"><button className="primary-button" onClick={() => setPage('modules')}><span>Открыть модули</span><b>↗</b></button><button className="quiet-button" onClick={handleReload}><span>⟳</span> Сканировать заново</button></div></div><HeroVisual /></section><section className="stats-grid"><StatCard label="ВСЕГО МОДУЛЕЙ" value={String(modules.length).padStart(2, '0')} note="обнаружено локально" icon="◈" tone="cyan" index={0} /><StatCard label="АКТИВНЫЕ" value={String(running).padStart(2, '0')} note={running ? 'контур запущен' : 'готовы к запуску'} icon="ϟ" tone="violet" index={1} /><StatCard label="ЗДОРОВЬЕ" value={`${modules.length ? Math.round((healthy / modules.length) * 100) : 100}%`} note={errors ? `${errors} с ошибкой` : 'без критических ошибок'} icon="⌁" tone="mint" index={2} /><StatCard label="ПОСЛЕДНИЙ СКАН" value={lastScanLabel} note={settings.autoStart ? 'автозапуск включён' : 'автозапуск выключен'} icon="◷" tone="amber" index={3} /></section><section className="section-heading"><div><span className="section-kicker">YOUR TOOLKIT</span><h2>Быстрый доступ</h2></div><button className="text-button" onClick={() => setPage('modules')}>Все модули <span>→</span></button></section><div className="dashboard-grid"><div className="module-grid compact">{filteredModules.slice(0, 4).map((module, index) => <ModuleCard key={module.id} module={module} index={index} onToggle={handleToggle} onStrategyChange={handleStrategyChange} />)}</div><PulsePanel running={running} total={modules.length} errors={errors} /></div></>}
 
       {page === 'modules' && <section className="page-section"><div className="page-heading"><div><span className="section-kicker">MODULE REGISTRY</span><h1>Все модули</h1><p>Манифесты из <code>./modules</code> · {modules.length} подключено</p></div><button className="primary-button small" onClick={handleReload}><span>⟳</span><b>Сканировать</b></button></div><GithubUpdateStrip updates={updates} syncing={syncing} onSync={handleSyncUpdates} /><div className="filter-row"><span className="filter-label">ФИЛЬТР:</span><button className={`filter-chip ${moduleFilter === 'all' ? 'active' : ''}`} onClick={() => setModuleFilter('all')}>Все <b>{modules.length}</b></button><button className={`filter-chip ${moduleFilter === 'running' ? 'active' : ''}`} onClick={() => setModuleFilter('running')}>Активные <b>{running}</b></button><button className={`filter-chip ${moduleFilter === 'stopped' ? 'active' : ''}`} onClick={() => setModuleFilter('stopped')}>Остановлены <b>{modules.length - running}</b></button></div><div className="module-grid full">{filteredModules.map((module, index) => <ModuleCard key={module.id} module={module} index={index} onToggle={handleToggle} onStrategyChange={handleStrategyChange} />)}</div>{filteredModules.length === 0 && <div className="empty-state"><span>⌕</span><h3>Ничего не найдено</h3><p>Смените фильтр или просканируйте modules ещё раз.</p></div>}</section>}
 
@@ -571,7 +597,7 @@ function Settings({ settings, onChange }: {
           <span className="global-preference-value"><i />Тёмная</span>
         </div>
         <div className="global-preference-row appearance-preference-row">
-          <div><strong>Оформление</strong><p>Выбери характер акцентов интерфейса.</p></div>
+          <div><strong>Оформление</strong><p>Выберите характер акцентов интерфейса.</p></div>
           <div className="appearance-options" role="radiogroup" aria-label="Оформление NEXUS">
             <button type="button" role="radio" aria-checked={settings.appearance === 'indigo'} className={settings.appearance === 'indigo' ? 'active' : ''} onClick={() => onChange({ ...settings, appearance: 'indigo' })}><i className="indigo" />Индиго</button>
             <button type="button" role="radio" aria-checked={settings.appearance === 'graphite'} className={settings.appearance === 'graphite' ? 'active' : ''} onClick={() => onChange({ ...settings, appearance: 'graphite' })}><i className="graphite" />Графит</button>

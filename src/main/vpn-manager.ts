@@ -298,7 +298,7 @@ export class VpnManager extends EventEmitter {
     }
 
     if (!material.links.length && !material.clash.length) {
-      throw new Error('Панель отдала лендинг или формат Happ. Jey2Ray запрашивает как v2rayN/Clash. Вставь полный URL и обнови ещё раз.');
+      throw new Error('Сервер вернул веб-страницу или неподдерживаемый формат. Используйте полный URL подписки и повторите обновление.');
     }
     if (!candidates.length) {
       throw new Error(notices
@@ -751,8 +751,8 @@ export class VpnManager extends EventEmitter {
     const engine = useSingbox ? this.singboxPath() : this.xrayPath();
     if (!existsSync(engine)) {
       const message = useSingbox
-        ? 'sing-box не найден. Перезапусти npm start — скачается SagerNet/sing-box для Hysteria.'
-        : 'Xray-core не найден. Перезапусти npm start — скачается XTLS/Xray-core.';
+        ? 'sing-box не найден. Перезапустите npm start — SagerNet/sing-box для Hysteria будет загружен автоматически.'
+        : 'Xray-core не найден. Перезапустите npm start — XTLS/Xray-core будет загружен автоматически.';
       this.setState('error', null, null, message);
       throw new Error(message);
     }
@@ -820,7 +820,7 @@ export class VpnManager extends EventEmitter {
 
     await new Promise((resolve) => setTimeout(resolve, 1200));
     if (!this.child) {
-      const hint = mode === 'tun' ? ' TUN часто требует запуск NEXUS от администратора. Попробуй режим Proxy.' : '';
+      const hint = mode === 'tun' ? ' Для TUN часто требуется запуск NEXUS от имени администратора. Попробуйте режим PROXY.' : '';
       throw new Error((this.error || lastErr || 'Xray не запустился') + hint);
     }
     if (mode === 'proxy') {

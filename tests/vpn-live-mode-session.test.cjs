@@ -43,6 +43,12 @@ const types = fs.readFileSync(path.join(root, 'src', 'main', 'types.ts'), 'utf8'
 const app = fs.readFileSync(path.join(root, 'src', 'renderer', 'App.tsx'), 'utf8');
 const page = fs.readFileSync(path.join(root, 'src', 'renderer', 'Jey2RayPage.tsx'), 'utf8');
 const vpnManager = fs.readFileSync(path.join(root, 'src', 'main', 'vpn-manager.ts'), 'utf8');
+const githubUpdater = fs.readFileSync(path.join(root, 'src', 'main', 'github-updater.ts'), 'utf8');
+const subscriptionSource = fs.readFileSync(path.join(root, 'src', 'main', 'subscription.ts'), 'utf8');
+const rendererMain = fs.readFileSync(path.join(root, 'src', 'renderer', 'main.tsx'), 'utf8');
+const subscriptionManager = fs.readFileSync(path.join(root, 'src', 'renderer', 'SubscriptionManager.tsx'), 'utf8');
+const ensureXray = fs.readFileSync(path.join(root, 'scripts', 'ensure-xray.cjs'), 'utf8');
+const ensureSingbox = fs.readFileSync(path.join(root, 'scripts', 'ensure-singbox.cjs'), 'utf8');
 const styles = fs.readFileSync(path.join(root, 'src', 'renderer', 'styles.css'), 'utf8');
 const packageJson = JSON.parse(fs.readFileSync(path.join(root, 'package.json'), 'utf8'));
 
@@ -73,7 +79,27 @@ assert.match(main, /appearance: raw\.appearance === 'graphite' \? 'graphite' : '
 assert.match(main, /vpnFragmentation: raw\.vpnFragmentation !== false/, 'old settings must migrate to enabled fragmentation');
 assert.match(vpnManager, /fragmentation = true/);
 assert.match(vpnManager, /buildXrayConfig\(profile\.params, port, mode, activeSplitApps, activeAppRouting, fragmentation\)/);
-assert.equal(packageJson.version, '1.1.0');
+assert.equal(packageJson.version, '1.1.1');
+assert.match(githubUpdater, /syncInFlight = new Map<string, Promise<void>>\(\)/, 'parallel sync requests must share one task per module');
+assert.match(githubUpdater, /ensureInFlight = new Map<string, Promise<void>>\(\)/, 'parallel ensure requests must share one task per module');
+assert.match(githubUpdater, /fs\.mkdtemp\(path\.join\(os\.tmpdir\(\), 'nexus-updater-'\)\)/);
+assert.match(githubUpdater, /fs\.mkdtemp\(path\.join\(os\.tmpdir\(\), 'nexus-xray-download-'\)\)/);
+assert.match(githubUpdater, /fs\.mkdtemp\(path\.join\(os\.tmpdir\(\), 'nexus-xray-extract-'\)\)/);
+assert.doesNotMatch(githubUpdater, /path\.join\(this\.modulesDir, '\.cache'/, 'runtime downloads must not reuse the project cache directory');
+assert.match(githubUpdater, /Windows временно заблокировал файл обновления/);
+assert.match(githubUpdater, /Недостаточно свободного места для обновления/);
+assert.match(githubUpdater, /Не удалось связаться с сервером обновлений/);
+for (const [name, bootstrapSource, prefix] of [
+  ['Xray', ensureXray, 'nexus-xray-setup-'],
+  ['sing-box', ensureSingbox, 'nexus-singbox-setup-'],
+]) {
+  assert.match(bootstrapSource, /require\('node:os'\)/, `${name} bootstrap must use the system temporary directory`);
+  assert.ok(bootstrapSource.includes(`fs.mkdtempSync(path.join(os.tmpdir(), '${prefix}'))`), `${name} bootstrap must isolate every mirror attempt`);
+  assert.doesNotMatch(bootstrapSource, /modules', '\.cache|const cacheDir/, `${name} bootstrap must not reuse modules/.cache`);
+  assert.match(bootstrapSource, /fs\.rmSync\(attemptDir, \{ recursive: true, force: true \}\)/, `${name} bootstrap must clean its temporary directory`);
+  assert.match(bootstrapSource, /Windows временно заблокировал файл установки/, `${name} bootstrap must explain permission failures`);
+  assert.match(bootstrapSource, /Недостаточно свободного места/, `${name} bootstrap must explain disk-space failures`);
+}
 assert.match(page, /const selectConnectionMode = async/);
 assert.match(page, /await window\.nexus\?\.switchVpnMode\(next\)/);
 assert.match(page, /disabled=\{busy \|\| runtime\.status === 'connecting'\}/, 'connected VPN must not disable the PROXY/TUN buttons');
@@ -103,15 +129,28 @@ assert.match(page, /Hysteria2 использует QUIC/);
 assert.ok(page.indexOf("settingsTab === 'general' ? <>") < page.indexOf('routing-settings-card'), 'application routing must be rendered only in the applications tab branch');
 assert.match(page, /window\.nexus\?\.pickVpnApps\(\)/);
 assert.match(page, /role="radiogroup" aria-label="Режим маршрутизации приложений"/);
-assert.match(page, /Сначала отключи VPN, затем измени маршрутизацию приложений/);
+assert.match(page, /Сначала отключите VPN, затем измените маршрутизацию приложений/);
 assert.doesNotMatch(page, /autoPing/, 'opening Jey2Ray must not trigger an automatic all-server ping');
 assert.equal((page.match(/void ping\(\)/g) ?? []).length, 1, 'the explicit manual ping action must remain available');
 assert.match(page, /sampleVpnLatency/);
 
 assert.doesNotMatch(app, /SettingsTab|settings-tabs|function ApplicationSettings|Настройки приложений/, 'VPN settings must not leak into global NEXUS settings');
 assert.doesNotMatch(app, /copyHwid|setCopied|Скопировать HWID/, 'HWID must be displayed without the temporary copy/check button');
-assert.match(app, /nexusVersion: '1\.1\.0'/);
-assert.match(app, /NEXUS v1\.1\.0/);
+assert.match(app, /nexusVersion: '1\.1\.1'/);
+assert.match(app, /NEXUS v1\.1\.1/);
+const heroVisual = app.slice(app.indexOf('function HeroVisual()'), app.indexOf('function GithubUpdateStrip'));
+assert.match(heroVisual, /loop: true/);
+assert.match(heroVisual, /duration: 22000, easing: linear/);
+assert.match(heroVisual, /duration: 31000, easing: linear/);
+assert.doesNotMatch(heroVisual, /reverse|turn %|planet-track/, 'hero orbits must move forward linearly without visible direction changes');
+assert.match(heroVisual, /<NexusMark \/>/, 'the hero must use the NEXUS mark instead of a generic sparkle');
+assert.match(app, /profileWrapRef = useRef<HTMLDivElement>\(null\)/);
+assert.match(app, /document\.addEventListener\('pointerdown', closeOnOutsidePress, true\)/, 'the profile panel must close on every outside pointer press');
+assert.match(app, /profileWrapRef\.current\?\.contains\(target\)/);
+assert.match(app, /window\.addEventListener\('blur', closeOnWindowBlur\)/);
+assert.match(app, /useEffect\(\(\) => \{ setProfileOpen\(false\); \}, \[page\]\)/);
+assert.match(app, /className="about-nav-dot"/);
+assert.match(app, /role="dialog" aria-label="Локальный профиль" aria-hidden=\{!open\}/);
 assert.match(app, /function WindowBar\(\{ maximized \}/);
 assert.match(app, /window\.nexus\?\.toggleMaximize\(\)/);
 assert.doesNotMatch(app, /toggleFullscreen|isFullscreen|onFullscreen/);
@@ -154,19 +193,42 @@ assert.match(styles, /\.appearance-graphite \.app-settings-tab\.is-active \{[^}]
 assert.match(styles, /\.appearance-graphite \.primary-button \{[^}]*#e5e5e5/);
 assert.match(styles, /\.app-shell\.is-sidebar-collapsed \.sidebar \{[^}]*flex-basis: 82px/);
 assert.match(styles, /\.profile-chevron \{[^}]*transition:/);
-assert.match(styles, /\.window-control svg \{[^}]*width: 18px/);
-assert.match(styles, /\.window-control\.close \{[^}]*font-size: 28px/);
+assert.match(styles, /\.window-bar \{[^}]*height: 36px/);
+assert.match(styles, /\.window-control svg \{[^}]*width: 16px/);
+assert.doesNotMatch(app, />−<|>×</, 'window controls must use crisp SVG paths instead of text glyphs');
+assert.match(styles, /\.sidebar-about \.about-nav-ring \{ stroke-width: 1\.85/);
+assert.match(styles, /\.sidebar-about \.about-nav-dot \{ fill: currentColor; stroke: none/);
+assert.match(styles, /\.tunnel-route-track i \{[^}]*animation: tunnel-travel 2\.45s linear infinite/);
+assert.match(styles, /@keyframes tunnel-travel \{[\s\S]*0% \{[^}]*opacity: 0[\s\S]*96%, 100% \{[^}]*opacity: 0/, 'route marker must cross the loop boundary while invisible');
+assert.doesNotMatch(styles, /animation:[^;]*(?:alternate|reverse)/, 'continuous CSS animations must not reverse direction');
+const thirdPartyClientPattern = new RegExp(`\\b${['Ha', 'pp'].join('')}\\b`, 'i');
+for (const [name, visibleSource] of [
+  ['App', app],
+  ['Jey2Ray', page],
+  ['Subscription manager', subscriptionManager],
+  ['renderer fallback', rendererMain],
+  ['VPN errors', vpnManager],
+  ['subscription transport', subscriptionSource],
+  ['Xray bootstrap', ensureXray],
+  ['sing-box bootstrap', ensureSingbox],
+]) {
+  assert.doesNotMatch(visibleSource, thirdPartyClientPattern, `${name} must not expose third-party client branding`);
+  assert.doesNotMatch(visibleSource, /(?<![\p{L}\p{N}_])(?:вставь|добавь|нажми|выбери|отключи|измени|проверь|повтори|закрой|освободи|пришли|скинь|открой|укажи|задай|запусти|перезапусти|скачай|включи|выключи|дождись|обнови|попробуй|используй|перейди|вернись|удали|сохрани|положи)(?![\p{L}\p{N}_])/iu, `${name} must address a broad audience formally`);
+}
+assert.doesNotMatch(app, /Flowseal GitHub|github\.com\/Flowseal/, 'the update strip must use neutral product wording');
+const legacyThirdPartyPrefix = `.${['ha', 'pp'].join('')}-`;
+assert.equal(`${app}\n${page}\n${styles}`.toLowerCase().includes(legacyThirdPartyPrefix), false, 'legacy third-party CSS prefixes must be removed');
 assert.match(styles, /\.fragmentation-note \{[^}]*line-height: 1\.55/);
 assert.match(styles, /\.log-source-tabs \{[^}]*grid-template-columns: repeat\(6/);
 assert.match(styles, /Graphite is strictly achromatic\. Server flags are the only colour exception/);
-assert.match(styles, /\.appearance-graphite \.happ-flag-svg \{ filter: none; \}/, 'Graphite flags must keep their original colour');
-assert.match(styles, /\.appearance-graphite \.happ-row\.is-live \{[^}]*#d6d6d6/, 'the live server row surrounding a flag must stay grayscale');
+assert.match(styles, /\.appearance-graphite \.server-flag-svg \{ filter: none; \}/, 'Graphite flags must keep their original colour');
+assert.match(styles, /\.appearance-graphite \.server-row\.is-live \{[^}]*#d6d6d6/, 'the live server row surrounding a flag must stay grayscale');
 assert.match(styles, /\.appearance-graphite \.tunnel-route-server \{[^}]*rgba\(211,211,211/, 'the route endpoint surrounding a flag must stay grayscale');
-assert.match(styles, /\.appearance-graphite:not\(:has\(\.happ-flag-svg\)\) > \.app-shell/);
-assert.match(styles, /\.appearance-graphite \*:has\(\.happ-flag-svg\) > \*:not\(:has\(\.happ-flag-svg\)\)/, 'only flag-free sibling branches may be desaturated');
-assert.doesNotMatch(styles, /\.appearance-graphite \.happ-flag-svg \{ filter: saturate/, 'Graphite must not mute server flags');
+assert.match(styles, /\.appearance-graphite:not\(:has\(\.server-flag-svg\)\) > \.app-shell/);
+assert.match(styles, /\.appearance-graphite \*:has\(\.server-flag-svg\) > \*:not\(:has\(\.server-flag-svg\)\)/, 'only flag-free sibling branches may be desaturated');
+assert.doesNotMatch(styles, /\.appearance-graphite \.server-flag-svg \{ filter: saturate/, 'Graphite must not mute server flags');
 const graphiteBlocks = [...styles.matchAll(/([^{}]+)\{([^{}]*)\}/g)]
-  .filter((match) => match[1].includes('.appearance-graphite') && !match[1].includes('.happ-flag-svg'));
+  .filter((match) => match[1].includes('.appearance-graphite') && !match[1].includes('.server-flag-svg'));
 for (const [, selectors, declarations] of graphiteBlocks) {
   const colors = declarations.matchAll(/#([0-9a-fA-F]{6})\b|rgba?\(\s*(\d+)\s*,\s*(\d+)\s*,\s*(\d+)/g);
   for (const color of colors) {

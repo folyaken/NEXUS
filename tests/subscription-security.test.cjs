@@ -182,9 +182,9 @@ async function run() {
   assert.equal(source.includes("responseHeader(response.headers, 'content-length')"), true, 'declared body size is checked');
   assert.equal(source.includes('size > SUBSCRIPTION_TRANSPORT_LIMITS.maxResponseBytes'), true, 'streamed body size is checked');
   assert.equal(source.includes("new TextDecoder('utf-8', { fatal: true })"), true, 'subscription payloads require valid UTF-8');
-  assert.equal(source.includes("const SUBSCRIPTION_USER_AGENT = 'Happ/3.4.6'"), true, 'the provider receives one stable supported client identity');
+  assert.equal(source.includes("const SUBSCRIPTION_USER_AGENT = 'v2rayN/6.60'"), true, 'the provider receives one stable supported client identity');
   assert.equal(source.includes('candidateUrls('), false, 'subscription URLs must not be sprayed through query/path variants');
-  assert.equal(source.includes("'v2rayN/"), false, 'subscription import must not retry with unrelated client identities');
+  assert.equal(source.match(/const SUBSCRIPTION_USER_AGENT/g)?.length, 1, 'subscription import keeps one client identity and does not spray retries');
   assert.match(source, /const response = await downloadOnce\(initialTarget\.toString\(\), SUBSCRIPTION_USER_AGENT\)/);
   assert.match(source, /if \(response\.status < 200 \|\| response\.status >= 300\)[\s\S]*throw new SubscriptionTransportError/);
   assert.match(source, /const address = addresses\[0\]/, 'a failed URL is not retried against every DNS address');

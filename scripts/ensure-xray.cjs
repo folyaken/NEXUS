@@ -1,4 +1,5 @@
 const fs = require('node:fs');
+const os = require('node:os');
 const path = require('node:path');
 const { spawnSync } = require('node:child_process');
 const { Open } = require('unzipper');
@@ -6,7 +7,6 @@ const { downloadZip, safeUrlForLog } = require('./bootstrap-network.cjs');
 
 const root = path.resolve(__dirname, '..');
 const binDir = path.join(root, 'modules', 'bin');
-const cacheDir = path.join(root, 'modules', '.cache');
 const isWin = process.platform === 'win32';
 const binary = isWin ? 'xray.exe' : 'xray';
 const zipName = isWin ? 'Xray-windows-64.zip' : 'Xray-linux-64.zip';
@@ -20,6 +20,18 @@ const minimumTunVersion = [26, 4, 13];
 
 function ok() {
   return fs.existsSync(dest) && fs.statSync(dest).size > 1_000_000;
+}
+
+function setupErrorMessage(error) {
+  const message = error instanceof Error ? error.message : String(error);
+  const code = typeof error === 'object' && error && 'code' in error ? String(error.code).toUpperCase() : '';
+  if (['EPERM', 'EACCES', 'EBUSY'].includes(code) || /\b(?:EPERM|EACCES|EBUSY)\b/i.test(message)) {
+    return 'Windows временно заблокировал файл установки. Закройте лишние экземпляры NEXUS и повторите запуск.';
+  }
+  if (code === 'ENOSPC' || /\bENOSPC\b/i.test(message)) {
+    return 'Недостаточно свободного места. Освободите место на системном диске и повторите запуск.';
+  }
+  return message;
 }
 
 function installedVersion() {
@@ -57,30 +69,30 @@ async function download(url, file) {
 async function main() {
   const currentVersion = installedVersion();
   if (supportsTunSplit(currentVersion)) {
-    console.log(`Xray уже на месте: ${path.relative(root, dest)} (${currentVersion.join('.')})`);
+    console.log(`Xray уже установлен: ${path.relative(root, dest)} (${currentVersion.join('.')})`);
     return;
   }
   if (ok()) {
     const label = currentVersion ? currentVersion.join('.') : 'неизвестная версия';
-    console.log(`Обновляем Xray ${label}: для TUN Split нужен 26.4.13 или новее…`);
+    console.log(`Обновление Xray ${label}: для TUN Split требуется версия 26.4.13 или новее…`);
   } else {
-    console.log('Ставим Xray-core (как ядро внутри Happ)…');
+    console.log('Установка Xray-core для VPN-подключений…');
   }
-  const zipPath = path.join(cacheDir, zipName);
   const urls = [
     `https://github.com/${repo}/releases/download/${requiredRelease}/${zipName}`,
     `https://ghproxy.net/https://github.com/${repo}/releases/download/${requiredRelease}/${zipName}`,
   ];
   let last = 'не удалось скачать';
   for (const url of urls) {
+    const attemptDir = fs.mkdtempSync(path.join(os.tmpdir(), 'nexus-xray-setup-'));
+    const zipPath = path.join(attemptDir, zipName);
+    const extractDir = path.join(attemptDir, 'extract');
     try {
-      console.log(`  качаем ${safeUrlForLog(url)}`);
+      console.log(`  загрузка ${safeUrlForLog(url)}`);
       await download(url, zipPath);
-      const extractDir = path.join(cacheDir, 'xray-extract');
-      fs.rmSync(extractDir, { recursive: true, force: true });
       await (await Open.file(zipPath)).extract({ path: extractDir });
       const found = walk(extractDir, binary);
-      if (!found) throw new Error(`${binary} нет в архиве`);
+      if (!found) throw new Error(`${binary} не найден в архиве`);
       fs.mkdirSync(binDir, { recursive: true });
       fs.copyFileSync(found, dest);
       if (!isWin) fs.chmodSync(dest, 0o755);
@@ -89,12 +101,14 @@ async function main() {
       console.log(`Xray установлен: ${path.relative(root, dest)} (${nextVersion.join('.')})`);
       return;
     } catch (error) {
-      last = error instanceof Error ? error.message : String(error);
-      console.warn(`  не вышло: ${last}`);
+      last = setupErrorMessage(error);
+      console.warn(`  попытка не удалась: ${last}`);
+    } finally {
+      try { fs.rmSync(attemptDir, { recursive: true, force: true }); } catch { /* system temp is cleaned later */ }
     }
   }
   const action = ok() ? 'не обновлён; Proxy может продолжить работу, но TUN Split требует Xray 26.4.13+' : 'не установлен';
-  console.warn(`Xray ${action} (${last}). Повтори запуск после восстановления доступа к GitHub.`);
+  console.warn(`Xray ${action} (${last}). Повторите запуск после восстановления доступа к GitHub.`);
 }
 
 function walk(dir, name) {
@@ -111,7 +125,7 @@ function walk(dir, name) {
 
 if (require.main === module) {
   main().catch((error) => {
-    console.warn(error.message);
+    console.warn(setupErrorMessage(error));
   });
 }
 

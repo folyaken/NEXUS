@@ -12,7 +12,7 @@ import { profileConnectionKey } from './vpn-identity';
 
 export { extractClashProfiles, extractJsonProfiles } from './subscription-parser';
 
-const SUBSCRIPTION_USER_AGENT = 'Happ/3.4.6';
+const SUBSCRIPTION_USER_AGENT = 'v2rayN/6.60';
 
 const SUBSCRIPTION_UTF8_DECODER = new TextDecoder('utf-8', { fatal: true });
 
@@ -420,7 +420,7 @@ function extractUrlsFromHtml(html: string, pageUrl: string, excludedUrls: Iterab
       resolved.hash = '';
       const href = resolved.toString();
       if (excluded.has(href)) continue;
-      if (/v2ray|clash|sub|happ|sing-box|xray/i.test(href)) found.add(href);
+      if (/v2ray|clash|subscription|subscribe|sing-box|xray|access|client/i.test(href)) found.add(href);
       if (found.size >= SUBSCRIPTION_TRANSPORT_LIMITS.maxDiscoveredUrls) break;
     } catch { /* ignore */ }
   }
