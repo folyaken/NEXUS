@@ -1,4 +1,5 @@
 const assert = require('node:assert/strict');
+const { execFileSync } = require('node:child_process');
 const fs = require('node:fs');
 const path = require('node:path');
 
@@ -8,34 +9,40 @@ const packageJson = JSON.parse(fs.readFileSync(path.join(root, 'package.json'), 
 const gitignore = fs.readFileSync(path.join(root, '.gitignore'), 'utf8');
 
 // --- Устойчивость интерфейса к захвату экрана -------------------------------
-// Полупрозрачные панели с backdrop-filter рисуются отдельными GPU-слоями и
-// пропадают на скриншотах и записи экрана. Под каждой такой панелью обязана
-// лежать непрозрачная подложка, иначе в кадре остаётся голый фон.
-const glassPanels = ['.sidebar', '.stat-card', '.module-card-inner', '.pulse-panel', '.profile-popover'];
+// backdrop-filter выносит панель в отдельный GPU-слой, который скриншотеры и
+// запись экрана часто не копируют — в кадре панели пропадают. Размытие должно
+// быть отключено, а фоны панелей — сплошными.
+const glassPanels = ['.sidebar', '.stat-card', '.module-card-inner', '.pulse-panel', '.profile-popover', '.toast'];
+
+const overrideStart = styles.indexOf('.sidebar,\n.stat-card,\n.module-card-inner,\n.pulse-panel,\n.profile-popover,\n.toast { backdrop-filter: none; }');
+assert.ok(overrideStart > 0, 'должно быть правило, отключающее backdrop-filter у панелей');
+
+// Каскад: отключение обязано идти ПОСЛЕ исходных объявлений панелей,
+// иначе более поздние правила вернут размытие обратно.
 for (const panel of glassPanels) {
+  const declaration = styles.indexOf(`${panel} {`);
+  assert.ok(declaration >= 0, `${panel} должен быть объявлен`);
   assert.ok(
-    styles.includes(`${panel}::before`),
-    `${panel} использует backdrop-filter и обязан иметь непрозрачную подложку ::before`,
+    overrideStart > declaration,
+    `отключение backdrop-filter должно идти после объявления ${panel}`,
   );
 }
 
-// Подложка обязана лежать под содержимым и не перехватывать курсор.
-const backdropRule = styles.slice(styles.indexOf('.sidebar::before,'), styles.indexOf('.sidebar::before { background'));
-assert.match(backdropRule, /z-index:\s*-1/, 'подложка должна находиться под содержимым панели');
-assert.match(backdropRule, /inset:\s*0/, 'подложка должна покрывать панель целиком');
-assert.match(backdropRule, /pointer-events:\s*none/, 'подложка не должна перехватывать клики');
-assert.match(backdropRule, /border-radius:\s*inherit/, 'подложка должна повторять скругление панели');
+// Фоны панелей не должны оставаться полупрозрачными: rgba со значением альфы
+// меньше единицы снова делает панель зависимой от нижележащих слоёв.
+const overrides = styles.slice(overrideStart);
+for (const panel of glassPanels) {
+  const rule = new RegExp(`\\n${panel.replace('.', '\\.')} \\{ background: ([^}]+)\\}`);
+  const match = overrides.match(rule);
+  assert.ok(match, `${panel} должен получить сплошной фон`);
+  assert.doesNotMatch(match[1], /rgba\([^)]*,\s*0?\.\d+\s*\)/, `${panel}: фон должен быть непрозрачным`);
+}
 
-// z-index: -1 работает только внутри собственного стекового контекста,
-// иначе подложка уедет за фон окна и панель станет прозрачной.
-assert.match(styles, /\.profile-popover\s*{\s*isolation:\s*isolate;\s*}/s, 'панелям нужен собственный стековый контекст');
-assert.match(styles, /\.pulse-panel\s*{\s*position:\s*relative;\s*}/s, 'подложке нужен позиционированный родитель');
-
-// У монохромной темы своя палитра — подложки не должны оставаться синими.
-for (const panel of ['.sidebar', '.stat-card', '.module-card-inner', '.pulse-panel', '.profile-popover']) {
+// У монохромной темы своя палитра — фоны не должны остаться синими.
+for (const panel of ['.sidebar', '.stat-card', '.module-card-inner', '.pulse-panel', '.profile-popover', '.toast']) {
   assert.ok(
-    styles.includes(`.appearance-graphite ${panel}::before`),
-    `тема Graphite должна переопределять подложку для ${panel}`,
+    overrides.includes(`.appearance-graphite ${panel}`),
+    `тема Graphite должна переопределять фон для ${panel}`,
   );
 }
 
@@ -44,7 +51,11 @@ assert.doesNotMatch(JSON.stringify(packageJson), /arena/i, 'в манифест�
 assert.equal(packageJson.build.appId, 'com.folyaken.nexus');
 assert.match(gitignore, /NEXUS-patch-\*\.zip/, 'патч-архивы не должны попадать в репозиторий');
 
-const strayPatches = fs.readdirSync(root).filter((name) => /^NEXUS-patch-.*\.zip$/i.test(name));
-assert.deepEqual(strayPatches, [], 'патч-архивы не хранятся в репозитории');
+// Локально собранный патч лежать в папке может — важно, что он не попадает
+// под контроль версий.
+const trackedPatches = execFileSync('git', ['ls-files'], { cwd: root, encoding: 'utf8' })
+  .split('\n')
+  .filter((name) => /^NEXUS-patch-.*\.zip$/i.test(name.trim()));
+assert.deepEqual(trackedPatches, [], 'патч-архивы не должны быть в репозитории');
 
 console.log('UI capture safety and repository hygiene checks passed.');

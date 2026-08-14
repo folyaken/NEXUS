@@ -43,6 +43,8 @@ const XRAY_TUN_ASSETS: Record<string, { size: number; sha256: string }> = {
   'Xray-windows-arm64-v8a.zip': { size: 19341449, sha256: '2d61646f79fdc6724e68a41eb235f6a7253cfac2809caa736ad065f6c10e14a2' },
 };
 const MAX_DOWNLOAD_REDIRECTS = 5;
+/** Сколько ждать новых байт, прежде чем признать зеркало зависшим. */
+const STALL_TIMEOUT_MS = 20_000;
 const REDIRECT_STATUS_CODES = new Set([301, 302, 303, 307, 308]);
 const TRUSTED_MIRROR_HOSTS = new Set(['ghproxy.net', 'mirror.ghproxy.com']);
 
@@ -179,7 +181,14 @@ export class GithubUpdater extends EventEmitter {
         this.setStatus(target, 'up-to-date', { latestVersion: release.tag_name, installedVersion: installed.version, asset: asset.name });
         return;
       }
-      this.setStatus(target, 'downloading', { latestVersion: release.tag_name, asset: asset.name });
+      // Счётчики обнуляются явно: иначе в полосе прогресса остаются байты от
+      // предыдущей загрузки и процент стартует с постороннего значения.
+      this.setStatus(target, 'downloading', {
+        latestVersion: release.tag_name,
+        asset: asset.name,
+        downloadedBytes: 0,
+        totalBytes: asset.size || undefined,
+      });
       temporaryDirectory = await fs.mkdtemp(path.join(os.tmpdir(), 'nexus-updater-'));
       const safeAssetName = path.basename(asset.name).replace(/[^a-z0-9._-]/gi, '_');
       const temporaryAsset = path.join(temporaryDirectory, safeAssetName);
@@ -343,11 +352,51 @@ export class GithubUpdater extends EventEmitter {
         let downloadedBytes = 0;
         const target = this.targets.find((item) => item.repo === repo);
         const input = Readable.fromWeb(response.body as Parameters<typeof Readable.fromWeb>[0]);
+        // Прогресс отправляется не чаще раза в 200 мс и только при заметном
+        // сдвиге. Раньше событие уходило на КАЖДЫЙ чанк (тысячи IPC-сообщений в
+        // секунду на 20-мегабайтном архиве): renderer захлёбывался ререндерами,
+        // интерфейс замирал, а индикатор застревал на первых процентах.
+        let lastEmitAt = 0;
+        let lastEmittedBytes = 0;
+        const emitProgress = (force: boolean) => {
+          if (!target) return;
+          const now = Date.now();
+          const grewEnough = totalBytes > 0
+            ? downloadedBytes - lastEmittedBytes >= totalBytes / 100
+            : downloadedBytes - lastEmittedBytes >= 512 * 1024;
+          if (!force && (now - lastEmitAt < 200 || !grewEnough)) return;
+          lastEmitAt = now;
+          lastEmittedBytes = downloadedBytes;
+          this.setStatus(target, 'downloading', {
+            downloadedBytes,
+            totalBytes: totalBytes || undefined,
+            asset: path.basename(destination),
+          });
+        };
+        // Сторож простоя: зеркало, которое приняло соединение и «замолчало»,
+        // иначе держит обновление бесконечно, а индикатор стоит на первых
+        // процентах. Через STALL_TIMEOUT_MS без новых байт источник бракуется
+        // и перебор переходит к следующему зеркалу.
+        let stallTimer: NodeJS.Timeout | undefined;
+        const armStallTimer = () => {
+          clearTimeout(stallTimer);
+          stallTimer = setTimeout(() => {
+            input.destroy(new Error(`GitHub asset: источник не отвечает ${STALL_TIMEOUT_MS / 1000} с`));
+          }, STALL_TIMEOUT_MS);
+          stallTimer.unref?.();
+        };
         input.on('data', (chunk: Buffer) => {
           downloadedBytes += chunk.length;
-          if (target) this.setStatus(target, 'downloading', { downloadedBytes, totalBytes: totalBytes || undefined, asset: path.basename(destination) });
+          armStallTimer();
+          emitProgress(false);
         });
-        await pipeline(input, createWriteStream(destination, { flags: 'w' }));
+        armStallTimer();
+        try {
+          await pipeline(input, createWriteStream(destination, { flags: 'w' }));
+        } finally {
+          clearTimeout(stallTimer);
+        }
+        emitProgress(true);
         return;
       }
     } catch (error) {
