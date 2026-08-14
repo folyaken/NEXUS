@@ -421,6 +421,10 @@ export class VpnManager extends EventEmitter {
     });
   }
 
+  async refreshSubscription(url: string): Promise<number> {
+    return (await this.importSubscription(url)).length;
+  }
+
   refreshSubscriptions(): Promise<number> {
     if (this.refreshInFlight) return this.refreshInFlight;
     const task = this.enqueueProfileMutation(() => this.refreshSubscriptionsUnlocked());
@@ -494,6 +498,38 @@ export class VpnManager extends EventEmitter {
     });
     this.profiles.delete(id);
     this.emitLog('info', `Профиль ${id} удалён`);
+    this.emit('changed', this.snapshot());
+  }
+
+  async removeSubscription(url: string): Promise<void> {
+    return this.enqueueProfileMutation(() => this.removeSubscriptionUnlocked(url));
+  }
+
+  private async removeSubscriptionUnlocked(url: string): Promise<void> {
+    const parsed = validateSubscriptionUrl(url.trim());
+    const source = profileSourceKey(parsed.toString());
+    const matchedUrls = [...this.subscriptions.keys()].filter((item) => profileSourceKey(item) === source);
+    const matchedProfiles = this.list().filter((profile) => profileSourceKey(profile.subscriptionUrl) === source);
+    if (!matchedUrls.length && !matchedProfiles.length) throw new Error('Подписка не найдена');
+
+    if (matchedProfiles.some((profile) => profile.id === this.activeProfileId)) await this.disconnect();
+
+    const nextProfiles = new Map(this.profiles);
+    for (const profile of matchedProfiles) nextProfiles.delete(profile.id);
+    const nextSubscriptions = new Map(this.subscriptions);
+    for (const existingUrl of matchedUrls) nextSubscriptions.delete(existingUrl);
+
+    await commitAtomicFileTransaction(this.configsDir(), {
+      writes: [{
+        name: 'subscriptions.json',
+        content: `${JSON.stringify([...nextSubscriptions.values()], null, 2)}\n`,
+      }],
+      removals: matchedProfiles.map((profile) => `${profile.id}.json`),
+    });
+
+    this.profiles = nextProfiles;
+    this.subscriptions = nextSubscriptions;
+    this.emitLog('info', `Подписка ${parsed.host} удалена вместе с профилями: ${matchedProfiles.length}`);
     this.emit('changed', this.snapshot());
   }
 

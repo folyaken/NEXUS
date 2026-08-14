@@ -22,8 +22,9 @@ declare global {
       closeWindow(): Promise<void>;
       getVpn(): Promise<{ profiles: VpnProfile[]; runtime: VpnRuntime }>;
       importVpn(link: string, name?: string): Promise<VpnProfile[]>;
-      refreshVpn(): Promise<number>;
+      refreshVpn(url?: string): Promise<number>;
       removeVpn(id: string): Promise<void>;
+      removeVpnSubscription(url: string): Promise<void>;
       pickVpnApps(): Promise<VpnSplitApp[]>;
       connectVpn(id: string): Promise<VpnRuntime>;
       disconnectVpn(): Promise<VpnRuntime>;

@@ -247,8 +247,11 @@ function wireIpc(): void {
   ipcMain.handle('settings:save', (_event, next: AppSettings) => saveSettings(next ?? settings));
   ipcMain.handle('vpn:list', () => vpn.snapshot());
   ipcMain.handle('vpn:import', (_event, link: string, name?: string) => vpn.importInput(String(link ?? ''), typeof name === 'string' ? name : undefined));
-  ipcMain.handle('vpn:refresh', () => vpn.refreshSubscriptions());
+  ipcMain.handle('vpn:refresh', (_event, url?: string) => typeof url === 'string' && url.trim()
+    ? vpn.refreshSubscription(url)
+    : vpn.refreshSubscriptions());
   ipcMain.handle('vpn:remove', (_event, id: string) => vpn.remove(String(id ?? '')));
+  ipcMain.handle('vpn:remove-subscription', (_event, url: string) => vpn.removeSubscription(String(url ?? '')));
   ipcMain.handle('vpn:pick-apps', () => pickVpnApplications());
   ipcMain.handle('vpn:connect', async (_event, id: string) => {
     if (!vpn.hasXray()) {

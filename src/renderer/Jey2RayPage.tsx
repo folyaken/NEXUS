@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import type { AppSettings, UpdateInfo, VpnAppRoutingMode, VpnProfile, VpnRuntime, VpnSubscriptionInfo } from '../main/types';
 import { canConnect, displayName } from '../main/vpn-classify';
 import { Flag } from './Flag';
+import { SubscriptionManager, type SubscriptionAction } from './SubscriptionManager';
 
 function cleanError(error: unknown): string {
   const raw = error instanceof Error ? error.message : String(error);
@@ -21,6 +22,19 @@ const EMPTY_RUNTIME: VpnRuntime = {
 
 function subscriptionKey(profile: VpnProfile): string {
   return profile.subscriptionUrl || 'manual';
+}
+
+function sameSubscription(left?: string, right?: string): boolean {
+  if (!left || !right) return false;
+  try {
+    const first = new URL(left.trim());
+    const second = new URL(right.trim());
+    first.hash = '';
+    second.hash = '';
+    return first.toString() === second.toString();
+  } catch {
+    return left.trim() === right.trim();
+  }
 }
 
 function formatBytes(value?: number): string {
@@ -108,10 +122,12 @@ export function Jey2RayPage({
   const [name, setName] = useState('');
   const [importOpen, setImportOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [subscriptionsOpen, setSubscriptionsOpen] = useState(false);
   const [profiles, setProfiles] = useState<VpnProfile[]>([]);
   const [runtime, setRuntime] = useState<VpnRuntime>(EMPTY_RUNTIME);
   const [busy, setBusy] = useState(false);
   const [action, setAction] = useState<'refresh' | 'ping' | null>(null);
+  const [subscriptionAction, setSubscriptionAction] = useState<SubscriptionAction | null>(null);
   const [tab, setTab] = useState('all');
   const [selectedId, setSelectedId] = useState<string | null>(settings.lastVpnProfileId);
   const autoPing = useRef(false);
@@ -157,13 +173,15 @@ export function Jey2RayPage({
     () => fastest ? [fastest, ...visible.filter((item) => item.id !== fastest.id)] : visible,
     [fastest, visible],
   );
-  const info: VpnSubscriptionInfo | undefined = (runtime.subscriptions ?? []).find((item) => tab !== 'all' && item.url === tab) ?? runtime.subscriptions?.[0];
+  const info: VpnSubscriptionInfo | undefined = tab !== 'all' && tab !== 'manual'
+    ? (runtime.subscriptions ?? []).find((item) => item.url === tab)
+    : undefined;
   const selected = nodes.find((item) => item.id === selectedId) ?? fastest ?? nodes.find((item) => !canConnect(item)) ?? nodes[0] ?? null;
   const onAir = runtime.status === 'connected' && runtime.activeProfileId === selected?.id;
   const otherLive = runtime.status === 'connected' && runtime.activeProfileId !== selected?.id;
   const used = (info?.upload ?? 0) + (info?.download ?? 0);
   const quota = info?.total ? formatBytes(info.total) : '∞';
-  const title = telegramOf(info) || 'Jey2Ray';
+  const title = tab === 'all' ? 'Все серверы' : tab === 'manual' ? 'Ручные профили' : telegramOf(info) || 'Подписка';
 
   const importLink = async () => {
     try {
@@ -322,6 +340,74 @@ export function Jey2RayPage({
     }
   }, 1100);
 
+  const addManagedSubscription = async (url: string): Promise<boolean> => {
+    try {
+      const parsed = new URL(url);
+      if (parsed.protocol !== 'https:') {
+        onToast('Подписка должна использовать только HTTPS');
+        return false;
+      }
+      if (!desktop) {
+        onToast('Добавление подписок работает в окне Electron (npm start)');
+        return false;
+      }
+      setSubscriptionAction({ kind: 'add', url });
+      const imported = await window.nexus?.importVpn(url);
+      if (!imported?.length) return false;
+      const subscriptionUrl = imported[0].subscriptionUrl || url;
+      setTab(subscriptionUrl);
+      setSelectedId(imported[0].id);
+      onToast(`Подписка добавлена · серверов ${imported.length}`);
+      return true;
+    } catch (error) {
+      onToast(cleanError(error) || 'Не удалось добавить подписку');
+      return false;
+    } finally {
+      setSubscriptionAction(null);
+    }
+  };
+
+  const refreshManagedSubscription = async (url: string): Promise<void> => {
+    try {
+      setSubscriptionAction({ kind: 'refresh', url });
+      const count = await window.nexus?.refreshVpn(url);
+      onToast(`Подписка обновлена · серверов ${count ?? 0}`);
+    } catch (error) {
+      onToast(cleanError(error) || 'Не удалось обновить подписку');
+    } finally {
+      setSubscriptionAction(null);
+    }
+  };
+
+  const refreshManagedSubscriptions = async (): Promise<void> => {
+    try {
+      setSubscriptionAction({ kind: 'refresh-all' });
+      const count = await window.nexus?.refreshVpn();
+      onToast(count ? `Все подписки обновлены · серверов ${count}` : 'Нет подписок');
+    } catch (error) {
+      onToast(cleanError(error) || 'Не удалось обновить подписки');
+    } finally {
+      setSubscriptionAction(null);
+    }
+  };
+
+  const removeManagedSubscription = async (url: string): Promise<boolean> => {
+    try {
+      setSubscriptionAction({ kind: 'remove', url });
+      await window.nexus?.removeVpnSubscription(url);
+      if (sameSubscription(tab, url)) setTab('all');
+      const selectedProfile = profiles.find((profile) => profile.id === selectedId);
+      if (sameSubscription(selectedProfile?.subscriptionUrl, url)) setSelectedId(null);
+      onToast('Подписка и её серверы удалены');
+      return true;
+    } catch (error) {
+      onToast(cleanError(error) || 'Не удалось удалить подписку');
+      return false;
+    } finally {
+      setSubscriptionAction(null);
+    }
+  };
+
   const ping = () => holdAction('ping', async () => {
     try {
       const next = await window.nexus?.pingVpn();
@@ -366,6 +452,17 @@ export function Jey2RayPage({
         : runtime.status === 'error'
           ? (runtime.error || 'Ошибка')
           : 'Выключено';
+
+  if (subscriptionsOpen) return <SubscriptionManager
+    subscriptions={runtime.subscriptions ?? []}
+    profiles={profiles}
+    action={subscriptionAction}
+    onBack={() => setSubscriptionsOpen(false)}
+    onAdd={addManagedSubscription}
+    onRefresh={refreshManagedSubscription}
+    onRefreshAll={refreshManagedSubscriptions}
+    onRemove={removeManagedSubscription}
+  />;
 
   if (settingsOpen) return <section className="page-section jey-page app-settings-page">
     <div className="app-settings-toolbar">
@@ -461,9 +558,13 @@ export function Jey2RayPage({
               <circle cx="10" cy="10.15" r="2.35" fill="none" stroke="currentColor" strokeWidth="1.35" />
             </svg>
           </button>
+          <button type="button" className="ghost-action subscription-manager-button" disabled={busy || Boolean(action)} onClick={() => setSubscriptionsOpen(true)}>
+            <svg className="ico" viewBox="0 0 20 20" aria-hidden><path d="M4 5.25h12M4 10h12M4 14.75h12" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" /><circle cx="6" cy="5.25" r="1" fill="currentColor" /><circle cx="6" cy="10" r="1" fill="currentColor" /><circle cx="6" cy="14.75" r="1" fill="currentColor" /></svg>
+            Подписки <span>{runtime.subscriptions?.length ?? 0}</span>
+          </button>
           <button className="ghost-action" onClick={() => setImportOpen((value) => !value)}>
             <svg className="ico" viewBox="0 0 16 16" aria-hidden><path d="M8 3v10M3 8h10" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" /></svg>
-            Добавить подписку
+            Добавить ссылку
           </button>
           <button className={`ghost-action ${action === 'refresh' ? 'is-spin' : ''}`} disabled={busy || Boolean(action)} onClick={() => void refresh()}>
             <svg className="ico spin-ico" viewBox="0 0 24 24" aria-hidden>
@@ -493,7 +594,11 @@ export function Jey2RayPage({
 
       {tabs.length > 1 && <div className="jey-subs">
         {tabs.map((key) => <button key={key} className={`jey-sub ${tab === key ? 'active' : ''}`} onClick={() => setTab(key)}>
-          {key === 'all' ? `Все · ${nodes.length}` : `${(runtime.subscriptions ?? []).find((item) => item.url === key)?.title || 'подписка'} · ${nodes.filter((item) => subscriptionKey(item) === key).length}`}
+          {key === 'all'
+            ? `Все · ${nodes.length}`
+            : key === 'manual'
+              ? `Ручные · ${nodes.filter((item) => subscriptionKey(item) === key).length}`
+              : `${(runtime.subscriptions ?? []).find((item) => item.url === key)?.title || 'Подписка'} · ${nodes.filter((item) => subscriptionKey(item) === key).length}`}
         </button>)}
       </div>}
 
@@ -503,9 +608,14 @@ export function Jey2RayPage({
           <span>узлов {visible.length}</span>
         </div>
         <div className="happ-card-meta">
-          <span>{formatBytes(used)} / {quota}</span>
-          <span className="happ-expire">истекает {formatExpire(info?.expireAt)}</span>
-          <span>обновлено {formatWhen(info?.lastSync)}</span>
+          {info ? <>
+            <span>{formatBytes(used)} / {quota}</span>
+            <span className="happ-expire">истекает {formatExpire(info.expireAt)}</span>
+            <span>обновлено {formatWhen(info.lastSync)}</span>
+          </> : <>
+            <span>подписок {runtime.subscriptions?.length ?? 0}</span>
+            <span>{tab === 'manual' ? 'добавлены вручную' : 'выбери подписку для подробностей'}</span>
+          </>}
         </div>
         {info?.announce && <div className="happ-ribbon">{info.announce}</div>}
       </div>
