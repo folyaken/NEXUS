@@ -5,7 +5,7 @@ import { createServer, Socket } from 'node:net';
 import path from 'node:path';
 import { spawn, type ChildProcess } from 'node:child_process';
 import { createProfileFromLink, isSubscriptionUrl } from './share-link';
-import { fetchSubscriptionMaterial } from './subscription';
+import { fetchSubscriptionMaterial, validateSubscriptionUrl } from './subscription';
 import { canConnect, enrichProfile, isServiceNode, looksLikeHost } from './vpn-classify';
 import { profileConnectionKey, profileIdentityKey, profileSourceKey, stableProfileId } from './vpn-identity';
 import { applyGeo } from './vpn-geo';
@@ -227,9 +227,8 @@ export class VpnManager extends EventEmitter {
   }
 
   async importSubscription(url: string): Promise<VpnProfile[]> {
-    const parsed = new URL(url);
-    if (parsed.protocol !== 'https:') throw new Error('Подписка только по HTTPS');
-    this.emitLog('info', `Загрузка подписки ${parsed.host} (HWID ${this.hwid.slice(0, 8)}…)…`);
+    const parsed = validateSubscriptionUrl(url);
+    this.emitLog('info', `Загрузка подписки ${parsed.host}…`);
     const material = await fetchSubscriptionMaterial(url, this.hwid, (message) => this.emitLog('info', message));
     const candidates: VpnProfile[] = [];
     let notices = 0;
