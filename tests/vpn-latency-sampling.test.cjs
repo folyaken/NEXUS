@@ -79,13 +79,62 @@ void (async () => {
   assert.equal(requests, 1);
 
   await close(proxy);
+
+  const fallbackTargets = [];
+  let fallbackRemoteRequests = 0;
+  const fallbackProxy = net.createServer((socket) => {
+    let request = '';
+    let tunnelReady = false;
+    socket.on('data', (chunk) => {
+      request += chunk.toString('latin1');
+      const end = request.indexOf('\r\n\r\n');
+      if (end < 0) return;
+      const message = request.slice(0, end + 4);
+      request = request.slice(end + 4);
+      if (!tunnelReady) {
+        const target = message.match(/^CONNECT ([^:]+):443 HTTP\/1\.1/m)?.[1];
+        assert.ok(target);
+        fallbackTargets.push(target);
+        if (target === 'cp.cloudflare.com') return; // Simulate a slow regional route.
+        assert.equal(target, 'www.gstatic.com');
+        tunnelReady = true;
+        socket.write('HTTP/1.1 200 Connection established\r\n\r\n');
+        return;
+      }
+      assert.match(message, /\r\nHost: www\.gstatic\.com\r\n/i);
+      fallbackRemoteRequests += 1;
+      socket.write([
+        'HTTP/1.1 204 No Content',
+        'Server: fallback-test',
+        `Connection: ${fallbackRemoteRequests === 1 ? 'keep-alive' : 'close'}`,
+        '',
+        '',
+      ].join('\r\n'));
+    });
+  });
+  const fallbackHttpPort = await listen(fallbackProxy);
+  manager.inboundPort = fallbackHttpPort - 1;
+  manager.status = 'connected';
+  manager.activeProfileId = 'fallback-test-profile';
+  manager.lastLatencySample = null;
+  const fallbackStarted = Date.now();
+  const fallbackSample = await manager.sampleLatency();
+  const fallbackElapsed = Date.now() - fallbackStarted;
+  assert.ok(fallbackSample && fallbackSample.pingMs > 0, 'an alternate verified HTTPS target must recover a stalled regional probe');
+  assert.deepEqual(fallbackTargets, ['cp.cloudflare.com', 'www.gstatic.com']);
+  assert.equal(fallbackRemoteRequests, 2);
+  assert.ok(fallbackElapsed >= 800 && fallbackElapsed < 2500, `fallback must replace the long timeout (${fallbackElapsed} ms)`);
+  await close(fallbackProxy);
   tls.connect = nativeTlsConnect;
 
   const fs = require('node:fs');
   const source = fs.readFileSync(path.join(root, 'src', 'main', 'vpn-manager.ts'), 'utf8');
   const method = source.slice(source.indexOf('sampleLatency()'), source.indexOf('async refreshSubscription', source.indexOf('sampleLatency()')));
   assert.match(method, /127\.0\.0\.1/);
-  assert.match(method, /CONNECT cp\.cloudflare\.com:443/);
+  assert.match(method, /probeTunnelLatencyTarget\('cp\.cloudflare\.com'/);
+  assert.match(method, /'www\.gstatic\.com'/);
+  assert.match(method, /fallbackDelayMs = 900/);
+  assert.match(method, /CONNECT \$\{targetHost\}:443/);
   assert.match(method, /connectTls\(\{/);
   assert.match(method, /rejectUnauthorized: true/);
   assert.match(method, /GET \/generate_204\?nexus=/);

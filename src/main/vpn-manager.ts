@@ -450,6 +450,55 @@ export class VpnManager extends EventEmitter {
   }
 
   private measureTunnelLatency(timeoutMs = 4500): Promise<VpnLatencySample | null> {
+    const fallbackDelayMs = 900;
+    const controller = new AbortController();
+    return new Promise((resolve) => {
+      let settled = false;
+      let pending = 1;
+      let fallbackStarted = false;
+      let fallbackTimer: NodeJS.Timeout;
+      let overallTimer: NodeJS.Timeout;
+      const finish = (sample: VpnLatencySample | null) => {
+        if (settled) return;
+        settled = true;
+        clearTimeout(fallbackTimer);
+        clearTimeout(overallTimer);
+        controller.abort();
+        resolve(sample);
+      };
+      const startFallback = () => {
+        if (settled || fallbackStarted) return;
+        fallbackStarted = true;
+        pending += 1;
+        void this.probeTunnelLatencyTarget(
+          'www.gstatic.com',
+          Math.max(1200, timeoutMs - fallbackDelayMs),
+          controller.signal,
+        ).then((sample) => onResult(sample, false));
+      };
+      const onResult = (sample: VpnLatencySample | null, primary: boolean) => {
+        pending -= 1;
+        if (settled) return;
+        if (sample) {
+          finish(sample);
+          return;
+        }
+        if (primary) startFallback();
+        if (fallbackStarted && pending === 0) finish(null);
+      };
+
+      fallbackTimer = setTimeout(startFallback, fallbackDelayMs);
+      overallTimer = setTimeout(() => finish(null), timeoutMs + 100);
+      void this.probeTunnelLatencyTarget('cp.cloudflare.com', timeoutMs, controller.signal)
+        .then((sample) => onResult(sample, true));
+    });
+  }
+
+  private probeTunnelLatencyTarget(
+    targetHost: 'cp.cloudflare.com' | 'www.gstatic.com',
+    timeoutMs: number,
+    signal: AbortSignal,
+  ): Promise<VpnLatencySample | null> {
     return new Promise((resolve) => {
       const socket = new Socket();
       let secureSocket: TLSSocket | null = null;
@@ -463,15 +512,22 @@ export class VpnManager extends EventEmitter {
         if (settled) return;
         settled = true;
         clearTimeout(timer);
+        signal.removeEventListener('abort', onAbort);
         if (secureSocket) secureSocket.destroy();
         else socket.destroy();
         resolve(sample);
       };
+      const onAbort = () => done(null);
+      signal.addEventListener('abort', onAbort, { once: true });
+      if (signal.aborted) {
+        done(null);
+        return;
+      }
       const sendRemoteProbe = (closeAfterResponse: boolean) => {
         const nonce = `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
         secureSocket?.write([
           `GET /generate_204?nexus=${nonce} HTTP/1.1`,
-          'Host: cp.cloudflare.com',
+          `Host: ${targetHost}`,
           'Accept: */*',
           'Cache-Control: no-cache, no-store',
           'Pragma: no-cache',
@@ -527,7 +583,7 @@ export class VpnManager extends EventEmitter {
         try {
           secureSocket = connectTls({
             socket,
-            servername: 'cp.cloudflare.com',
+            servername: targetHost,
             ALPNProtocols: ['http/1.1'],
             rejectUnauthorized: true,
           });
@@ -544,7 +600,7 @@ export class VpnManager extends EventEmitter {
       socket.once('close', () => done(null));
       socket.on('data', onProxyData);
       socket.connect({ host: '127.0.0.1', port: this.inboundPort + 1 }, () => {
-        socket.write('CONNECT cp.cloudflare.com:443 HTTP/1.1\r\nHost: cp.cloudflare.com:443\r\nProxy-Connection: keep-alive\r\n\r\n');
+        socket.write(`CONNECT ${targetHost}:443 HTTP/1.1\r\nHost: ${targetHost}:443\r\nProxy-Connection: keep-alive\r\n\r\n`);
       });
     });
   }
