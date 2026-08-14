@@ -5,6 +5,7 @@ const {
   SUBSCRIPTION_TRANSPORT_LIMITS,
   fetchSubscriptionMaterial,
   isPublicSubscriptionAddress,
+  parseSubscriptionUserInfo,
   resolveSafeSubscriptionTarget,
   safeSubscriptionUrlForLog,
   subscriptionHeadersForOrigin,
@@ -94,6 +95,27 @@ assert.deepEqual(
 );
 assert.equal(sentHeaders.hwid, 'device-secret', 'header filtering does not mutate the source object');
 
+const malformedMetadata = parseSubscriptionUserInfo({
+  'subscription-userinfo': `upload=999999999999999999999999; download=-1; total=1e9; expire=${'9'.repeat(64)}`,
+  'profile-title': 'base64:!!!!',
+  announce: 'Line\u0000Break',
+  'profile-update-interval': '99999999999999999999',
+}, 'https://subscriptions.example.org/list');
+assert.equal(malformedMetadata.title, 'subscriptions.example.org');
+assert.equal(malformedMetadata.upload, 0);
+assert.equal(malformedMetadata.download, 0);
+assert.equal(malformedMetadata.total, 0);
+assert.equal(malformedMetadata.expireAt, undefined);
+assert.equal(malformedMetadata.updateHours, 1);
+assert.equal(malformedMetadata.announce, 'Line Break');
+
+const oversizedMetadata = parseSubscriptionUserInfo({
+  'profile-title': 'x'.repeat(4_097),
+  announce: 'x'.repeat(4_097),
+}, 'https://subscriptions.example.org/list');
+assert.equal(oversizedMetadata.title, 'subscriptions.example.org');
+assert.equal(oversizedMetadata.announce, undefined);
+
 async function run() {
   const publicTarget = await resolveSafeSubscriptionTarget(
     'https://subscriptions.example.org/private/path?token=top-secret',
@@ -159,6 +181,7 @@ async function run() {
   assert.equal(source.includes('servername:'), true, 'TLS SNI is preserved while the validated address is pinned');
   assert.equal(source.includes("responseHeader(response.headers, 'content-length')"), true, 'declared body size is checked');
   assert.equal(source.includes('size > SUBSCRIPTION_TRANSPORT_LIMITS.maxResponseBytes'), true, 'streamed body size is checked');
+  assert.equal(source.includes("new TextDecoder('utf-8', { fatal: true })"), true, 'subscription payloads require valid UTF-8');
   assert.equal(managerSource.includes('this.hwid.slice'), false, 'HWID fragments must never be written to subscription logs');
 
   console.log('subscription security tests: ok');

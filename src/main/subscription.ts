@@ -3,17 +3,22 @@ import type { IncomingHttpHeaders, IncomingMessage } from 'node:http';
 import { request as httpsRequest } from 'node:https';
 import { BlockList, isIP } from 'node:net';
 import type { Readable } from 'node:stream';
+import { TextDecoder } from 'node:util';
 import { createBrotliDecompress, createGunzip, createInflate } from 'node:zlib';
-import type { VpnLinkParams, VpnProfile, VpnSubscriptionInfo } from './types';
-import { extractShareLinks } from './share-link';
-import { enrichProfile } from './vpn-classify';
-import { profileConnectionKey, stableProfileId } from './vpn-identity';
+import type { VpnProfile, VpnSubscriptionInfo } from './types';
+import { decodeBase64Text, extractShareLinks, PROFILE_PARSER_LIMITS } from './share-link';
+import { extractClashProfiles, extractJsonProfiles } from './subscription-parser';
+import { profileConnectionKey } from './vpn-identity';
+
+export { extractClashProfiles, extractJsonProfiles } from './subscription-parser';
 
 const CLIENT_UAS = [
   'Happ/3.4.6',
   'v2rayN/6.55',
   'clash-meta/1.18.0',
 ];
+
+const SUBSCRIPTION_UTF8_DECODER = new TextDecoder('utf-8', { fatal: true });
 
 export const SUBSCRIPTION_TRANSPORT_LIMITS = Object.freeze({
   dnsTimeoutMs: 5_000,
@@ -315,7 +320,11 @@ async function readSubscriptionBody(opened: OpenSubscriptionResponse): Promise<s
       }
       chunks.push(buffer);
     }
-    return Buffer.concat(chunks, size).toString('utf8');
+    try {
+      return SUBSCRIPTION_UTF8_DECODER.decode(Buffer.concat(chunks, size));
+    } catch {
+      throw new SubscriptionTransportError('Ответ подписки содержит некорректный UTF-8');
+    }
   } catch (error) {
     if (error instanceof SubscriptionTransportError) throw error;
     throw new SubscriptionTransportError('Не удалось полностью прочитать ответ подписки');
@@ -436,122 +445,76 @@ function extractUrlsFromHtml(html: string, pageUrl: string): string[] {
   return [...found];
 }
 
-function yamlValue(block: string, key: string): string | undefined {
-  const match = block.match(new RegExp(`(?:^|\\n)\\s*${key}:\\s*(.+)`, 'i'));
-  if (!match) return undefined;
-  return match[1].trim().replace(/^["']|["']$/g, '');
+const MAX_METADATA_CHARS = 4_096;
+
+function boundedMetadata(value: string, maxLength = MAX_METADATA_CHARS): string {
+  if (!value || value.length > maxLength) return '';
+  return value.replace(/[\u0000-\u001f\u007f]+/g, ' ').replace(/\s+/g, ' ').trim();
 }
 
-function clashBlockToProfile(block: string): VpnProfile | null {
-  const type = (yamlValue(block, 'type') || '').toLowerCase();
-  const server = yamlValue(block, 'server');
-  const port = Number(yamlValue(block, 'port'));
-  const name = yamlValue(block, 'name') || server || 'node';
-  if (!server || !port) return null;
-
-  const tls = /true|tls/i.test(yamlValue(block, 'tls') || '') || Boolean(yamlValue(block, 'servername'));
-  const reality = /reality/i.test(block) || Boolean(yamlValue(block, 'public-key'));
-  const params: VpnLinkParams = {
-    protocol: type === 'vmess' ? 'vmess' : type === 'trojan' ? 'trojan' : type === 'ss' || type === 'shadowsocks' ? 'shadowsocks' : type === 'hysteria2' || type === 'hy2' ? 'hysteria2' : 'vless',
-    address: server,
-    port,
-    uuid: yamlValue(block, 'uuid'),
-    password: yamlValue(block, 'password'),
-    method: yamlValue(block, 'cipher') || yamlValue(block, 'method'),
-    flow: yamlValue(block, 'flow'),
-    network: yamlValue(block, 'network') || 'tcp',
-    security: reality ? 'reality' : tls ? 'tls' : 'none',
-    sni: yamlValue(block, 'servername') || yamlValue(block, 'sni'),
-    fingerprint: yamlValue(block, 'client-fingerprint') || yamlValue(block, 'fingerprint'),
-    publicKey: yamlValue(block, 'public-key'),
-    shortId: yamlValue(block, 'short-id'),
-    path: yamlValue(block, 'path'),
-    host: yamlValue(block, 'Host') || yamlValue(block, 'host'),
-    serviceName: yamlValue(block, 'grpc-service-name') || yamlValue(block, 'serviceName'),
-    encryption: yamlValue(block, 'encryption') || 'none',
-  };
-  if (type && !['vless', 'vmess', 'trojan', 'ss', 'shadowsocks', 'hysteria2', 'hy2'].includes(type)) return null;
-  const shareLink = `clash://${params.protocol}/${server}:${port}#${encodeURIComponent(name)}`;
-  const profile = enrichProfile({
-    id: '',
-    name: name.slice(0, 80),
-    protocol: params.protocol,
-    server,
-    port,
-    shareLink,
-    params,
-    createdAt: new Date().toISOString(),
-  });
-  profile.id = stableProfileId(profile);
-  return profile;
-}
-
-export function extractClashProfiles(text: string): VpnProfile[] {
-  if (!/type:\s*(vless|vmess|trojan|ss|shadowsocks|hysteria2|hy2)/i.test(text)) return [];
-  const chunks = text.split(/\n(?=\s*-\s+name:|\s*-\s+\{)/);
-  const profiles: VpnProfile[] = [];
-  for (const chunk of chunks) {
-    const profile = clashBlockToProfile(chunk);
-    if (profile) profiles.push(profile);
-  }
-  return profiles;
-}
-
-function flattenJsonNodes(data: unknown): Record<string, unknown>[] {
-  if (Array.isArray(data)) return data.filter((item): item is Record<string, unknown> => Boolean(item) && typeof item === 'object');
-  if (!data || typeof data !== 'object') return [];
-  const record = data as Record<string, unknown>;
-  const nested = [record.proxies, record.outbounds, record.servers, record.nodes];
-  return nested.flatMap((item) => flattenJsonNodes(item));
-}
-
-export function extractJsonProfiles(text: string): VpnProfile[] {
-  const trimmed = text.trim();
-  if (!trimmed.startsWith('{') && !trimmed.startsWith('[')) return [];
-  try {
-    const list = flattenJsonNodes(JSON.parse(trimmed));
-    if (!list.length) return [];
-    const yamlish = list.map((item) => Object.entries(item).map(([key, value]) => {
-      if (value && typeof value === 'object') {
-        return Object.entries(value as Record<string, unknown>).map(([inner, innerValue]) => `  ${inner}: ${innerValue}`).join('\n');
-      }
-      return `${key}: ${value}`;
-    }).join('\n')).join('\n---\n');
-    return extractClashProfiles(yamlish);
-  } catch {
-    return [];
-  }
-}
-
-function headerOrComment(source: string, key: string): string {
+function headerOrComment(source: string, key: string, maxLength = MAX_METADATA_CHARS): string {
   const match = source.match(new RegExp(`(?:^|[\\r\\n])#?\\s*${key}:\\s*(.+)`, 'i'));
-  return match?.[1]?.trim() || '';
+  return boundedMetadata(match?.[1] || '', maxLength);
 }
 
-function decodeMaybeBase64(value: string): string {
-  if (!value.toLowerCase().startsWith('base64:')) return value;
-  try { return Buffer.from(value.slice(7), 'base64').toString('utf8'); } catch { return value; }
+function metadataHeader(responseHeaders: IncomingHttpHeaders, name: string, maxLength = MAX_METADATA_CHARS): string {
+  return boundedMetadata(responseHeader(responseHeaders, name), maxLength);
 }
 
-function parseUserInfo(responseHeaders: IncomingHttpHeaders, url: string, body = ''): VpnSubscriptionInfo {
-  const raw = responseHeader(responseHeaders, 'subscription-userinfo') || headerOrComment(body, 'subscription-userinfo') || '';
-  const parts = Object.fromEntries(raw.split(';').map((item) => {
-    const [key, value] = item.split('=').map((part) => part.trim());
-    return [key, value];
-  }).filter((item) => item[0]));
-  const title = decodeMaybeBase64(responseHeader(responseHeaders, 'profile-title') || headerOrComment(body, 'profile-title') || '');
-  const announce = decodeMaybeBase64(responseHeader(responseHeaders, 'announce') || headerOrComment(body, 'announce') || '');
-  const expire = Number(parts.expire);
+function decodeMaybeBase64(value: string, maxLength: number): string {
+  if (!value.toLowerCase().startsWith('base64:')) return boundedMetadata(value, maxLength);
+  try {
+    return boundedMetadata(decodeBase64Text(value.slice(7), maxLength), maxLength);
+  } catch {
+    return '';
+  }
+}
+
+function safeCounter(value: string | undefined): number {
+  if (!value || !/^\d{1,16}$/.test(value)) return 0;
+  const result = Number(value);
+  return Number.isSafeInteger(result) && result >= 0 ? result : 0;
+}
+
+export function parseSubscriptionUserInfo(responseHeaders: IncomingHttpHeaders, url: string, body = ''): VpnSubscriptionInfo {
+  const raw = metadataHeader(responseHeaders, 'subscription-userinfo')
+    || headerOrComment(body, 'subscription-userinfo');
+  const parts: Record<string, string> = Object.create(null);
+  for (const item of raw.split(';').slice(0, 32)) {
+    const separator = item.indexOf('=');
+    if (separator <= 0) continue;
+    const key = item.slice(0, separator).trim().toLowerCase();
+    const value = item.slice(separator + 1).trim();
+    if (/^[a-z-]{1,32}$/.test(key) && value.length <= 64 && parts[key] === undefined) parts[key] = value;
+  }
+
+  const title = decodeMaybeBase64(
+    metadataHeader(responseHeaders, 'profile-title') || headerOrComment(body, 'profile-title'),
+    256,
+  );
+  const announce = decodeMaybeBase64(
+    metadataHeader(responseHeaders, 'announce') || headerOrComment(body, 'announce'),
+    2_048,
+  );
+  const supportUrl = metadataHeader(responseHeaders, 'support-url', 2_048)
+    || headerOrComment(body, 'support-url', 2_048);
+  const webPage = metadataHeader(responseHeaders, 'profile-web-page-url', 2_048);
+  const expire = safeCounter(parts.expire);
+  const updateHours = safeCounter(
+    metadataHeader(responseHeaders, 'profile-update-interval', 64)
+      || headerOrComment(body, 'profile-update-interval', 64),
+  );
+
   return {
     url,
     title: title || new URL(url).host,
-    supportUrl: responseHeader(responseHeaders, 'support-url') || headerOrComment(body, 'support-url') || undefined,
-    announce: announce || responseHeader(responseHeaders, 'profile-web-page-url') || undefined,
-    expireAt: Number.isFinite(expire) && expire > 0 ? new Date(expire * 1000).toISOString() : undefined,
-    upload: Number(parts.upload) || 0,
-    download: Number(parts.download) || 0,
-    total: Number(parts.total) || 0,
-    updateHours: Number(responseHeader(responseHeaders, 'profile-update-interval') || headerOrComment(body, 'profile-update-interval')) || 1,
+    supportUrl: supportUrl || undefined,
+    announce: announce || webPage || undefined,
+    expireAt: expire > 0 && expire <= 4_102_444_800 ? new Date(expire * 1000).toISOString() : undefined,
+    upload: safeCounter(parts.upload),
+    download: safeCounter(parts.download),
+    total: safeCounter(parts.total),
+    updateHours: updateHours > 0 && updateHours <= 8_760 ? updateHours : 1,
     lastSync: new Date().toISOString(),
   };
 }
@@ -574,8 +537,14 @@ export async function fetchSubscriptionMaterial(url: string, hwid: string, log: 
   let lastTransportError: SubscriptionTransportError | undefined;
 
   const take = (nextLinks: string[], nextClash: VpnProfile[], nextInfo?: VpnSubscriptionInfo) => {
-    for (const link of nextLinks) links.add(link);
+    for (const link of nextLinks) {
+      if (links.size >= PROFILE_PARSER_LIMITS.maxExtractedLinks
+        || links.size + clash.length >= PROFILE_PARSER_LIMITS.maxProfiles) break;
+      links.add(link);
+    }
     for (const profile of nextClash) {
+      if (clash.length >= PROFILE_PARSER_LIMITS.maxProfiles
+        || links.size + clash.length >= PROFILE_PARSER_LIMITS.maxProfiles) break;
       const identity = profileConnectionKey(profile);
       if (seenClash.has(identity)) continue;
       seenClash.add(identity);
@@ -603,7 +572,7 @@ export async function fetchSubscriptionMaterial(url: string, hwid: string, log: 
         take(
           extractShareLinks(body),
           [...extractClashProfiles(body), ...extractJsonProfiles(body)],
-          parseUserInfo(response.headers, initialTarget.toString(), body),
+          parseSubscriptionUserInfo(response.headers, initialTarget.toString(), body),
         );
       } catch (error) {
         if (error instanceof SubscriptionTransportError) lastTransportError = error;
@@ -623,7 +592,7 @@ export async function fetchSubscriptionMaterial(url: string, hwid: string, log: 
       take(
         extractShareLinks(body),
         [...extractClashProfiles(body), ...extractJsonProfiles(body)],
-        parseUserInfo(response.headers, initialTarget.toString(), body),
+        parseSubscriptionUserInfo(response.headers, initialTarget.toString(), body),
       );
     } catch (error) {
       if (error instanceof SubscriptionTransportError) lastTransportError = error;

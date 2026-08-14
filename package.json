@@ -15,6 +15,7 @@
     "build:main": "tsc -p tsconfig.main.json",
     "test:split-tunnel": "npm run build:main && node tests/split-tunnel-config.test.cjs",
     "test:subscription-security": "npm run build:main && node tests/subscription-security.test.cjs",
+    "test:parser-security": "npm run build:main && node tests/parser-security.test.cjs",
     "package": "npm run build && electron-builder",
     "preview": "vite preview --host 0.0.0.0"
   },
@@ -76,7 +77,8 @@
     "@react-spring/web": "^9.7.4",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
-    "unzipper": "^0.12.5"
+    "unzipper": "^0.12.5",
+    "yaml": "^2.9.0"
   },
   "devDependencies": {
     "@types/node": "^22.10.2",
