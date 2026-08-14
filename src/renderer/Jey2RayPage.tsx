@@ -147,6 +147,7 @@ export function Jey2RayPage({
   const [name, setName] = useState('');
   const [importOpen, setImportOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [settingsTab, setSettingsTab] = useState<'general' | 'applications'>('general');
   const [subscriptionsOpen, setSubscriptionsOpen] = useState(false);
   const [diagnosticsOpen, setDiagnosticsOpen] = useState(false);
   const [profiles, setProfiles] = useState<VpnProfile[]>([]);
@@ -546,18 +547,51 @@ export function Jey2RayPage({
         <span>Jey2Ray</span>
         <h2>Настройки Jey2Ray</h2>
       </div>
-      <span className={`app-route-state ${appRoutingActive ? 'is-on' : ''}`}>
-        <i />{appRoutingActive ? 'Маршрутизация включена' : 'Общие настройки'}
+      <span className={`app-route-state ${settingsTab === 'applications' && appRoutingActive ? 'is-on' : ''}`}>
+        <i />{settingsTab === 'applications'
+          ? (appRoutingActive ? 'Маршрутизация включена' : 'Системная маршрутизация')
+          : 'Общие параметры'}
       </span>
     </div>
 
-    <div className="app-settings-scroll">
-      {routeSettingsLocked && <div className="app-settings-lock">
-        <span>i</span>
-        <div><strong>VPN сейчас работает</strong><p>Отключи подключение, чтобы изменить маршрутизацию или список приложений.</p></div>
-      </div>}
+    <div className="app-settings-tabs" role="tablist" aria-label="Разделы настроек Jey2Ray">
+      <button
+        type="button"
+        id="jey-settings-general-tab"
+        role="tab"
+        aria-controls="jey-settings-panel"
+        aria-selected={settingsTab === 'general'}
+        className={`app-settings-tab ${settingsTab === 'general' ? 'is-active' : ''}`}
+        onClick={() => setSettingsTab('general')}
+      >
+        <span className="app-settings-tab-icon">
+          <svg viewBox="0 0 20 20" aria-hidden><path d="M4 5h12M6.5 10h7M8 15h4" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" /><circle cx="8" cy="5" r="1.5" /><circle cx="11.5" cy="10" r="1.5" /><circle cx="10" cy="15" r="1.5" /></svg>
+        </span>
+        <span><strong>Общие</strong><small>Автоподключение и параметры модуля</small></span>
+      </button>
+      <button
+        type="button"
+        id="jey-settings-applications-tab"
+        role="tab"
+        aria-controls="jey-settings-panel"
+        aria-selected={settingsTab === 'applications'}
+        className={`app-settings-tab ${settingsTab === 'applications' ? 'is-active' : ''}`}
+        onClick={() => setSettingsTab('applications')}
+      >
+        <span className="app-settings-tab-icon applications">
+          <svg viewBox="0 0 20 20" aria-hidden><rect x="3" y="3.5" width="14" height="13" rx="2.5" fill="none" stroke="currentColor" strokeWidth="1.45" /><path d="M3.5 7.5h13M7 11h6M8.5 14h3" fill="none" stroke="currentColor" strokeWidth="1.45" strokeLinecap="round" /></svg>
+        </span>
+        <span><strong>Настройка приложений</strong><small>Маршрутизация и выбранные программы</small></span>
+      </button>
+    </div>
 
-      <section className="app-settings-card auto-settings-card">
+    <div
+      id="jey-settings-panel"
+      role="tabpanel"
+      aria-labelledby={`jey-settings-${settingsTab}-tab`}
+      className={`app-settings-scroll is-${settingsTab}`}
+    >
+      {settingsTab === 'general' ? <section className="app-settings-card auto-settings-card">
         <div className="app-settings-card-head compact">
           <div><span className="settings-step">01</span><div><h3>Автоподключение</h3><p>Запускать последний сервер вместе с NEXUS.</p></div></div>
           <button
@@ -568,54 +602,59 @@ export function Jey2RayPage({
           ><i /></button>
         </div>
         <div className={`auto-status ${settings.autoConnectVpn ? 'is-on' : ''}`}><i />{settings.autoConnectVpn ? 'Включено' : 'Выключено'}</div>
-      </section>
-
-      <section className="app-settings-card routing-settings-card">
-        <div className="app-settings-card-head">
-          <div><span className="settings-step">02</span><div><h3>Настройки прокси для приложений</h3><p>Выбери общую политику. Конкретные приложения можно добавить ниже.</p></div></div>
-        </div>
-        <div className="routing-choice-list" role="radiogroup" aria-label="Режим маршрутизации приложений">
-          <button type="button" role="radio" aria-checked={appRouting === 'system'} className={`routing-choice ${appRouting === 'system' ? 'is-active' : ''}`} disabled={routeSettingsLocked} onClick={() => selectAppRouting('system')}>
-            <i className="settings-radio" />
-            <span><strong>Системные настройки</strong><small>Без отдельных правил. Используется общий режим {mode === 'tun' ? 'TUN' : 'Proxy'}.</small></span>
-            <em>По умолчанию</em>
-          </button>
-          <button type="button" role="radio" aria-checked={appRouting === 'exclude'} className={`routing-choice ${appRouting === 'exclude' ? 'is-active' : ''}`} disabled={routeSettingsLocked} onClick={() => selectAppRouting('exclude')}>
-            <i className="settings-radio" />
-            <span><strong>Прямое подключение для выбранных приложений</strong><small>Выбранные приложения обходят VPN, все остальные идут через VPN.</small></span>
-            <em>Исключения</em>
-          </button>
-          <button type="button" role="radio" aria-checked={appRouting === 'include'} className={`routing-choice ${appRouting === 'include' ? 'is-active' : ''}`} disabled={routeSettingsLocked} onClick={() => selectAppRouting('include')}>
-            <i className="settings-radio" />
-            <span><strong>VPN только для выбранных приложений</strong><small>Выбранные приложения идут через VPN, все остальные — напрямую.</small></span>
-            <em>Split Tunneling</em>
-          </button>
-        </div>
-      </section>
-
-      <section className="app-settings-card selected-apps-card">
-        <div className="app-settings-card-head selected-apps-head">
-          <div><span className="settings-step">03</span><div><h3>Выбранные приложения</h3><p>{splitApps.length ? `Добавлено: ${splitApps.length}` : 'Добавь приложения Windows, для которых будут действовать правила выше.'}</p></div></div>
-          <button type="button" className="app-add-button" disabled={routeSettingsLocked} onClick={() => void addSplitApps(appRouting)}>
-            <svg viewBox="0 0 16 16" aria-hidden><path d="M8 3v10M3 8h10" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" /></svg>
-            Добавить приложение
-          </button>
-        </div>
-        {splitApps.length ? <div className="selected-app-list">
-          {splitApps.map((app) => <div className="selected-app-row" key={app.executable.toLocaleLowerCase('en-US')} title={app.path}>
-            <span className="selected-app-icon"><svg viewBox="0 0 24 24" aria-hidden><rect x="4" y="3.5" width="16" height="17" rx="3" fill="none" stroke="currentColor" strokeWidth="1.5" /><path d="M8 8h8M8 12h5" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" /></svg></span>
-            <span className="selected-app-copy"><strong>{app.executable}</strong><small>{app.path}</small></span>
-            <span className={`selected-app-route ${appRouting === 'exclude' ? 'is-direct' : appRouting === 'include' ? 'is-vpn' : ''}`}>
-              {appRouting === 'exclude' ? 'Напрямую' : appRouting === 'include' ? 'Через VPN' : 'Не активно'}
-            </span>
-            <button type="button" className="selected-app-remove" disabled={routeSettingsLocked} onClick={() => removeSplitApp(app.executable)} aria-label={`Удалить ${app.executable}`}>×</button>
-          </div>)}
-        </div> : <div className="selected-app-empty">
-          <span><svg viewBox="0 0 32 32" aria-hidden><rect x="7" y="5" width="18" height="22" rx="4" fill="none" stroke="currentColor" strokeWidth="1.5" /><path d="M12 12h8M12 17h6" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" /></svg></span>
-          <strong>Приложения ещё не выбраны</strong>
-          <p>Нажми «Добавить приложение» и выбери один или несколько файлов .exe.</p>
+      </section> : <>
+        {routeSettingsLocked && <div className="app-settings-lock">
+          <span>i</span>
+          <div><strong>VPN сейчас работает</strong><p>Отключи подключение, чтобы изменить маршрутизацию или список приложений.</p></div>
         </div>}
-      </section>
+
+        <section className="app-settings-card routing-settings-card">
+          <div className="app-settings-card-head">
+            <div><span className="settings-step">01</span><div><h3>Настройки прокси для приложений</h3><p>Выбери общую политику. Конкретные приложения можно добавить ниже.</p></div></div>
+          </div>
+          <div className="routing-choice-list" role="radiogroup" aria-label="Режим маршрутизации приложений">
+            <button type="button" role="radio" aria-checked={appRouting === 'system'} className={`routing-choice ${appRouting === 'system' ? 'is-active' : ''}`} disabled={routeSettingsLocked} onClick={() => selectAppRouting('system')}>
+              <i className="settings-radio" />
+              <span><strong>Системные настройки</strong><small>Без отдельных правил. Используется общий режим {mode === 'tun' ? 'TUN' : 'Proxy'}.</small></span>
+              <em>По умолчанию</em>
+            </button>
+            <button type="button" role="radio" aria-checked={appRouting === 'exclude'} className={`routing-choice ${appRouting === 'exclude' ? 'is-active' : ''}`} disabled={routeSettingsLocked} onClick={() => selectAppRouting('exclude')}>
+              <i className="settings-radio" />
+              <span><strong>Прямое подключение для выбранных приложений</strong><small>Выбранные приложения обходят VPN, все остальные идут через VPN.</small></span>
+              <em>Исключения</em>
+            </button>
+            <button type="button" role="radio" aria-checked={appRouting === 'include'} className={`routing-choice ${appRouting === 'include' ? 'is-active' : ''}`} disabled={routeSettingsLocked} onClick={() => selectAppRouting('include')}>
+              <i className="settings-radio" />
+              <span><strong>VPN только для выбранных приложений</strong><small>Выбранные приложения идут через VPN, все остальные — напрямую.</small></span>
+              <em>Split Tunneling</em>
+            </button>
+          </div>
+        </section>
+
+        <section className="app-settings-card selected-apps-card">
+          <div className="app-settings-card-head selected-apps-head">
+            <div><span className="settings-step">02</span><div><h3>Выбранные приложения</h3><p>{splitApps.length ? `Добавлено: ${splitApps.length}` : 'Добавь приложения Windows, для которых будут действовать правила выше.'}</p></div></div>
+            <button type="button" className="app-add-button" disabled={routeSettingsLocked} onClick={() => void addSplitApps(appRouting)}>
+              <svg viewBox="0 0 16 16" aria-hidden><path d="M8 3v10M3 8h10" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" /></svg>
+              Добавить приложение
+            </button>
+          </div>
+          {splitApps.length ? <div className="selected-app-list">
+            {splitApps.map((app) => <div className="selected-app-row" key={app.executable.toLocaleLowerCase('en-US')} title={app.path}>
+              <span className="selected-app-icon"><svg viewBox="0 0 24 24" aria-hidden><rect x="4" y="3.5" width="16" height="17" rx="3" fill="none" stroke="currentColor" strokeWidth="1.5" /><path d="M8 8h8M8 12h5" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" /></svg></span>
+              <span className="selected-app-copy"><strong>{app.executable}</strong><small>{app.path}</small></span>
+              <span className={`selected-app-route ${appRouting === 'exclude' ? 'is-direct' : appRouting === 'include' ? 'is-vpn' : ''}`}>
+                {appRouting === 'exclude' ? 'Напрямую' : appRouting === 'include' ? 'Через VPN' : 'Не активно'}
+              </span>
+              <button type="button" className="selected-app-remove" disabled={routeSettingsLocked} onClick={() => removeSplitApp(app.executable)} aria-label={`Удалить ${app.executable}`}>×</button>
+            </div>)}
+          </div> : <div className="selected-app-empty">
+            <span><svg viewBox="0 0 32 32" aria-hidden><rect x="7" y="5" width="18" height="22" rx="4" fill="none" stroke="currentColor" strokeWidth="1.5" /><path d="M12 12h8M12 17h6" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" /></svg></span>
+            <strong>Приложения ещё не выбраны</strong>
+            <p>Нажми «Добавить приложение» и выбери один или несколько файлов .exe.</p>
+          </div>}
+        </section>
+      </>}
     </div>
   </section>;
 
@@ -641,7 +680,7 @@ export function Jey2RayPage({
       <div className="jey-toolbar tight">
         <h2>Серверы</h2>
         <div className="jey-toolbar-actions">
-          <button type="button" className="ghost-action settings-gear-button" onClick={() => setSettingsOpen(true)} title="Настройки Jey2Ray" aria-label="Открыть настройки Jey2Ray">
+          <button type="button" className="ghost-action settings-gear-button" onClick={() => { setSettingsTab('general'); setSettingsOpen(true); }} title="Настройки Jey2Ray" aria-label="Открыть настройки Jey2Ray">
             <svg className="ico" viewBox="0 0 20 20" aria-hidden>
               <path d="M7.9 2.7h4.2l.45 1.75c.4.17.78.39 1.13.65l1.72-.5 2.1 3.65-1.27 1.25c.03.2.04.42.04.64s-.01.43-.04.64l1.27 1.25-2.1 3.65-1.72-.5c-.35.26-.73.48-1.13.65l-.45 1.75H7.9l-.45-1.75a6.4 6.4 0 0 1-1.13-.65l-1.72.5-2.1-3.65 1.27-1.25a4.7 4.7 0 0 1 0-1.28L2.5 8.25 4.6 4.6l1.72.5c.35-.26.73-.48 1.13-.65L7.9 2.7Z" fill="none" stroke="currentColor" strokeWidth="1.35" strokeLinejoin="round" />
               <circle cx="10" cy="10.15" r="2.35" fill="none" stroke="currentColor" strokeWidth="1.35" />

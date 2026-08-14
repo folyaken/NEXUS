@@ -60,6 +60,13 @@ assert.match(page, /orb-halo orb-halo-wait/);
 assert.match(page, /if \(settingsOpen\) return <section className="page-section jey-page app-settings-page">/);
 assert.match(page, /settings-gear-button/);
 assert.match(page, /Открыть настройки Jey2Ray/);
+assert.match(page, /const \[settingsTab, setSettingsTab\] = useState<'general' \| 'applications'>\('general'\)/);
+assert.match(page, /role="tablist" aria-label="Разделы настроек Jey2Ray"/);
+assert.match(page, /id="jey-settings-panel"[\s\S]*role="tabpanel"[\s\S]*aria-labelledby=\{`jey-settings-\$\{settingsTab\}-tab`\}/);
+assert.match(page, /role="tab"[\s\S]*aria-selected=\{settingsTab === 'general'\}[\s\S]*>Общие</);
+assert.match(page, /role="tab"[\s\S]*aria-selected=\{settingsTab === 'applications'\}[\s\S]*>Настройка приложений</);
+assert.match(page, /settingsTab === 'general' \? <section className="app-settings-card auto-settings-card">/);
+assert.ok(page.indexOf("settingsTab === 'general' ? <section") < page.indexOf('routing-settings-card'), 'application routing must be rendered only in the applications tab branch');
 assert.match(page, /window\.nexus\?\.pickVpnApps\(\)/);
 assert.match(page, /role="radiogroup" aria-label="Режим маршрутизации приложений"/);
 assert.match(page, /Сначала отключи VPN, затем измени маршрутизацию приложений/);
@@ -79,7 +86,15 @@ assert.match(styles, /\.power-orb\.is-on \.orb-halo-follow \{ animation: orb-wav
 assert.match(styles, /\.power-orb\.is-wait \.orb-halo-wait \{ animation: orb-wave-wait/);
 assert.match(styles, /100% \{ transform: scale\(1\.82\); opacity: 0; \}/);
 assert.match(styles, /\.global-settings-hero \{/);
+assert.match(styles, /\.app-settings-tabs \{[^}]*grid-template-columns: repeat\(2/);
+assert.match(styles, /\.app-settings-tab\.is-active \{/);
 assert.match(styles, /\.app-settings-page \.app-settings-card-head h3 \{ font-size: 18px/);
+assert.match(styles, /\.appearance-graphite \{[\s\S]*--bg: #07090c/);
+for (const graphiteArea of ['.sidebar', '.hero', '.module-card-inner', '.jey-hero', '.app-settings-tabs', '.subscription-card', '.diagnostics-report-card']) {
+  assert.ok(styles.includes(`.appearance-graphite ${graphiteArea}`), `Graphite appearance must restyle ${graphiteArea}`);
+}
+assert.match(styles, /\.appearance-graphite \.app-settings-tab\.is-active \{[^}]*rgba\(220,224,229/);
+assert.match(styles, /\.appearance-graphite \.primary-button \{[^}]*#e2e5e9/);
 assert.doesNotMatch(styles, /\.settings-tab\.active \{|\.tunnel-ping|\.power-session/);
 
 console.log('Live VPN mode switching, session timer, pulse rings and separated settings regression checks passed.');
