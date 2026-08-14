@@ -1,8 +1,7 @@
 const fs = require('node:fs');
 const path = require('node:path');
-const https = require('node:https');
-const { pipeline } = require('node:stream/promises');
 const { Open } = require('unzipper');
+const { downloadZip, safeUrlForLog } = require('./bootstrap-network.cjs');
 
 const root = path.resolve(__dirname, '..');
 const binDir = path.join(root, 'modules', 'bin');
@@ -11,40 +10,19 @@ const isWin = process.platform === 'win32';
 const binary = isWin ? 'xray.exe' : 'xray';
 const zipName = isWin ? 'Xray-windows-64.zip' : 'Xray-linux-64.zip';
 const dest = path.join(binDir, binary);
+const repo = 'XTLS/Xray-core';
+const userAgent = 'NEXUS-Xray-Bootstrap';
 
 function ok() {
   return fs.existsSync(dest) && fs.statSync(dest).size > 1_000_000;
 }
 
-function get(url) {
-  return new Promise((resolve, reject) => {
-    https.get(url, { headers: { 'User-Agent': 'NEXUS-Xray-Bootstrap' } }, (res) => {
-      if (res.statusCode && res.statusCode >= 300 && res.statusCode < 400 && res.headers.location) {
-        res.resume();
-        get(res.headers.location).then(resolve, reject);
-        return;
-      }
-      if (!res.statusCode || res.statusCode >= 400) {
-        reject(new Error(`HTTP ${res.statusCode} ${url}`));
-        res.resume();
-        return;
-      }
-      resolve(res);
-    }).on('error', reject);
-  });
-}
-
 async function download(url, file) {
-  const res = await get(url);
-  await fs.promises.mkdir(path.dirname(file), { recursive: true });
-  await pipeline(res, fs.createWriteStream(file));
-  const stat = fs.statSync(file);
-  if (stat.size < 800_000) throw new Error(`слишком маленький файл (${stat.size} байт)`);
-  const fd = fs.openSync(file, 'r');
-  const buf = Buffer.alloc(2);
-  fs.readSync(fd, buf, 0, 2, 0);
-  fs.closeSync(fd);
-  if (buf[0] !== 0x50 || buf[1] !== 0x4b) throw new Error('это не ZIP');
+  await downloadZip(url, file, {
+    repo,
+    userAgent,
+    minimumBytes: 800_000,
+  });
 }
 
 async function main() {
@@ -55,13 +33,13 @@ async function main() {
   console.log('Ставим Xray-core (как ядро внутри Happ)…');
   const zipPath = path.join(cacheDir, zipName);
   const urls = [
-    `https://github.com/XTLS/Xray-core/releases/latest/download/${zipName}`,
-    `https://ghproxy.net/https://github.com/XTLS/Xray-core/releases/latest/download/${zipName}`,
+    `https://github.com/${repo}/releases/latest/download/${zipName}`,
+    `https://ghproxy.net/https://github.com/${repo}/releases/latest/download/${zipName}`,
   ];
   let last = 'не удалось скачать';
   for (const url of urls) {
     try {
-      console.log(`  качаем ${url}`);
+      console.log(`  качаем ${safeUrlForLog(url)}`);
       await download(url, zipPath);
       const extractDir = path.join(cacheDir, 'xray-extract');
       fs.rmSync(extractDir, { recursive: true, force: true });
