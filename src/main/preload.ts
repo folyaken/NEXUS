@@ -18,8 +18,8 @@ contextBridge.exposeInMainWorld('nexus', {
   saveSettings: (settings: AppSettings): Promise<AppSettings> => ipcRenderer.invoke('settings:save', settings),
   getLastScan: (): Promise<string | null> => ipcRenderer.invoke('runtime:last-scan'),
   minimizeWindow: (): Promise<void> => ipcRenderer.invoke('window:minimize'),
-  toggleFullscreen: (): Promise<boolean> => ipcRenderer.invoke('window:toggle-fullscreen'),
-  isFullscreen: (): Promise<boolean> => ipcRenderer.invoke('window:is-fullscreen'),
+  toggleMaximize: (): Promise<boolean> => ipcRenderer.invoke('window:toggle-maximize'),
+  isMaximized: (): Promise<boolean> => ipcRenderer.invoke('window:is-maximized'),
   closeWindow: (): Promise<void> => ipcRenderer.invoke('window:close'),
   getVpn: (): Promise<{ profiles: VpnProfile[]; runtime: VpnRuntime }> => ipcRenderer.invoke('vpn:list'),
   getVpnDiagnostics: (profileId?: string | null): Promise<VpnDiagnostics> => ipcRenderer.invoke('vpn:diagnostics', profileId ?? null),
@@ -54,10 +54,10 @@ contextBridge.exposeInMainWorld('nexus', {
     ipcRenderer.on('updates:changed', listener);
     return () => ipcRenderer.removeListener('updates:changed', listener);
   },
-  onFullscreen: (callback: (value: boolean) => void) => {
+  onMaximized: (callback: (value: boolean) => void) => {
     const listener = (_event: Electron.IpcRendererEvent, value: boolean) => callback(value);
-    ipcRenderer.on('window:fullscreen', listener);
-    return () => ipcRenderer.removeListener('window:fullscreen', listener);
+    ipcRenderer.on('window:maximized', listener);
+    return () => ipcRenderer.removeListener('window:maximized', listener);
   },
   onScan: (callback: (stamp: string) => void) => {
     const listener = (_event: Electron.IpcRendererEvent, stamp: string) => callback(stamp);

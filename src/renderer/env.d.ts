@@ -19,8 +19,8 @@ declare global {
       saveSettings(settings: AppSettings): Promise<AppSettings>;
       getLastScan(): Promise<string | null>;
       minimizeWindow(): Promise<void>;
-      toggleFullscreen(): Promise<boolean>;
-      isFullscreen(): Promise<boolean>;
+      toggleMaximize(): Promise<boolean>;
+      isMaximized(): Promise<boolean>;
       closeWindow(): Promise<void>;
       getVpn(): Promise<{ profiles: VpnProfile[]; runtime: VpnRuntime }>;
       getVpnDiagnostics(profileId?: string | null): Promise<VpnDiagnostics>;
@@ -38,7 +38,7 @@ declare global {
       onModulesChanged(callback: (modules: ModuleManifest[]) => void): () => void;
       onLog(callback: (log: ModuleLog) => void): () => void;
       onUpdatesChanged(callback: (updates: UpdateInfo[]) => void): () => void;
-      onFullscreen(callback: (value: boolean) => void): () => void;
+      onMaximized(callback: (value: boolean) => void): () => void;
       onScan(callback: (stamp: string) => void): () => void;
       onVpnChanged(callback: (snapshot: { profiles: VpnProfile[]; runtime: VpnRuntime }) => void): () => void;
     };

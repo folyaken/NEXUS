@@ -110,10 +110,10 @@ function NavGlyph({ name }: { name: string }) {
   return <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="5" y="5" width="5" height="5" rx="1" /><rect x="14" y="5" width="5" height="5" rx="1" /><rect x="5" y="14" width="5" height="5" rx="1" /><rect x="14" y="14" width="5" height="5" rx="1" /></svg>;
 }
 
-function WindowBar({ fullscreen }: { fullscreen: boolean }) {
+function WindowBar({ maximized }: { maximized: boolean }) {
   return <div className="window-bar">
     <div className="window-drag"><span className="window-brand-mark"><NexusMark /></span><strong>NEXUS</strong><span className="window-separator">/</span><span>Network Control Plane</span></div>
-    <div className="window-actions"><button className="window-control minimize" aria-label="Свернуть" onClick={() => void window.nexus?.minimizeWindow()}>−</button><button className="window-control fullscreen" aria-label={fullscreen ? 'Оконный режим' : 'На весь экран'} title={fullscreen ? 'Оконный режим (Esc)' : 'На весь экран'} onClick={() => void window.nexus?.toggleFullscreen()}>{fullscreen ? '❐' : '⛶'}</button><button className="window-control close" aria-label="Закрыть" onClick={() => void window.nexus?.closeWindow()}>×</button></div>
+    <div className="window-actions"><button className="window-control minimize" aria-label="Свернуть" onClick={() => void window.nexus?.minimizeWindow()}>−</button><button className="window-control maximize" aria-label={maximized ? 'Восстановить окно' : 'Развернуть окно'} title={maximized ? 'Восстановить окно' : 'Развернуть окно'} onClick={() => void window.nexus?.toggleMaximize()}><svg viewBox="0 0 20 20" aria-hidden="true">{maximized ? <><rect x="4.5" y="6.5" width="9" height="9" rx=".5" /><path d="M7 6.5v-2h8.5v8.5h-2" /></> : <rect x="4.5" y="4.5" width="11" height="11" rx=".5" />}</svg></button><button className="window-control close" aria-label="Закрыть" onClick={() => void window.nexus?.closeWindow()}>×</button></div>
   </div>;
 }
 
@@ -273,7 +273,7 @@ function LogsPage({ logs, category, setCategory, onNotice }: { logs: ModuleLog[]
 
 function AboutPage() {
   const [info, setInfo] = useState<AboutSystemInfo>({
-    nexusVersion: '1.0.0',
+    nexusVersion: '1.1.0',
     xrayVersion: null,
     singBoxVersion: null,
     hwid: 'NX-LOCAL',
@@ -282,7 +282,6 @@ function AboutPage() {
   const [loadingInfo, setLoadingInfo] = useState(true);
   const [checkingUpdate, setCheckingUpdate] = useState(false);
   const [updateCheck, setUpdateCheck] = useState<NexusUpdateCheck | null>(null);
-  const [copied, setCopied] = useState(false);
 
   useEffect(() => {
     let alive = true;
@@ -325,14 +324,6 @@ function AboutPage() {
     }
   };
 
-  const copyHwid = async () => {
-    try {
-      await navigator.clipboard.writeText(info.hwid);
-      setCopied(true);
-      window.setTimeout(() => setCopied(false), 1800);
-    } catch { /* clipboard permission is optional */ }
-  };
-
   const coreValue = (value: string | null) => loadingInfo ? 'Определение…' : value || 'Не обнаружен';
   const checkedAt = updateCheck ? new Intl.DateTimeFormat('ru-RU', { hour: '2-digit', minute: '2-digit' }).format(new Date(updateCheck.checkedAt)) : null;
 
@@ -351,7 +342,7 @@ function AboutPage() {
           <div className="about-system-row"><span>Версия NEXUS</span><strong>{info.nexusVersion}</strong></div>
           <div className="about-system-row"><span>Версия Xray Core</span><strong className={!info.xrayVersion && !loadingInfo ? 'is-missing' : ''}>{coreValue(info.xrayVersion)}</strong></div>
           <div className="about-system-row"><span>Версия sing-box</span><strong className={!info.singBoxVersion && !loadingInfo ? 'is-missing' : ''}>{coreValue(info.singBoxVersion)}</strong></div>
-          <div className="about-system-row"><span>HWID</span><div className="about-hwid"><strong>{info.hwid}</strong><button type="button" onClick={() => void copyHwid()} title="Скопировать HWID" aria-label="Скопировать HWID">{copied ? '✓' : '▣'}</button></div></div>
+          <div className="about-system-row"><span>HWID</span><div className="about-hwid"><strong>{info.hwid}</strong></div></div>
           <div className="about-system-row about-computer-row"><span>Компьютер / ОС</span><strong>{loadingInfo ? 'Определение…' : info.computer}</strong></div>
         </div>
         <p className="about-local-note"><i /> Данные определяются локально и не отправляются в сеть.</p>
@@ -391,7 +382,7 @@ function App() {
   const [toast, setToast] = useState('');
   const [settings, setSettings] = useState<AppSettings>(DEFAULT_SETTINGS);
   const [syncing, setSyncing] = useState(false);
-  const [fullscreen, setFullscreen] = useState(false);
+  const [maximized, setMaximized] = useState(false);
   const [lastScan, setLastScan] = useState<string | null>(null);
   const [profile, setProfile] = useState<UserProfile>({ displayName: '', deviceId: 'NX-LOCAL', deviceName: 'Локальное устройство' });
   const [profileDraft, setProfileDraft] = useState('');
@@ -413,17 +404,17 @@ function App() {
       } catch { /* keep defaults */ }
       return () => { alive = false; };
     }
-    void Promise.all([api.getModules(), api.getLogs(), api.getUpdates(), api.getProfile(), api.getSettings(), api.getLastScan(), api.isFullscreen()]).then(([nextModules, nextLogs, nextUpdates, nextProfile, nextSettings, scan, isFull]) => {
+    void Promise.all([api.getModules(), api.getLogs(), api.getUpdates(), api.getProfile(), api.getSettings(), api.getLastScan(), api.isMaximized()]).then(([nextModules, nextLogs, nextUpdates, nextProfile, nextSettings, scan, isMax]) => {
       if (!alive) return;
       setModules(nextModules); setLogs(nextLogs); setUpdates(nextUpdates); setProfile(nextProfile); setProfileDraft(nextProfile.displayName);
-      setSettings(nextSettings); setLastScan(scan); setFullscreen(isFull);
+      setSettings(nextSettings); setLastScan(scan); setMaximized(isMax);
     }).catch((error: Error) => setToast(error.message));
     const offModules = api.onModulesChanged(setModules);
     const offLogs = api.onLog((log) => setLogs((current) => [log, ...current].slice(0, 200)));
     const offUpdates = api.onUpdatesChanged(setUpdates);
-    const offFull = api.onFullscreen(setFullscreen);
+    const offMaximized = api.onMaximized(setMaximized);
     const offScan = api.onScan(setLastScan);
-    return () => { alive = false; offModules(); offLogs(); offUpdates(); offFull(); offScan(); };
+    return () => { alive = false; offModules(); offLogs(); offUpdates(); offMaximized(); offScan(); };
   }, []);
 
   useEffect(() => { if (!toast) return; const timeout = window.setTimeout(() => setToast(''), 3600); return () => window.clearTimeout(timeout); }, [toast]);
@@ -525,7 +516,7 @@ function App() {
     }
   };
 
-  return <div className={`app-frame appearance-${settings.appearance}`}><WindowBar fullscreen={fullscreen} /><div className={`app-shell ${sidebarCollapsed ? 'is-sidebar-collapsed' : ''}`}><div className="ambient ambient-one" /><div className="ambient ambient-two" />
+  return <div className={`app-frame appearance-${settings.appearance}`}><WindowBar maximized={maximized} /><div className={`app-shell ${sidebarCollapsed ? 'is-sidebar-collapsed' : ''}`}><div className="ambient ambient-one" /><div className="ambient ambient-two" />
     <aside className="sidebar">
       <button type="button" className="sidebar-collapse-button" aria-label={sidebarCollapsed ? 'Развернуть боковую панель' : 'Свернуть боковую панель'} title={sidebarCollapsed ? 'Развернуть панель' : 'Свернуть панель'} aria-pressed={sidebarCollapsed} onClick={() => setSidebarCollapsed((value) => !value)}><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m14.5 6-6 6 6 6" /></svg></button>
       <div className="brand"><div className="brand-orb"><NexusMark /></div><div className="sidebar-copy"><strong>NEXUS</strong><span>NETWORK CONTROL</span></div></div>
@@ -535,7 +526,7 @@ function App() {
       <div className="sidebar-bottom">
         <button type="button" aria-label="О программе" title={sidebarCollapsed ? 'О программе' : undefined} className={`nav-item sidebar-about ${page === 'about' ? 'active' : ''}`} onClick={() => setPage('about')}><span className="nav-glyph"><NavGlyph name="about" /></span><span className="nav-item-label sidebar-copy">О программе</span></button>
         <div className="system-status" title={sidebarCollapsed ? `${systemTitle}: ${systemNote}` : undefined}><StatusDot tone={systemTone} /><div className="sidebar-copy"><span>{systemTitle}</span><small>{systemNote}</small></div></div>
-        <div className="version-row sidebar-copy"><span>NEXUS v1.0.0</span><span className="online-dot" /> LOCAL</div>
+        <div className="version-row sidebar-copy"><span>NEXUS v1.1.0</span><span className="online-dot" /> LOCAL</div>
       </div>
     </aside>
 

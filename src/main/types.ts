@@ -84,6 +84,7 @@ export interface AppSettings {
   notifications: boolean;
   closeToTray: boolean;
   autoConnectVpn: boolean;
+  vpnFragmentation: boolean;
   lastVpnProfileId: string | null;
   vpnInboundPort: number;
   vpnMode: 'proxy' | 'tun';
@@ -101,6 +102,7 @@ export const DEFAULT_SETTINGS: AppSettings = {
   notifications: true,
   closeToTray: true,
   autoConnectVpn: false,
+  vpnFragmentation: true,
   lastVpnProfileId: null,
   vpnInboundPort: 10808,
   vpnMode: 'proxy',

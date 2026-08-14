@@ -584,18 +584,39 @@ export function Jey2RayPage({
       aria-labelledby={`jey-settings-${settingsTab}-tab`}
       className={`app-settings-scroll is-${settingsTab}`}
     >
-      {settingsTab === 'general' ? <section className="app-settings-card auto-settings-card">
-        <div className="app-settings-card-head compact">
-          <div><span className="settings-step">01</span><div><h3>Автоподключение</h3><p>Запускать последний сервер вместе с NEXUS.</p></div></div>
-          <button
-            type="button"
-            className={`settings-toggle ${settings.autoConnectVpn ? 'is-on' : ''}`}
-            onClick={() => onSettings({ ...settings, autoConnectVpn: !settings.autoConnectVpn })}
-            aria-label={settings.autoConnectVpn ? 'Выключить автоподключение' : 'Включить автоподключение'}
-          ><i /></button>
-        </div>
-        <div className={`auto-status ${settings.autoConnectVpn ? 'is-on' : ''}`}><i />{settings.autoConnectVpn ? 'Включено' : 'Выключено'}</div>
-      </section> : <>
+      {settingsTab === 'general' ? <>
+        <section className="app-settings-card auto-settings-card">
+          <div className="app-settings-card-head compact">
+            <div><span className="settings-step">01</span><div><h3>Автоподключение</h3><p>Запускать последний сервер вместе с NEXUS.</p></div></div>
+            <button
+              type="button"
+              className={`settings-toggle ${settings.autoConnectVpn ? 'is-on' : ''}`}
+              onClick={() => onSettings({ ...settings, autoConnectVpn: !settings.autoConnectVpn })}
+              aria-label={settings.autoConnectVpn ? 'Выключить автоподключение' : 'Включить автоподключение'}
+            ><i /></button>
+          </div>
+          <div className={`auto-status ${settings.autoConnectVpn ? 'is-on' : ''}`}><i />{settings.autoConnectVpn ? 'Включено' : 'Выключено'}</div>
+        </section>
+
+        <section className="app-settings-card fragmentation-settings-card">
+          <div className="app-settings-card-head compact">
+            <div><span className="settings-step">02</span><div><h3>Включить фрагментацию</h3><p>Разделять TLS ClientHello как в Happ, чтобы соединение устойчивее проходило DPI-фильтрацию.</p></div></div>
+            <button
+              type="button"
+              className={`settings-toggle ${settings.vpnFragmentation ? 'is-on' : ''}`}
+              onClick={() => {
+                const enabled = !settings.vpnFragmentation;
+                onSettings({ ...settings, vpnFragmentation: enabled });
+                onToast(`${enabled ? 'Фрагментация включена' : 'Фрагментация выключена'}${runtime.status === 'connected' ? ' · применится при следующем подключении' : ''}`);
+              }}
+              aria-label={settings.vpnFragmentation ? 'Выключить фрагментацию' : 'Включить фрагментацию'}
+              aria-pressed={settings.vpnFragmentation}
+            ><i /></button>
+          </div>
+          <div className={`auto-status ${settings.vpnFragmentation ? 'is-on' : ''}`}><i />{settings.vpnFragmentation ? 'Включено по умолчанию' : 'Выключено'}</div>
+          <p className="fragmentation-note">Работает для Xray-профилей с TCP/TLS, включая Reality. Hysteria2 использует QUIC и не поддерживает TCP-фрагментацию ClientHello.</p>
+        </section>
+      </> : <>
         {routeSettingsLocked && <div className="app-settings-lock">
           <span>i</span>
           <div><strong>VPN сейчас работает</strong><p>Отключи подключение, чтобы изменить маршрутизацию или список приложений.</p></div>

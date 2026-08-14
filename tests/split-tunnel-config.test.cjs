@@ -34,6 +34,8 @@ const base = {
   address: 'vpn.example.com',
   port: 443,
   uuid: '00000000-0000-0000-0000-000000000000',
+  network: 'tcp',
+  security: 'tls',
 };
 
 const xray = buildXrayConfig(base, 10808, 'tun', normalized);
@@ -54,6 +56,27 @@ assert.deepEqual(xray.routing.rules[1], {
   outboundTag: 'proxy',
 });
 assert.equal(xray.routing.rules[2].outboundTag, 'direct', 'unselected TUN traffic is direct');
+const xrayProxyOutbound = xray.outbounds.find((item) => item.tag === 'proxy');
+const xrayFragmentOutbound = xray.outbounds.find((item) => item.tag === 'fragment');
+assert.equal(xrayProxyOutbound.streamSettings.sockopt.dialerProxy, 'fragment', 'TCP/TLS connects through the fragment outbound by default');
+assert.deepEqual(xrayFragmentOutbound, {
+  tag: 'fragment',
+  protocol: 'freedom',
+  settings: { fragment: { packets: 'tlshello', length: '50-100', interval: '10-20' } },
+});
+
+const xrayWithoutFragmentation = buildXrayConfig(base, 10808, 'proxy', [], 'system', false);
+assert.equal(xrayWithoutFragmentation.outbounds.some((item) => item.tag === 'fragment'), false, 'the setting must remove the fragment outbound');
+assert.equal(xrayWithoutFragmentation.outbounds[0].streamSettings.sockopt, undefined, 'the setting must remove the fragment dialer');
+const xrayReality = buildXrayConfig({ ...base, security: 'reality', publicKey: 'test-key' }, 10808);
+assert.equal(xrayReality.outbounds[0].streamSettings.sockopt.dialerProxy, 'fragment', 'TCP/Reality must use TLSHello fragmentation');
+const xrayXtls = buildXrayConfig({ ...base, security: 'xtls' }, 10808);
+assert.equal(xrayXtls.outbounds[0].streamSettings.sockopt.dialerProxy, 'fragment', 'legacy TCP/XTLS profiles must use TLSHello fragmentation');
+const xrayWebSocket = buildXrayConfig({ ...base, network: 'ws' }, 10808);
+assert.equal(xrayWebSocket.outbounds.some((item) => item.tag === 'fragment'), false, 'non-TCP Xray transports are not sent to the TLSHello fragment dialer');
+assert.equal(xrayWebSocket.outbounds[0].streamSettings.sockopt, undefined);
+const xrayPlainTcp = buildXrayConfig({ ...base, security: 'none' }, 10808);
+assert.equal(xrayPlainTcp.outbounds.some((item) => item.tag === 'fragment'), false, 'plain TCP without TLS has no ClientHello to fragment');
 
 const xrayExcluded = buildXrayConfig(base, 10808, 'tun', normalized, 'exclude');
 assert.equal(xrayExcluded.routing.rules[1].outboundTag, 'direct', 'excluded Xray apps bypass the VPN');

@@ -51,6 +51,12 @@ function streamSettings(params: VpnLinkParams): Record<string, unknown> {
   return stream;
 }
 
+function supportsTlsHelloFragmentation(params: VpnLinkParams): boolean {
+  const network = (params.network || 'tcp').toLowerCase();
+  const security = (params.security || 'none').toLowerCase();
+  return network === 'tcp' && (security === 'tls' || security === 'xtls' || security === 'reality');
+}
+
 function outbound(params: VpnLinkParams): Record<string, unknown> {
   if (params.protocol === 'vless') {
     return {
@@ -143,6 +149,7 @@ export function buildXrayConfig(
   mode: 'proxy' | 'tun' = 'proxy',
   splitApps: VpnSplitApp[] = [],
   appRouting: VpnAppRoutingMode = 'include',
+  fragmentation = true,
 ): Record<string, unknown> {
   const inbounds: Record<string, unknown>[] = [{
     tag: 'socks-in',
@@ -186,14 +193,41 @@ export function buildXrayConfig(
     ],
   } : undefined;
 
+  const proxyOutbound: Record<string, unknown> = { tag: 'proxy', ...outbound(params) };
+  const fragmentTlsHello = fragmentation && supportsTlsHelloFragmentation(params);
+  if (fragmentTlsHello) {
+    const proxyStream = proxyOutbound.streamSettings as Record<string, unknown>;
+    proxyOutbound.streamSettings = {
+      ...proxyStream,
+      sockopt: {
+        ...(proxyStream.sockopt as Record<string, unknown> | undefined),
+        dialerProxy: 'fragment',
+      },
+    };
+  }
+  const outbounds: Record<string, unknown>[] = [proxyOutbound];
+  if (fragmentTlsHello) {
+    outbounds.push({
+      tag: 'fragment',
+      protocol: 'freedom',
+      settings: {
+        fragment: {
+          packets: 'tlshello',
+          length: '50-100',
+          interval: '10-20',
+        },
+      },
+    });
+  }
+  outbounds.push(
+    { tag: 'direct', protocol: 'freedom', settings: {} },
+    { tag: 'block', protocol: 'blackhole', settings: {} },
+  );
+
   return {
     log: { loglevel: 'warning' },
     inbounds,
-    outbounds: [
-      { tag: 'proxy', ...outbound(params) },
-      { tag: 'direct', protocol: 'freedom', settings: {} },
-      { tag: 'block', protocol: 'blackhole', settings: {} },
-    ],
+    outbounds,
     ...(routing ? { routing } : {}),
   };
 }

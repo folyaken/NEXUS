@@ -1,4 +1,4 @@
-import { app, BrowserWindow, dialog, ipcMain, Menu, Notification, nativeImage, nativeTheme, Tray } from 'electron';
+import { app, BrowserWindow, clipboard, dialog, ipcMain, Menu, Notification, nativeImage, nativeTheme, Tray } from 'electron';
 import path from 'node:path';
 import { createHash } from 'node:crypto';
 import { existsSync } from 'node:fs';
@@ -57,6 +57,7 @@ function normalizeSettings(raw: Partial<AppSettings>): AppSettings {
     notifications: raw.notifications !== false,
     closeToTray: raw.closeToTray !== false,
     autoConnectVpn: Boolean(raw.autoConnectVpn),
+    vpnFragmentation: raw.vpnFragmentation !== false,
     lastVpnProfileId: typeof raw.lastVpnProfileId === 'string' ? raw.lastVpnProfileId : null,
     vpnInboundPort: Number(raw.vpnInboundPort) > 0 ? Number(raw.vpnInboundPort) : 10808,
     vpnMode,
@@ -79,6 +80,7 @@ async function saveSettings(next: AppSettings): Promise<AppSettings> {
   settings = normalizeSettings(next ?? settings);
   await fs.mkdir(path.dirname(settingsPath()), { recursive: true });
   await fs.writeFile(settingsPath(), `${JSON.stringify(settings, null, 2)}\n`, 'utf8');
+  if (tray && !tray.isDestroyed()) refreshTrayMenu(trayVpnStatus);
   return settings;
 }
 
@@ -98,11 +100,6 @@ async function pickVpnApplications(): Promise<VpnSplitApp[]> {
 function showWindow(): void {
   if (!mainWindow || mainWindow.isDestroyed()) return;
   if (mainWindow.isMinimized()) mainWindow.restore();
-  if (mainWindow.isFullScreen()) {
-    mainWindow.show();
-    mainWindow.focus();
-    return;
-  }
   mainWindow.show();
   mainWindow.focus();
 }
@@ -147,18 +144,162 @@ function trayStatusCopy(status: VpnStatus): { label: string; tooltip: string } {
   return { label: 'VPN: отключён', tooltip: 'NEXUS — VPN отключён' };
 }
 
+function trayMenuLabel(value: string, fallback: string): string {
+  const normalized = value.replace(/[\u0000-\u001f\u007f]/g, ' ').replace(/&/g, '＋').replace(/\s+/g, ' ').trim();
+  if (!normalized) return fallback;
+  return normalized.length > 48 ? `${normalized.slice(0, 45)}…` : normalized;
+}
+
+async function connectVpnProfile(
+  profileId: string,
+  mode: 'proxy' | 'tun' = settings.vpnMode,
+  continuedSessionAt: string | null = null,
+): Promise<ReturnType<VpnManager['runtime']>> {
+  if (!vpn.hasXray()) {
+    mainWindow?.webContents.send('logs:append', { id: 'jey2ray', level: 'info', message: 'Скачиваем Xray-core…', timestamp: new Date().toISOString() });
+    await updater.ensure('jey2ray');
+  }
+  const splitApps = settings.vpnAppRouting === 'system' ? [] : settings.vpnSplitApps;
+  const runtime = await vpn.connect(
+    profileId,
+    settings.vpnInboundPort,
+    mode,
+    splitApps,
+    settings.vpnAppRouting,
+    continuedSessionAt,
+    settings.vpnFragmentation,
+  );
+  await saveSettings({ ...settings, lastVpnProfileId: profileId });
+  return runtime;
+}
+
+function runTrayAction(action: () => Promise<unknown>): void {
+  void action().catch((error: unknown) => {
+    const message = error instanceof Error ? error.message : 'Не удалось выполнить команду из трея';
+    mainWindow?.webContents.send('logs:append', { id: 'jey2ray', level: 'error', message, timestamp: new Date().toISOString() });
+    notify('NEXUS', message);
+    refreshTrayMenu(vpn.runtime().status);
+  });
+}
+
+async function selectTrayProfile(profileId: string): Promise<void> {
+  const current = vpn.runtime();
+  if (current.status === 'connecting') throw new Error('Дождитесь завершения текущего подключения');
+  await saveSettings({ ...settings, lastVpnProfileId: profileId });
+  if (current.status === 'connected') {
+    await connectVpnProfile(profileId, settings.vpnMode, current.connectedAt);
+  } else {
+    refreshTrayMenu(current.status);
+    notify('NEXUS', 'Сервер выбран');
+  }
+}
+
+async function setTrayVpnMode(mode: 'proxy' | 'tun'): Promise<void> {
+  const current = vpn.runtime();
+  if (current.status === 'connecting') throw new Error('Дождитесь завершения текущего подключения');
+  await saveSettings({
+    ...settings,
+    vpnMode: mode,
+    vpnSplitTunnel: mode === 'tun' && settings.vpnAppRouting === 'include',
+  });
+  if (current.status === 'connected' && current.activeProfileId) {
+    await connectVpnProfile(current.activeProfileId, mode, current.connectedAt);
+  } else {
+    refreshTrayMenu(current.status);
+  }
+}
+
+async function setTrayRouting(appRouting: 'system' | 'include' | 'exclude'): Promise<void> {
+  const current = vpn.runtime();
+  if (current.status === 'connecting') throw new Error('Дождитесь завершения текущего подключения');
+  const nextMode = appRouting === 'system' ? settings.vpnMode : 'tun';
+  await saveSettings({
+    ...settings,
+    vpnMode: nextMode,
+    vpnAppRouting: appRouting,
+    vpnSplitTunnel: appRouting === 'include',
+  });
+  if (current.status === 'connected' && current.activeProfileId) {
+    await connectVpnProfile(current.activeProfileId, nextMode, current.connectedAt);
+  } else {
+    refreshTrayMenu(current.status);
+  }
+}
+
+async function importVpnFromClipboard(): Promise<void> {
+  const input = clipboard.readText().trim();
+  if (!input) throw new Error('Буфер обмена пуст');
+  const imported = await vpn.importInput(input);
+  if (!imported.length) throw new Error('В буфере нет поддерживаемой VPN-ссылки');
+  await saveSettings({ ...settings, lastVpnProfileId: imported[0].id });
+  refreshTrayMenu(vpn.runtime().status);
+  notify('NEXUS', `Импортировано серверов: ${imported.length}`);
+}
+
 function refreshTrayMenu(status: VpnStatus): void {
-  if (!tray) return;
+  if (!tray || tray.isDestroyed() || !vpn) return;
   const copy = trayStatusCopy(status);
-  tray.setToolTip(copy.tooltip);
-  tray.setContextMenu(Menu.buildFromTemplate([
+  const snapshot = vpn.snapshot();
+  const profiles = snapshot.profiles.filter((profile) => profile.kind !== 'notice');
+  const selected = profiles.find((profile) => profile.id === snapshot.runtime.activeProfileId)
+    ?? profiles.find((profile) => profile.id === settings.lastVpnProfileId)
+    ?? profiles[0]
+    ?? null;
+  const canChangeConnection = status !== 'connecting';
+  const isRunning = status === 'connected';
+  const hasSplitApps = settings.vpnSplitApps.length > 0;
+  const template: Electron.MenuItemConstructorOptions[] = [
     { label: copy.label, enabled: false },
+    { label: `Выбрано: ${trayMenuLabel(selected?.name ?? '', 'сервер не выбран')}`, enabled: false },
     { type: 'separator' },
-    { label: 'Показать NEXUS', click: showWindow },
+    {
+      label: status === 'connecting' ? 'VPN подключается…' : status === 'connected' ? 'Отключить VPN' : 'Подключить VPN',
+      enabled: status !== 'connecting' && (isRunning || Boolean(selected)),
+      click: () => runTrayAction(async () => {
+        if (isRunning) await vpn.disconnect();
+        else if (selected) await connectVpnProfile(selected.id);
+      }),
+    },
+    {
+      label: 'Сменить сервер',
+      enabled: profiles.length > 0 && canChangeConnection,
+      submenu: profiles.length
+        ? profiles.map((profile) => ({
+          label: trayMenuLabel(profile.name, 'Сервер'),
+          type: 'radio' as const,
+          checked: profile.id === selected?.id,
+          click: () => runTrayAction(() => selectTrayProfile(profile.id)),
+        }))
+        : [{ label: 'Нет импортированных серверов', enabled: false }],
+    },
+    { type: 'separator' },
+    {
+      label: `Транспорт · ${settings.vpnMode.toUpperCase()}`,
+      enabled: canChangeConnection,
+      submenu: [
+        { label: 'PROXY', type: 'radio', checked: settings.vpnMode === 'proxy', click: () => runTrayAction(() => setTrayVpnMode('proxy')) },
+        { label: 'TUN', type: 'radio', checked: settings.vpnMode === 'tun', click: () => runTrayAction(() => setTrayVpnMode('tun')) },
+      ],
+    },
+    { label: 'Импортировать из буфера', click: () => runTrayAction(importVpnFromClipboard) },
+    {
+      label: 'Маршрутизация',
+      enabled: canChangeConnection,
+      submenu: [
+        { label: 'Весь трафик через VPN', type: 'radio', checked: settings.vpnAppRouting === 'system', click: () => runTrayAction(() => setTrayRouting('system')) },
+        { label: 'VPN только для выбранных приложений', type: 'radio', enabled: hasSplitApps, checked: settings.vpnAppRouting === 'include', click: () => runTrayAction(() => setTrayRouting('include')) },
+        { label: 'Напрямую для выбранных приложений', type: 'radio', enabled: hasSplitApps, checked: settings.vpnAppRouting === 'exclude', click: () => runTrayAction(() => setTrayRouting('exclude')) },
+        ...(!hasSplitApps ? [{ type: 'separator' as const }, { label: 'Список приложений настраивается в Jey2Ray', enabled: false }] : []),
+      ],
+    },
+    { type: 'separator' },
+    { label: 'Показать окно NEXUS', click: showWindow },
     { label: 'Скрыть окно', click: () => mainWindow?.hide() },
     { type: 'separator' },
-    { label: 'Выйти', click: () => { void quitApp(); } },
-  ]));
+    { label: 'Выход', click: () => { void quitApp(); } },
+  ];
+  tray.setToolTip(`${copy.tooltip}${selected ? ` · ${trayMenuLabel(selected.name, 'Сервер')}` : ''}`);
+  tray.setContextMenu(Menu.buildFromTemplate(template));
 }
 
 function setTrayVpnStatus(status: VpnStatus): void {
@@ -198,7 +339,7 @@ function createWindow(): void {
     minHeight: 680,
     resizable: true,
     maximizable: true,
-    fullscreenable: true,
+    fullscreenable: false,
     center: true,
     frame: false,
     icon: assetPath('nexus-app.png'),
@@ -228,17 +369,11 @@ function createWindow(): void {
       }
     }
   });
-  mainWindow.on('enter-full-screen', () => {
-    mainWindow?.webContents.send('window:fullscreen', true);
+  mainWindow.on('maximize', () => {
+    mainWindow?.webContents.send('window:maximized', true);
   });
-  mainWindow.on('leave-full-screen', () => {
-    mainWindow?.webContents.send('window:fullscreen', false);
-  });
-  mainWindow.webContents.on('before-input-event', (event, input) => {
-    if (input.type === 'keyDown' && input.key === 'Escape' && mainWindow?.isFullScreen()) {
-      event.preventDefault();
-      mainWindow.setFullScreen(false);
-    }
+  mainWindow.on('unmaximize', () => {
+    mainWindow?.webContents.send('window:maximized', false);
   });
   mainWindow.on('closed', () => { mainWindow = null; });
 }
@@ -392,22 +527,7 @@ function wireIpc(): void {
   ipcMain.handle('vpn:remove', (_event, id: string) => vpn.remove(String(id ?? '')));
   ipcMain.handle('vpn:remove-subscription', (_event, url: string) => vpn.removeSubscription(String(url ?? '')));
   ipcMain.handle('vpn:pick-apps', () => pickVpnApplications());
-  ipcMain.handle('vpn:connect', async (_event, id: string) => {
-    if (!vpn.hasXray()) {
-      mainWindow?.webContents.send('logs:append', { id: 'jey2ray', level: 'info', message: 'Скачиваем Xray-core…', timestamp: new Date().toISOString() });
-      await updater.ensure('jey2ray');
-    }
-    const splitApps = settings.vpnAppRouting === 'system' ? [] : settings.vpnSplitApps;
-    const runtime = await vpn.connect(
-      String(id ?? ''),
-      settings.vpnInboundPort,
-      settings.vpnMode,
-      splitApps,
-      settings.vpnAppRouting,
-    );
-    await saveSettings({ ...settings, lastVpnProfileId: String(id ?? '') });
-    return runtime;
-  });
+  ipcMain.handle('vpn:connect', (_event, id: string) => connectVpnProfile(String(id ?? '')));
   ipcMain.handle('vpn:disconnect', () => vpn.disconnect());
   ipcMain.handle('vpn:switch-mode', async (_event, requestedMode: unknown) => {
     if (requestedMode !== 'proxy' && requestedMode !== 'tun') throw new Error('Неизвестный режим VPN');
@@ -420,28 +540,20 @@ function wireIpc(): void {
       vpnSplitTunnel: requestedMode === 'tun' && settings.vpnAppRouting === 'include',
     });
     if (current.status !== 'connected' || !current.activeProfileId) return vpn.runtime();
-
-    const splitApps = settings.vpnAppRouting === 'system' ? [] : settings.vpnSplitApps;
-    return vpn.connect(
-      current.activeProfileId,
-      settings.vpnInboundPort,
-      requestedMode,
-      splitApps,
-      settings.vpnAppRouting,
-      current.connectedAt,
-    );
+    return connectVpnProfile(current.activeProfileId, requestedMode, current.connectedAt);
   });
   ipcMain.handle('vpn:ensure-core', () => updater.ensure('jey2ray'));
   ipcMain.handle('vpn:ping', () => vpn.pingAll());
   ipcMain.handle('vpn:latency-sample', () => vpn.sampleLatency());
   ipcMain.handle('runtime:last-scan', () => manager.getLastScanAt());
   ipcMain.handle('window:minimize', () => mainWindow?.minimize());
-  ipcMain.handle('window:toggle-fullscreen', () => {
+  ipcMain.handle('window:toggle-maximize', () => {
     if (!mainWindow || mainWindow.isDestroyed()) return false;
-    mainWindow.setFullScreen(!mainWindow.isFullScreen());
-    return mainWindow.isFullScreen();
+    if (mainWindow.isMaximized()) mainWindow.unmaximize();
+    else mainWindow.maximize();
+    return mainWindow.isMaximized();
   });
-  ipcMain.handle('window:is-fullscreen', () => Boolean(mainWindow?.isFullScreen()));
+  ipcMain.handle('window:is-maximized', () => Boolean(mainWindow?.isMaximized()));
   ipcMain.handle('window:close', () => mainWindow?.close());
 
   manager.on('changed', (modules) => mainWindow?.webContents.send('modules:changed', modules));
@@ -480,14 +592,7 @@ if (gotLock) {
     createWindow();
     if (settings.autoStart) void manager.startEnabled();
     if (settings.autoConnectVpn && settings.lastVpnProfileId) {
-      const splitApps = settings.vpnAppRouting === 'system' ? [] : settings.vpnSplitApps;
-      void vpn.connect(
-        settings.lastVpnProfileId,
-        settings.vpnInboundPort,
-        settings.vpnMode,
-        splitApps,
-        settings.vpnAppRouting,
-      ).catch((error: Error) => {
+      void connectVpnProfile(settings.lastVpnProfileId).catch((error: Error) => {
         notify('Jey2Ray', error.message);
       });
     }

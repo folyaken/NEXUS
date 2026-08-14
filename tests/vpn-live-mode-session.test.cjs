@@ -35,7 +35,7 @@ assert.match(switchHandler, /vpnMode: requestedMode/);
 assert.match(switchHandler, /vpnSplitTunnel: requestedMode === 'tun'/);
 assert.match(switchHandler, /current\.status !== 'connected' \|\| !current\.activeProfileId/);
 assert.match(switchHandler, /current\.connectedAt/);
-assert.ok(switchHandler.indexOf('await saveSettings') < switchHandler.indexOf('return vpn.connect'), 'the selected mode must be durable before reconnect');
+assert.ok(switchHandler.indexOf('await saveSettings') < switchHandler.indexOf('return connectVpnProfile'), 'the selected mode must be durable before reconnect');
 
 const preload = fs.readFileSync(path.join(root, 'src', 'main', 'preload.ts'), 'utf8');
 const env = fs.readFileSync(path.join(root, 'src', 'renderer', 'env.d.ts'), 'utf8');
@@ -67,7 +67,13 @@ assert.match(types, /connectedAt: string \| null/);
 assert.match(types, /language: 'ru'/);
 assert.match(types, /theme: 'dark'/);
 assert.match(types, /appearance: 'indigo' \| 'graphite'/);
+assert.match(types, /vpnFragmentation: boolean/);
+assert.match(types, /vpnFragmentation: true/);
 assert.match(main, /appearance: raw\.appearance === 'graphite' \? 'graphite' : 'indigo'/);
+assert.match(main, /vpnFragmentation: raw\.vpnFragmentation !== false/, 'old settings must migrate to enabled fragmentation');
+assert.match(vpnManager, /fragmentation = true/);
+assert.match(vpnManager, /buildXrayConfig\(profile\.params, port, mode, activeSplitApps, activeAppRouting, fragmentation\)/);
+assert.equal(packageJson.version, '1.1.0');
 assert.match(page, /const selectConnectionMode = async/);
 assert.match(page, /await window\.nexus\?\.switchVpnMode\(next\)/);
 assert.match(page, /disabled=\{busy \|\| runtime\.status === 'connecting'\}/, 'connected VPN must not disable the PROXY/TUN buttons');
@@ -87,8 +93,14 @@ assert.match(page, /role="tablist" aria-label="Разделы настроек J
 assert.match(page, /id="jey-settings-panel"[\s\S]*role="tabpanel"[\s\S]*aria-labelledby=\{`jey-settings-\$\{settingsTab\}-tab`\}/);
 assert.match(page, /role="tab"[\s\S]*aria-selected=\{settingsTab === 'general'\}[\s\S]*>Общие</);
 assert.match(page, /role="tab"[\s\S]*aria-selected=\{settingsTab === 'applications'\}[\s\S]*>Настройка приложений</);
-assert.match(page, /settingsTab === 'general' \? <section className="app-settings-card auto-settings-card">/);
-assert.ok(page.indexOf("settingsTab === 'general' ? <section") < page.indexOf('routing-settings-card'), 'application routing must be rendered only in the applications tab branch');
+assert.match(page, /settingsTab === 'general' \? <>[\s\S]*<section className="app-settings-card auto-settings-card">/);
+assert.match(page, /className="app-settings-card fragmentation-settings-card"/);
+assert.match(page, /settings\.vpnFragmentation \? 'is-on' : ''/);
+assert.match(page, /onSettings\(\{ \.\.\.settings, vpnFragmentation: enabled \}\)/);
+assert.match(page, /Включить фрагментацию/);
+assert.match(page, /Xray-профилей с TCP\/TLS, включая Reality/);
+assert.match(page, /Hysteria2 использует QUIC/);
+assert.ok(page.indexOf("settingsTab === 'general' ? <>") < page.indexOf('routing-settings-card'), 'application routing must be rendered only in the applications tab branch');
 assert.match(page, /window\.nexus\?\.pickVpnApps\(\)/);
 assert.match(page, /role="radiogroup" aria-label="Режим маршрутизации приложений"/);
 assert.match(page, /Сначала отключи VPN, затем измени маршрутизацию приложений/);
@@ -97,6 +109,12 @@ assert.equal((page.match(/void ping\(\)/g) ?? []).length, 1, 'the explicit manua
 assert.match(page, /sampleVpnLatency/);
 
 assert.doesNotMatch(app, /SettingsTab|settings-tabs|function ApplicationSettings|Настройки приложений/, 'VPN settings must not leak into global NEXUS settings');
+assert.doesNotMatch(app, /copyHwid|setCopied|Скопировать HWID/, 'HWID must be displayed without the temporary copy/check button');
+assert.match(app, /nexusVersion: '1\.1\.0'/);
+assert.match(app, /NEXUS v1\.1\.0/);
+assert.match(app, /function WindowBar\(\{ maximized \}/);
+assert.match(app, /window\.nexus\?\.toggleMaximize\(\)/);
+assert.doesNotMatch(app, /toggleFullscreen|isFullscreen|onFullscreen/);
 assert.match(app, /Глобальные параметры языка, оформления и поведения NEXUS/);
 assert.match(app, /Язык интерфейса/);
 assert.match(app, /Тема/);
@@ -128,18 +146,37 @@ assert.match(styles, /\.global-settings-hero \{/);
 assert.match(styles, /\.app-settings-tabs \{[^}]*grid-template-columns: repeat\(2/);
 assert.match(styles, /\.app-settings-tab\.is-active \{/);
 assert.match(styles, /\.app-settings-page \.app-settings-card-head h3 \{ font-size: 18px/);
-assert.match(styles, /\.appearance-graphite \{[\s\S]*--bg: #07090c/);
+assert.match(styles, /\.appearance-graphite \{[\s\S]*--bg: #090909/);
 for (const graphiteArea of ['.sidebar', '.hero', '.module-card-inner', '.jey-hero', '.app-settings-tabs', '.subscription-card', '.diagnostics-report-card']) {
   assert.ok(styles.includes(`.appearance-graphite ${graphiteArea}`), `Graphite appearance must restyle ${graphiteArea}`);
 }
-assert.match(styles, /\.appearance-graphite \.app-settings-tab\.is-active \{[^}]*rgba\(220,224,229/);
-assert.match(styles, /\.appearance-graphite \.primary-button \{[^}]*#e2e5e9/);
+assert.match(styles, /\.appearance-graphite \.app-settings-tab\.is-active \{[^}]*rgba\(224,224,224/);
+assert.match(styles, /\.appearance-graphite \.primary-button \{[^}]*#e5e5e5/);
 assert.match(styles, /\.app-shell\.is-sidebar-collapsed \.sidebar \{[^}]*flex-basis: 82px/);
 assert.match(styles, /\.profile-chevron \{[^}]*transition:/);
+assert.match(styles, /\.window-control svg \{[^}]*width: 18px/);
+assert.match(styles, /\.window-control\.close \{[^}]*font-size: 28px/);
+assert.match(styles, /\.fragmentation-note \{[^}]*line-height: 1\.55/);
 assert.match(styles, /\.log-source-tabs \{[^}]*grid-template-columns: repeat\(6/);
-assert.match(styles, /\.appearance-graphite \.happ-flag-svg \{ filter: saturate\(\.66\) brightness\(\.91\); \}/, 'Graphite flags must retain restrained colour');
-assert.match(styles, /\.appearance-graphite \.app-shell \{ filter: none; \}/);
-assert.doesNotMatch(styles, /\.appearance-graphite \.app-shell \{ filter: grayscale\(1\) saturate\(0\); \}/, 'Graphite must not globally desaturate flags and semantic states');
+assert.match(styles, /Graphite is strictly achromatic\. Server flags are the only colour exception/);
+assert.match(styles, /\.appearance-graphite \.happ-flag-svg \{ filter: none; \}/, 'Graphite flags must keep their original colour');
+assert.match(styles, /\.appearance-graphite \.happ-row\.is-live \{[^}]*#d6d6d6/, 'the live server row surrounding a flag must stay grayscale');
+assert.match(styles, /\.appearance-graphite \.tunnel-route-server \{[^}]*rgba\(211,211,211/, 'the route endpoint surrounding a flag must stay grayscale');
+assert.match(styles, /\.appearance-graphite:not\(:has\(\.happ-flag-svg\)\) > \.app-shell/);
+assert.match(styles, /\.appearance-graphite \*:has\(\.happ-flag-svg\) > \*:not\(:has\(\.happ-flag-svg\)\)/, 'only flag-free sibling branches may be desaturated');
+assert.doesNotMatch(styles, /\.appearance-graphite \.happ-flag-svg \{ filter: saturate/, 'Graphite must not mute server flags');
+const graphiteBlocks = [...styles.matchAll(/([^{}]+)\{([^{}]*)\}/g)]
+  .filter((match) => match[1].includes('.appearance-graphite') && !match[1].includes('.happ-flag-svg'));
+for (const [, selectors, declarations] of graphiteBlocks) {
+  const colors = declarations.matchAll(/#([0-9a-fA-F]{6})\b|rgba?\(\s*(\d+)\s*,\s*(\d+)\s*,\s*(\d+)/g);
+  for (const color of colors) {
+    const channels = color[1]
+      ? [0, 2, 4].map((offset) => Number.parseInt(color[1].slice(offset, offset + 2), 16))
+      : [Number(color[2]), Number(color[3]), Number(color[4])];
+    assert.equal(new Set(channels).size, 1, `Graphite colour ${color[0]} in ${selectors.trim()} must be exact grayscale`);
+  }
+}
+assert.doesNotMatch(styles, /Graphite keeps its neutral base while retaining restrained semantic colour/);
 assert.doesNotMatch(styles, /\.settings-tab\.active \{|\.tunnel-ping|\.power-session/);
 
 assert.match(main, /function coreVersion\(executable: string, product: 'xray' \| 'sing-box'\)/);
@@ -150,6 +187,17 @@ assert.match(main, /coreVersion\(vpn\.xrayPath\(\), 'xray'\)/);
 assert.match(main, /coreVersion\(vpn\.singboxPath\(\), 'sing-box'\)/);
 assert.match(main, /ipcMain\.handle\('about:get-info', \(\) => aboutSystemInfo\(\)\)/);
 assert.match(main, /ipcMain\.handle\('about:check-update', \(\) => checkNexusUpdate\(\)\)/);
+assert.match(main, /fullscreenable: false/);
+assert.match(main, /ipcMain\.handle\('window:toggle-maximize'/);
+assert.match(main, /mainWindow\.isMaximized\(\)\) mainWindow\.unmaximize\(\)/);
+assert.match(main, /else mainWindow\.maximize\(\)/);
+assert.match(main, /mainWindow\.on\('maximize',[\s\S]*'window:maximized', true/);
+assert.match(main, /mainWindow\.on\('unmaximize',[\s\S]*'window:maximized', false/);
+assert.match(preload, /toggleMaximize: \(\): Promise<boolean> => ipcRenderer\.invoke\('window:toggle-maximize'\)/);
+assert.match(preload, /isMaximized: \(\): Promise<boolean> => ipcRenderer\.invoke\('window:is-maximized'\)/);
+assert.match(env, /toggleMaximize\(\): Promise<boolean>/);
+assert.match(env, /onMaximized\(callback: \(value: boolean\) => void\): \(\) => void/);
+for (const source of [main, preload, env, app]) assert.doesNotMatch(source, /toggle-fullscreen|is-fullscreen|window:fullscreen|setFullScreen|isFullScreen/);
 assert.match(app, /Версия Xray Core/);
 assert.match(app, /Версия sing-box/);
 assert.match(app, /Компьютер \/ ОС/);
@@ -162,6 +210,19 @@ assert.match(main, /if \(trayAnimation\) clearInterval\(trayAnimation\)/);
 assert.match(main, /visualState === 'connecting' \? 150 : 420/);
 assert.match(main, /trayAnimation\.unref\(\)/, 'tray animation must not keep the process alive');
 assert.match(main, /setTrayVpnStatus\(snapshot\.runtime\.status\)/, 'VPN state events must immediately update the tray');
+assert.match(main, /const snapshot = vpn\.snapshot\(\)/, 'tray menu must be generated from live VPN state');
+for (const trayLabel of ['Подключить VPN', 'Отключить VPN', 'Сменить сервер', 'Транспорт ·', 'Импортировать из буфера', 'Маршрутизация', 'Показать окно NEXUS', 'Выход']) {
+  assert.ok(main.includes(trayLabel), `tray menu must provide “${trayLabel}”`);
+}
+assert.match(main, /clipboard\.readText\(\)\.trim\(\)/);
+assert.match(main, /profiles\.map\(\(profile\) => \(\{/);
+assert.match(main, /setTrayVpnMode\('proxy'\)/);
+assert.match(main, /setTrayVpnMode\('tun'\)/);
+assert.match(main, /setTrayRouting\('system'\)/);
+assert.match(main, /setTrayRouting\('include'\)/);
+assert.match(main, /setTrayRouting\('exclude'\)/);
+assert.match(main, /await connectVpnProfile\(profileId, settings\.vpnMode, current\.connectedAt\)/, 'changing the selected tray server must live-reconnect');
+assert.match(main, /settings\.vpnFragmentation/, 'the common connect path must pass the saved fragmentation switch');
 assert.match(main, /stopTrayAnimation\(\);[\s\S]*tray\?\.destroy\(\)/, 'quitting must release the tray timer before destroying the tray');
 assert.match(main, /icon: assetPath\('nexus-app\.png'\)/);
 assert.match(app, /function NexusMark\(\)[\s\S]*nexus-infinity-mark/);
@@ -187,4 +248,4 @@ assert.deepEqual(pngDimensions(path.join(root, 'assets', 'nexus-app.png')), { wi
 const icoHeader = fs.readFileSync(path.join(root, 'assets', 'nexus.ico')).subarray(0, 4).toString('hex');
 assert.equal(icoHeader, '00000100', 'the Windows build icon must remain a valid ICO container');
 
-console.log('Live VPN mode, About diagnostics/update placeholder, restrained Graphite colours and stateful tray regression checks passed.');
+console.log('VPN fragmentation, maximize controls, functional tray, About and monochrome Graphite regression checks passed.');
