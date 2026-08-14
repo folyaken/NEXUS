@@ -4,6 +4,13 @@ export type VpnProtocol = 'vless' | 'vmess' | 'trojan' | 'shadowsocks' | 'hyster
 export type VpnStatus = 'disconnected' | 'connecting' | 'connected' | 'error';
 export type VpnAppRoutingMode = 'system' | 'exclude' | 'include';
 
+export interface ModuleHealthcheck {
+  type: 'tcp';
+  host: string;
+  port: number;
+  timeout_ms?: number;
+}
+
 export interface ModuleManifest {
   id: string;
   name: string;
@@ -23,6 +30,9 @@ export interface ModuleManifest {
   error?: string;
   development?: boolean;
   worker_name?: string;
+  healthcheck?: ModuleHealthcheck;
+  upstream_log_file?: string;
+  installed_version?: string;
 }
 
 export interface ModuleLog {

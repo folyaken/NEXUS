@@ -10,7 +10,7 @@ type Tone = 'green' | 'amber' | 'red' | 'muted';
 
 const DEMO_MODULES: ModuleManifest[] = [
   { id: 'zapret', name: 'Обход DPI', description: 'Профиль для Zapret: YouTube, Discord и другие сервисы.', enabled: false, executable: './bin/winws.exe', args: ['--wf-tcp=80,443', '--hostlist=list.txt'], status: 'stopped', category: 'dpi', icon: '🛡️', pid: null, log_file: './logs/zapret.log' },
-  { id: 'tg-ws-proxy', name: 'TG WS Proxy', description: 'WebSocket-транспорт для стабильного подключения к Telegram.', enabled: false, executable: './bin/tg-ws-proxy.exe', args: ['--listen', '127.0.0.1:8080'], status: 'stopped', category: 'proxy', icon: '◈', pid: null, log_file: './logs/tg-ws-proxy.log' },
+  { id: 'tg-ws-proxy', name: 'TG WS Proxy', description: 'Локальный MTProto-прокси Telegram на 127.0.0.1:1443.', enabled: false, executable: './bin/TgWsProxy_windows_7_64bit.exe', args: ['--portable'], status: 'stopped', category: 'proxy', icon: '◈', pid: null, log_file: './logs/tg-ws-proxy.log', working_dir: './bin', healthcheck: { type: 'tcp', host: '127.0.0.1', port: 1443, timeout_ms: 15000 } },
   { id: 'exitlag-sdk', name: 'ExitLag SDK', description: 'Профиль маршрутизации для игровых и realtime-соединений.', enabled: false, executable: './bin/exitlag-sdk.exe', args: ['--profile', 'balanced'], status: 'stopped', category: 'sdk', icon: '✦', pid: null, log_file: './logs/exitlag-sdk.log' },
   { id: 'dns-guard', name: 'DNS Guard', description: 'Локальный DNS-профиль с быстрым переключением конфигурации.', enabled: false, executable: './bin/dns-guard.exe', args: ['--mode', 'secure'], status: 'stopped', category: 'dns', icon: '⌁', pid: null, log_file: './logs/dns-guard.log' },
 ];
@@ -23,7 +23,7 @@ const DEMO_LOGS: ModuleLog[] = [
 
 const DEMO_UPDATES: UpdateInfo[] = [
   { id: 'zapret', name: 'Обход DPI', repo: 'Flowseal/zapret-discord-youtube', source: 'GitHub', latestVersion: '1.10.1', installedVersion: null, asset: null, status: 'idle' },
-  { id: 'tg-ws-proxy', name: 'TG WS Proxy', repo: 'Flowseal/tg-ws-proxy', source: 'GitHub', latestVersion: 'v1.9.1', installedVersion: null, asset: null, status: 'idle' },
+  { id: 'tg-ws-proxy', name: 'TG WS Proxy', repo: 'Flowseal/tg-ws-proxy', source: 'GitHub', latestVersion: 'v1.10.0', installedVersion: null, asset: null, status: 'idle' },
 ];
 
 const navItems: { id: Page; label: string; icon: string }[] = [

@@ -2,6 +2,7 @@ const fs = require('node:fs');
 const os = require('node:os');
 const path = require('node:path');
 const { spawnSync } = require('node:child_process');
+const { createHash } = require('node:crypto');
 const { Open } = require('unzipper');
 const { downloadZip, safeUrlForLog } = require('./bootstrap-network.cjs');
 
@@ -9,7 +10,20 @@ const root = path.resolve(__dirname, '..');
 const binDir = path.join(root, 'modules', 'bin');
 const isWin = process.platform === 'win32';
 const binary = isWin ? 'xray.exe' : 'xray';
-const zipName = isWin ? 'Xray-windows-64.zip' : 'Xray-linux-64.zip';
+const nativeWindowsArch = String(process.env.PROCESSOR_ARCHITEW6432 || process.env.PROCESSOR_ARCHITECTURE || os.arch()).toLowerCase();
+const windowsZipName = nativeWindowsArch.includes('arm64') || nativeWindowsArch.includes('aarch64')
+  ? 'Xray-windows-arm64-v8a.zip'
+  : process.arch === 'ia32' && !nativeWindowsArch.includes('amd64')
+    ? 'Xray-windows-32.zip'
+    : 'Xray-windows-64.zip';
+const zipName = isWin ? windowsZipName : 'Xray-linux-64.zip';
+const releaseAssets = {
+  'Xray-linux-64.zip': { size: 21164807, sha256: '8195d909f1109b8f3d99eefe401a3c451d7bf4af71f24d3815420f77e5dd2a40' },
+  'Xray-windows-32.zip': { size: 20544832, sha256: 'e10308e5abcf375eee1bb044fcdfcd885dbefdac4212888b7e37e8bbea724d7b' },
+  'Xray-windows-64.zip': { size: 20987981, sha256: 'c7172078fca4711bcd92a4774dcd1822544579c58816197575c47533317fd8d1' },
+  'Xray-windows-arm64-v8a.zip': { size: 19341449, sha256: '2d61646f79fdc6724e68a41eb235f6a7253cfac2809caa736ad065f6c10e14a2' },
+};
+const expectedAsset = releaseAssets[zipName];
 const dest = path.join(binDir, binary);
 const repo = 'XTLS/Xray-core';
 const userAgent = 'NEXUS-Xray-Bootstrap';
@@ -64,6 +78,11 @@ async function download(url, file) {
     userAgent,
     minimumBytes: 800_000,
   });
+  if (!expectedAsset) throw new Error(`нет проверочной суммы для ${zipName}`);
+  const size = fs.statSync(file).size;
+  if (size !== expectedAsset.size) throw new Error(`${zipName} скачан не полностью: ${size} из ${expectedAsset.size} байт`);
+  const digest = createHash('sha256').update(fs.readFileSync(file)).digest('hex');
+  if (digest !== expectedAsset.sha256) throw new Error(`контрольная сумма GitHub asset ${zipName} не совпала`);
 }
 
 async function main() {

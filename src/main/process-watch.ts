@@ -32,8 +32,8 @@ export async function listPidsByImage(imageName: string): Promise<number[]> {
   }
 }
 
-export async function waitForExit(child: { once: (event: 'exit', listener: () => void) => void; killed?: boolean; exitCode?: number | null }, timeoutMs = 8000): Promise<void> {
-  if (child.exitCode !== null && child.exitCode !== undefined) return;
+export async function waitForExit(child: { once: (event: 'exit', listener: () => void) => void; killed?: boolean; exitCode?: number | null; signalCode?: string | null }, timeoutMs = 8000): Promise<void> {
+  if ((child.exitCode !== null && child.exitCode !== undefined) || child.signalCode) return;
   await new Promise<void>((resolve) => {
     const timer = setTimeout(resolve, timeoutMs);
     child.once('exit', () => {

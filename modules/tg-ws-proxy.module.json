@@ -1,13 +1,25 @@
 {
   "id": "tg-ws-proxy",
   "name": "TG WS Proxy",
-  "description": "WebSocket-транспорт для стабильного подключения к Telegram.",
+  "description": "Локальный MTProto-прокси Telegram. После запуска сервис доступен на 127.0.0.1:1443, а подключение настраивается через значок TG WS Proxy в трее.",
   "enabled": false,
-  "executable": "./bin/tg-ws-proxy.exe",
-  "args": ["--listen", "127.0.0.1:8080"],
+  "executable": "./bin/TgWsProxy_windows_7_64bit.exe",
+  "args": [
+    "--portable"
+  ],
   "status": "stopped",
   "category": "proxy",
   "icon": "◈",
   "pid": null,
-  "log_file": "./logs/tg-ws-proxy.log"
+  "log_file": "./logs/tg-ws-proxy.log",
+  "upstream_log_file": "./bin/TgWsProxy_data/proxy.log",
+  "working_dir": "./bin",
+  "launch_mode": "executable",
+  "worker_name": "TgWsProxy_windows_7_64bit.exe",
+  "healthcheck": {
+    "type": "tcp",
+    "host": "127.0.0.1",
+    "port": 1443,
+    "timeout_ms": 15000
+  }
 }

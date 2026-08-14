@@ -155,6 +155,7 @@ async function connectVpnProfile(
   mode: 'proxy' | 'tun' = settings.vpnMode,
   continuedSessionAt: string | null = null,
 ): Promise<ReturnType<VpnManager['runtime']>> {
+  if (manager?.isUpdating('jey2ray')) throw new Error('Дождитесь завершения обновления Xray-core');
   if (!vpn.hasXray()) {
     mainWindow?.webContents.send('logs:append', { id: 'jey2ray', level: 'info', message: 'Скачиваем Xray-core…', timestamp: new Date().toISOString() });
     await updater.ensure('jey2ray');
@@ -581,8 +582,12 @@ if (gotLock) {
     settings = await readSettings();
     const modulesDir = await resolveModulesDir();
     manager = new ModuleManager(modulesDir);
-    updater = new GithubUpdater(modulesDir, manager);
     vpn = new VpnManager(modulesDir);
+    updater = new GithubUpdater(modulesDir, manager, (id) => {
+      if (id !== 'jey2ray') return false;
+      const runtime = vpn.runtime();
+      return Boolean(runtime.pid) || runtime.status === 'connecting' || runtime.status === 'connected';
+    });
     const profile = await readProfile();
     vpn.setHwid(profile.deviceId);
     wireIpc();
@@ -590,13 +595,17 @@ if (gotLock) {
     await vpn.init(settings.lastVpnProfileId);
     createTray();
     createWindow();
-    if (settings.autoStart) void manager.startEnabled();
-    if (settings.autoConnectVpn && settings.lastVpnProfileId) {
-      void connectVpnProfile(settings.lastVpnProfileId).catch((error: Error) => {
-        notify('Jey2Ray', error.message);
+    const startupUpdates = updater.syncAll();
+    if (settings.autoStart || (settings.autoConnectVpn && settings.lastVpnProfileId)) {
+      void startupUpdates.then(async () => {
+        if (settings.autoStart) await manager.startEnabled();
+        if (settings.autoConnectVpn && settings.lastVpnProfileId) {
+          await connectVpnProfile(settings.lastVpnProfileId);
+        }
+      }).catch((error: Error) => {
+        notify('NEXUS', error.message);
       });
     }
-    void updater.syncAll();
     app.on('activate', () => {
       if (BrowserWindow.getAllWindows().length === 0) createWindow();
       else showWindow();
