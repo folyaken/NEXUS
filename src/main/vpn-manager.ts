@@ -14,6 +14,7 @@ import { buildSingboxConfig } from './singbox-config';
 import { clearSystemProxy, setSystemProxy } from './system-proxy';
 import type { ModuleLog, VpnAppRoutingMode, VpnProfile, VpnRuntime, VpnSplitApp, VpnStatus, VpnSubscriptionInfo } from './types';
 import { waitForExit } from './process-watch';
+import { commitAtomicFileTransaction, recoverAtomicFileTransactions } from './atomic-files';
 
 function looksHuman(name: string): boolean {
   return Boolean(name.trim()) && !looksLikeHost(name);
@@ -43,6 +44,8 @@ export class VpnManager extends EventEmitter {
   private hwid = 'NX-LOCAL';
   private subscriptions = new Map<string, VpnSubscriptionInfo>();
   private mode: 'proxy' | 'tun' = 'proxy';
+  private profileMutationQueue: Promise<void> = Promise.resolve();
+  private refreshInFlight: Promise<number> | null = null;
 
   constructor(private readonly modulesDir: string) {
     super();
@@ -105,6 +108,10 @@ export class VpnManager extends EventEmitter {
     await fs.mkdir(this.configsDir(), { recursive: true });
     await fs.mkdir(path.join(this.vpnRoot(), 'bin'), { recursive: true });
     await fs.mkdir(path.dirname(this.logPath()), { recursive: true });
+    const recoveredTransactions = await recoverAtomicFileTransactions(this.configsDir());
+    if (recoveredTransactions) {
+      this.emitLog('warn', `Восстановлено незавершённых обновлений подписок: ${recoveredTransactions}`);
+    }
     const entries = (await fs.readdir(this.configsDir(), { withFileTypes: true }))
       .sort((a, b) => a.name.localeCompare(b.name));
     const loaded: LoadedProfile[] = [];
@@ -198,9 +205,19 @@ export class VpnManager extends EventEmitter {
     return { profiles: this.list(), runtime: this.runtime() };
   }
 
+  private enqueueProfileMutation<T>(operation: () => Promise<T>): Promise<T> {
+    const result = this.profileMutationQueue.then(operation, operation);
+    this.profileMutationQueue = result.then(() => undefined, () => undefined);
+    return result;
+  }
+
   async importInput(input: string, name?: string): Promise<VpnProfile[]> {
     const raw = input.trim();
     if (isSubscriptionUrl(raw)) return this.importSubscription(raw);
+    return this.enqueueProfileMutation(() => this.importProfileInput(raw, name));
+  }
+
+  private async importProfileInput(raw: string, name?: string): Promise<VpnProfile[]> {
     const profile = enrichProfile(createProfileFromLink(raw, name));
     if (profile.kind === 'notice') {
       this.emitLog('warn', `Служебная ссылка пропущена: ${profile.name}`);
@@ -227,6 +244,10 @@ export class VpnManager extends EventEmitter {
   }
 
   async importSubscription(url: string): Promise<VpnProfile[]> {
+    return this.enqueueProfileMutation(() => this.importSubscriptionUnlocked(url));
+  }
+
+  private async importSubscriptionUnlocked(url: string): Promise<VpnProfile[]> {
     const parsed = validateSubscriptionUrl(url);
     this.emitLog('info', `Загрузка подписки ${parsed.host}…`);
     const material = await fetchSubscriptionMaterial(url, this.hwid, (message) => this.emitLog('info', message));
@@ -287,26 +308,44 @@ export class VpnManager extends EventEmitter {
       prepared.push(profile);
     }
 
-    const imported: VpnProfile[] = [];
-    const keep = new Set<string>();
     const located = await applyGeo(prepared, path.join(this.configsDir(), 'geo-cache.json'));
-    for (const profile of located) {
-      await this.saveProfile(profile);
-      imported.push(profile);
-      keep.add(profile.id);
-    }
-
+    const occupied = new Map(this.profiles);
     for (const profile of existingProfiles) {
-      if (!keep.has(profile.id) && profile.kind !== 'notice') {
-        this.profiles.delete(profile.id);
-        await fs.rm(path.join(this.configsDir(), `${profile.id}.json`), { force: true });
+      if (profile.id !== this.activeProfileId) occupied.delete(profile.id);
+    }
+    for (const profile of located) {
+      const identity = profileIdentityKey(profile);
+      const collision = occupied.get(profile.id);
+      if (collision && profileIdentityKey(collision) !== identity) {
+        profile.id = this.availableStableId(profile, (candidate) => {
+          const item = occupied.get(candidate);
+          return Boolean(item && profileIdentityKey(item) !== identity);
+        });
       }
+      occupied.set(profile.id, profile);
     }
 
-    for (const existingUrl of this.subscriptions.keys()) {
-      if (existingUrl !== url && profileSourceKey(existingUrl) === source) this.subscriptions.delete(existingUrl);
+    const imported = [...located];
+    const keep = new Set(imported.map((profile) => profile.id));
+    const nextProfiles = new Map(this.profiles);
+    const removals: string[] = [];
+    let retainedActive = 0;
+    for (const profile of existingProfiles) {
+      if (keep.has(profile.id) || profile.kind === 'notice') continue;
+      if (profile.id === this.activeProfileId && this.child) {
+        retainedActive += 1;
+        continue;
+      }
+      nextProfiles.delete(profile.id);
+      removals.push(`${profile.id}.json`);
     }
-    this.subscriptions.set(url, {
+    for (const profile of imported) nextProfiles.set(profile.id, profile);
+
+    const nextSubscriptions = new Map(this.subscriptions);
+    for (const existingUrl of nextSubscriptions.keys()) {
+      if (existingUrl !== url && profileSourceKey(existingUrl) === source) nextSubscriptions.delete(existingUrl);
+    }
+    nextSubscriptions.set(url, {
       url,
       title: material.info?.title || parsed.host,
       supportUrl: material.info?.supportUrl,
@@ -319,13 +358,36 @@ export class VpnManager extends EventEmitter {
       updateHours: material.info?.updateHours ?? 1,
       lastSync: new Date().toISOString(),
     });
-    await this.persistSubscriptions();
+
+    await commitAtomicFileTransaction(this.configsDir(), {
+      writes: [
+        ...imported.map((profile) => ({
+          name: `${profile.id}.json`,
+          content: `${JSON.stringify(profile, null, 2)}\n`,
+        })),
+        {
+          name: 'subscriptions.json',
+          content: `${JSON.stringify([...nextSubscriptions.values()], null, 2)}\n`,
+        },
+      ],
+      removals,
+    });
+
+    this.profiles = nextProfiles;
+    this.subscriptions = nextSubscriptions;
+    if (retainedActive) {
+      this.emitLog('warn', 'Активный узел исчез из подписки и временно сохранён до следующего обновления после отключения VPN');
+    }
     this.emitLog('success', `Подписка ${parsed.host}: узлов ${imported.length}${notices ? `, служебных скрыто ${notices}` : ''}`);
     this.emit('changed', this.snapshot());
     return imported;
   }
 
   async pingAll(): Promise<VpnProfile[]> {
+    return this.enqueueProfileMutation(() => this.pingAllUnlocked());
+  }
+
+  private async pingAllUnlocked(): Promise<VpnProfile[]> {
     const nodes = this.list().filter((item) => item.kind !== 'notice');
     const queue = [...nodes];
     const workers = Array.from({ length: Math.min(6, queue.length || 1) }, async () => {
@@ -359,10 +421,47 @@ export class VpnManager extends EventEmitter {
     });
   }
 
-  async refreshSubscriptions(): Promise<number> {
-    const urls = [...new Set(this.list().map((item) => item.subscriptionUrl).filter((item): item is string => Boolean(item)))];
+  refreshSubscriptions(): Promise<number> {
+    if (this.refreshInFlight) return this.refreshInFlight;
+    const task = this.enqueueProfileMutation(() => this.refreshSubscriptionsUnlocked());
+    this.refreshInFlight = task;
+    void task.then(
+      () => { if (this.refreshInFlight === task) this.refreshInFlight = null; },
+      () => { if (this.refreshInFlight === task) this.refreshInFlight = null; },
+    );
+    return task;
+  }
+
+  private async refreshSubscriptionsUnlocked(): Promise<number> {
+    const urlsBySource = new Map<string, string>();
+    const knownUrls = [
+      ...this.subscriptions.keys(),
+      ...this.list().map((item) => item.subscriptionUrl).filter((item): item is string => Boolean(item)),
+    ];
+    for (const url of knownUrls) {
+      const source = profileSourceKey(url);
+      if (!urlsBySource.has(source)) urlsBySource.set(source, url);
+    }
+    const urls = [...urlsBySource.values()];
     let total = 0;
-    for (const url of urls) total += (await this.importSubscription(url)).length;
+    let succeeded = 0;
+    let failed = 0;
+    for (const url of urls) {
+      try {
+        total += (await this.importSubscriptionUnlocked(url)).length;
+        succeeded += 1;
+      } catch (error) {
+        failed += 1;
+        let host = 'неизвестный источник';
+        try { host = validateSubscriptionUrl(url).host; } catch { /* malformed legacy URL */ }
+        const reason = error instanceof Error ? error.message : 'неизвестная ошибка';
+        this.emitLog('warn', `Подписка ${host} не обновлена: ${reason}. Старые профили сохранены.`);
+      }
+    }
+    if (failed && !succeeded) {
+      throw new Error(`Не удалось обновить подписки (${failed}). Старые профили сохранены.`);
+    }
+    if (failed) this.emitLog('warn', `Обновление завершено частично: успешно ${succeeded}, с ошибкой ${failed}`);
     return total;
   }
 
@@ -384,10 +483,16 @@ export class VpnManager extends EventEmitter {
   }
 
   async remove(id: string): Promise<void> {
+    return this.enqueueProfileMutation(() => this.removeUnlocked(id));
+  }
+
+  private async removeUnlocked(id: string): Promise<void> {
     if (this.activeProfileId === id) await this.disconnect();
+    await commitAtomicFileTransaction(this.configsDir(), {
+      writes: [],
+      removals: [`${id}.json`],
+    });
     this.profiles.delete(id);
-    const file = path.join(this.configsDir(), `${id}.json`);
-    await fs.rm(file, { force: true });
     this.emitLog('info', `Профиль ${id} удалён`);
     this.emit('changed', this.snapshot());
   }
@@ -539,10 +644,6 @@ export class VpnManager extends EventEmitter {
     });
   }
 
-
-  private async persistSubscriptions(): Promise<void> {
-    await fs.writeFile(path.join(this.configsDir(), 'subscriptions.json'), `${JSON.stringify([...this.subscriptions.values()], null, 2)}\n`, 'utf8');
-  }
 
   private async persist(profile: VpnProfile): Promise<void> {
     await fs.mkdir(this.configsDir(), { recursive: true });

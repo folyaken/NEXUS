@@ -16,6 +16,7 @@
     "test:split-tunnel": "npm run build:main && node tests/split-tunnel-config.test.cjs",
     "test:subscription-security": "npm run build:main && node tests/subscription-security.test.cjs",
     "test:parser-security": "npm run build:main && node tests/parser-security.test.cjs",
+    "test:subscription-refresh": "npm run build:main && node tests/subscription-refresh.test.cjs",
     "package": "npm run build && electron-builder",
     "preview": "vite preview --host 0.0.0.0"
   },
