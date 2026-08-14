@@ -161,7 +161,6 @@ export function Jey2RayPage({
   const [latencyUnavailable, setLatencyUnavailable] = useState(false);
   const [modeSwitching, setModeSwitching] = useState<'proxy' | 'tun' | null>(null);
   const [sessionNow, setSessionNow] = useState(Date.now());
-  const autoPing = useRef(false);
   const subscriptionImportInFlight = useRef(false);
   const desktop = Boolean(window.nexus);
   const xrayUpdate = updates.find((item) => item.id === 'jey2ray');
@@ -492,12 +491,6 @@ export function Jey2RayPage({
     if (runtime.activeProfileId) return;
     if (fastest?.id) setSelectedId(fastest.id);
   }, [fastest?.id, runtime.activeProfileId]);
-
-  useEffect(() => {
-    if (!desktop || autoPing.current || !nodes.length) return;
-    autoPing.current = true;
-    void ping();
-  }, [desktop, nodes.length]);
 
   useEffect(() => {
     setLatencyMs(null);

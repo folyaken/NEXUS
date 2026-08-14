@@ -1,10 +1,11 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { animated, config, useSpring } from '@react-spring/web';
 import type { AppSettings, ModuleLog, ModuleManifest, ModuleStatus, UpdateInfo, UserProfile } from '../main/types';
 import { DEFAULT_SETTINGS } from '../main/types';
 import { Jey2RayPage } from './Jey2RayPage';
 
-type Page = 'dashboard' | 'modules' | 'jey2ray' | 'logs' | 'settings';
+type Page = 'dashboard' | 'modules' | 'jey2ray' | 'logs' | 'settings' | 'about';
+type LogCategory = 'main' | 'core' | 'tunnel' | 'antifilter' | 'subscriptions' | 'service';
 type Tone = 'green' | 'amber' | 'red' | 'muted';
 
 const DEMO_MODULES: ModuleManifest[] = [
@@ -29,7 +30,7 @@ const navItems: { id: Page; label: string; icon: string }[] = [
   { id: 'dashboard', label: 'Обзор', icon: 'home' },
   { id: 'modules', label: 'Модули', icon: 'modules' },
   { id: 'jey2ray', label: 'Jey2Ray', icon: 'jey' },
-  { id: 'logs', label: 'Журнал', icon: 'logs' },
+  { id: 'logs', label: 'Логи', icon: 'logs' },
   { id: 'settings', label: 'Настройки', icon: 'settings' },
 ];
 
@@ -84,6 +85,7 @@ function NavGlyph({ name }: { name: string }) {
   if (name === 'settings') return <GearIcon />;
   if (name === 'jey') return <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="7" /><path d="M12 5V2M12 22v-3M5 12H2M22 12h-3M7 7 5 5M19 19l-2-2M17 7l2-2M7 17l-2 2" /></svg>;
   if (name === 'logs') return <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 5h14M5 12h14M5 19h9" /></svg>;
+  if (name === 'about') return <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9" /><path d="M12 11v6M12 7h.01" /></svg>;
   return <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="5" y="5" width="5" height="5" rx="1" /><rect x="14" y="5" width="5" height="5" rx="1" /><rect x="5" y="14" width="5" height="5" rx="1" /><rect x="14" y="14" width="5" height="5" rx="1" /></svg>;
 }
 
@@ -159,6 +161,112 @@ function ProfilePopover({ open, profile, draft, setDraft, onSave }: { open: bool
   return <animated.div className="profile-popover" style={{ opacity: spring.opacity, transform: spring.y.to((y) => `translateY(${y}px)`), pointerEvents: open ? 'auto' : 'none' }}><span className="popover-label">ЛОКАЛЬНЫЙ ПРОФИЛЬ</span><strong>{profile.deviceId || 'NX-LOCAL'}</strong><label>Ваше имя<input autoFocus={open} value={draft} maxLength={32} onChange={(event) => setDraft(event.target.value)} placeholder="Введите имя" /></label><button onClick={onSave}>Сохранить профиль <span>✓</span></button><small>Настройки сохраняются локально и привязаны к этому устройству.</small></animated.div>;
 }
 
+const LOG_CATEGORIES: { id: LogCategory; label: string }[] = [
+  { id: 'main', label: 'Основной лог' },
+  { id: 'core', label: 'Лог ядра' },
+  { id: 'tunnel', label: 'Лог туннеля' },
+  { id: 'antifilter', label: 'Лог AntiFilter' },
+  { id: 'subscriptions', label: 'Лог подписок' },
+  { id: 'service', label: 'Лог службы' },
+];
+
+function isTunnelLog(log: ModuleLog): boolean {
+  return log.id === 'jey2ray' && /\b(?:tun|proxy|vpn)\b|туннел|маршрут|подключ|отключ|задерж|системн/i.test(log.message);
+}
+
+function isSubscriptionLog(log: ModuleLog): boolean {
+  return log.id === 'jey2ray' && /подпис|subscription|обновлен|импорт|профил|узл/i.test(log.message);
+}
+
+function matchesLogCategory(log: ModuleLog, category: LogCategory): boolean {
+  if (category === 'main') return true;
+  if (category === 'core') return log.id === 'jey2ray' && !isTunnelLog(log) && !isSubscriptionLog(log);
+  if (category === 'tunnel') return isTunnelLog(log);
+  if (category === 'antifilter') return /zapret|antifilter|anti-filter|обход|\bdpi\b/i.test(`${log.id} ${log.message}`);
+  if (category === 'subscriptions') return isSubscriptionLog(log);
+  return log.id === 'system' || (log.id !== 'jey2ray' && !/zapret|antifilter|anti-filter/i.test(log.id));
+}
+
+function logSourceLabel(id: string): string {
+  if (id === 'system') return 'NEXUS';
+  if (id === 'jey2ray') return 'Jey2Ray';
+  if (id === 'zapret') return 'AntiFilter';
+  return id.replace(/[^a-zа-яё0-9_-]/gi, '').slice(0, 24) || 'module';
+}
+
+function formatLogTimestamp(value: string): string {
+  const date = new Date(value);
+  const pad = (part: number) => String(part).padStart(2, '0');
+  if (Number.isNaN(date.getTime())) return '--.--.-- --:--:--';
+  return `${pad(date.getDate())}.${pad(date.getMonth() + 1)}.${pad(date.getFullYear() % 100)} ${pad(date.getHours())}:${pad(date.getMinutes())}:${pad(date.getSeconds())}`;
+}
+
+function LogsPage({ logs, category, setCategory, onNotice }: { logs: ModuleLog[]; category: LogCategory; setCategory: (category: LogCategory) => void; onNotice: (text: string) => void }) {
+  const consoleRef = useRef<HTMLDivElement>(null);
+  const visibleLogs = useMemo(() => logs.filter((log) => matchesLogCategory(log, category)).slice().reverse(), [logs, category]);
+  const reportText = useMemo(() => visibleLogs.map((log) => `[${formatLogTimestamp(log.timestamp)}] [${logSourceLabel(log.id)}] [${log.level.toUpperCase()}] ${log.message}`).join('\n'), [visibleLogs]);
+
+  const copyReport = async () => {
+    if (!reportText) {
+      onNotice('В этой категории пока нет событий');
+      return;
+    }
+    try {
+      await navigator.clipboard.writeText(`NEXUS LOG REPORT\n${reportText}\n`);
+      onNotice('Отчёт логов скопирован в буфер обмена');
+    } catch {
+      onNotice('Не удалось скопировать отчёт');
+    }
+  };
+
+  useEffect(() => {
+    const consoleElement = consoleRef.current;
+    if (consoleElement) consoleElement.scrollTop = consoleElement.scrollHeight;
+  }, [category, visibleLogs.length]);
+
+  useEffect(() => {
+    const handleShortcut = (event: KeyboardEvent) => {
+      if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'r') {
+        event.preventDefault();
+        void copyReport();
+      }
+    };
+    window.addEventListener('keydown', handleShortcut);
+    return () => window.removeEventListener('keydown', handleShortcut);
+  }, [reportText]);
+
+  return <section className="page-section logs-page">
+    <div className="page-heading logs-heading"><div><span className="section-kicker">RUNTIME CONSOLE</span><h1>Логи</h1><p>Системные события NEXUS в реальном времени.</p></div><button className="logs-report-button" onClick={() => void copyReport()}><NavGlyph name="logs" /> Скопировать отчёт</button></div>
+    <div className="logs-hint"><span className="logs-hint-icon">i</span><span>Нажмите <kbd>Ctrl</kbd> + <kbd>R</kbd>, чтобы скопировать отчёт выбранной категории.</span><span className="logs-live-state"><i /> LIVE</span></div>
+    <div className="log-source-tabs" role="tablist" aria-label="Источники логов">
+      {LOG_CATEGORIES.map((tab) => <button key={tab.id} type="button" role="tab" aria-selected={category === tab.id} className={category === tab.id ? 'is-active' : ''} onClick={() => setCategory(tab.id)}>{tab.label}</button>)}
+    </div>
+    <div className="log-console-shell">
+      <div className="log-console-toolbar"><span><i /> NEXUS / {LOG_CATEGORIES.find((tab) => tab.id === category)?.label.toUpperCase()}</span><span>{visibleLogs.length} {visibleLogs.length === 1 ? 'СОБЫТИЕ' : 'СОБЫТИЙ'}</span></div>
+      <div className="log-console" ref={consoleRef} role="tabpanel" aria-live="polite">
+        {visibleLogs.length ? visibleLogs.map((log, index) => <div className={`log-console-line level-${log.level}`} key={`${log.timestamp}-${log.id}-${index}`}><time>[{formatLogTimestamp(log.timestamp)}]</time><span className="log-console-source">[{logSourceLabel(log.id)}]:</span><span className="log-console-message">{log.message}</span></div>) : <div className="log-console-empty"><span>_</span><strong>Событий пока нет</strong><p>Новые записи появятся здесь автоматически.</p></div>}
+      </div>
+    </div>
+  </section>;
+}
+
+function AboutPage() {
+  return <section className="page-section about-page">
+    <div className="page-heading"><div><span className="section-kicker">ABOUT NEXUS</span><h1>О программе</h1><p>Единый локальный центр управления сетевыми инструментами.</p></div><span className="about-version-pill">VERSION 1.0.0</span></div>
+    <div className="about-hero-card">
+      <div className="about-mark"><NexusMark /></div>
+      <div className="about-hero-copy"><span>NETWORK CONTROL PLANE</span><h2>NEXUS</h2><p>Быстрое управление VPN, маршрутами и локальными сетевыми модулями в одном аккуратном интерфейсе.</p></div>
+      <div className="about-build"><span>STABLE CHANNEL</span><strong>1.0.0</strong><small>Desktop for Windows</small></div>
+    </div>
+    <div className="about-grid">
+      <article className="about-card"><div className="about-card-icon"><NavGlyph name="jey" /></div><span className="about-card-kicker">СЕТЕВОЕ ЯДРО</span><h3>Jey2Ray</h3><p>Управление профилями Xray-core, режимами TUN и системного Proxy.</p></article>
+      <article className="about-card"><div className="about-card-icon"><NavGlyph name="modules" /></div><span className="about-card-kicker">МОДУЛЬНАЯ СИСТЕМА</span><h3>Локальный контур</h3><p>Запуск и контроль сетевых инструментов без передачи настроек в облако.</p></article>
+      <article className="about-card"><div className="about-card-icon"><NavGlyph name="logs" /></div><span className="about-card-kicker">ДИАГНОСТИКА</span><h3>Живые логи</h3><p>Поток событий, раздельные источники и быстрый отчёт для диагностики.</p></article>
+    </div>
+    <div className="about-footer-card"><div><strong>NEXUS</strong><span>Разработано для безопасной локальной работы</span></div><div><span>ХРАНЕНИЕ</span><strong>Только на устройстве</strong></div><div><span>КАНАЛ</span><strong>Stable</strong></div></div>
+  </section>;
+}
+
 function App() {
   const [page, setPage] = useState<Page>('dashboard');
   const [modules, setModules] = useState<ModuleManifest[]>(DEMO_MODULES);
@@ -167,7 +275,11 @@ function App() {
   // Search is intentionally hidden for now (CSS .search-box already exists).
   // const [query, setQuery] = useState('');
   const [moduleFilter, setModuleFilter] = useState<'all' | 'running' | 'stopped'>('all');
-  const [logFilter, setLogFilter] = useState('all');
+  const [logCategory, setLogCategory] = useState<LogCategory>('main');
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(() => {
+    try { return localStorage.getItem('nexus-sidebar-collapsed') === 'true'; }
+    catch { return false; }
+  });
   const [toast, setToast] = useState('');
   const [settings, setSettings] = useState<AppSettings>(DEFAULT_SETTINGS);
   const [syncing, setSyncing] = useState(false);
@@ -207,6 +319,10 @@ function App() {
   }, []);
 
   useEffect(() => { if (!toast) return; const timeout = window.setTimeout(() => setToast(''), 3600); return () => window.clearTimeout(timeout); }, [toast]);
+  useEffect(() => {
+    try { localStorage.setItem('nexus-sidebar-collapsed', String(sidebarCollapsed)); }
+    catch { /* preference persistence is optional */ }
+  }, [sidebarCollapsed]);
 
   const filteredModules = useMemo(() => modules.filter((module) => {
     // const matchesQuery = `${module.name} ${module.description} ${module.category}`.toLowerCase().includes(query.toLowerCase());
@@ -216,7 +332,6 @@ function App() {
   const running = modules.filter((module) => module.status === 'running').length;
   const errors = modules.filter((module) => module.status === 'error').length;
   const healthy = modules.length - errors;
-  const visibleLogs = useMemo(() => logFilter === 'all' ? logs : logs.filter((log) => log.id === logFilter), [logs, logFilter]);
   const lastScanLabel = lastScan ? formatTime(lastScan) : 'только что';
   const systemTone: Tone = errors ? 'red' : running ? 'green' : 'muted';
   const systemTitle = errors ? 'Есть ошибки модулей' : running ? 'Контур активен' : 'Система в норме';
@@ -302,10 +417,21 @@ function App() {
     }
   };
 
-  return <div className={`app-frame appearance-${settings.appearance}`}><WindowBar fullscreen={fullscreen} /><div className="app-shell"><div className="ambient ambient-one" /><div className="ambient ambient-two" />
-    <aside className="sidebar"><div className="brand"><div className="brand-orb"><NexusMark /></div><div><strong>NEXUS</strong><span>NETWORK CONTROL</span></div></div><div className="workspace-selector workspace-static"><span className="workspace-avatar">N</span><div><span className="workspace-label">DEVICE PROFILE · {profile.deviceId}</span><strong>{profile.deviceName || 'Локальное устройство'}</strong></div><span className="workspace-badge">LOCAL</span></div><div className="nav-label">CONTROL CENTER</div><nav>{navItems.map((item) => <button key={item.id} className={`nav-item ${page === item.id ? 'active' : ''}`} onClick={() => setPage(item.id)}><span className="nav-glyph"><NavGlyph name={item.icon} /></span><span>{item.label}</span>{item.id === 'logs' && logs.length > 0 ? <em>{Math.min(logs.length, 99)}</em> : null}</button>)}</nav><div className="sidebar-bottom"><div className="system-status"><StatusDot tone={systemTone} /><div><span>{systemTitle}</span><small>{systemNote}</small></div></div><div className="version-row"><span>NEXUS v1.0.0</span><span className="online-dot" /> LOCAL</div></div></aside>
+  return <div className={`app-frame appearance-${settings.appearance}`}><WindowBar fullscreen={fullscreen} /><div className={`app-shell ${sidebarCollapsed ? 'is-sidebar-collapsed' : ''}`}><div className="ambient ambient-one" /><div className="ambient ambient-two" />
+    <aside className="sidebar">
+      <button type="button" className="sidebar-collapse-button" aria-label={sidebarCollapsed ? 'Развернуть боковую панель' : 'Свернуть боковую панель'} title={sidebarCollapsed ? 'Развернуть панель' : 'Свернуть панель'} aria-pressed={sidebarCollapsed} onClick={() => setSidebarCollapsed((value) => !value)}><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m14.5 6-6 6 6 6" /></svg></button>
+      <div className="brand"><div className="brand-orb"><NexusMark /></div><div className="sidebar-copy"><strong>NEXUS</strong><span>NETWORK CONTROL</span></div></div>
+      <div className="workspace-selector workspace-static" title={sidebarCollapsed ? (profile.deviceName || 'Локальное устройство') : undefined}><span className="workspace-avatar">N</span><div className="sidebar-copy"><span className="workspace-label">DEVICE PROFILE · {profile.deviceId}</span><strong>{profile.deviceName || 'Локальное устройство'}</strong></div><span className="workspace-badge sidebar-copy">LOCAL</span></div>
+      <div className="nav-label sidebar-copy">CONTROL CENTER</div>
+      <nav>{navItems.map((item) => <button key={item.id} aria-label={item.label} title={sidebarCollapsed ? item.label : undefined} className={`nav-item ${page === item.id ? 'active' : ''}`} onClick={() => setPage(item.id)}><span className="nav-glyph"><NavGlyph name={item.icon} /></span><span className="nav-item-label sidebar-copy">{item.label}</span>{item.id === 'logs' && logs.length > 0 ? <em className="sidebar-copy">{Math.min(logs.length, 99)}</em> : null}</button>)}</nav>
+      <div className="sidebar-bottom">
+        <button type="button" aria-label="О программе" title={sidebarCollapsed ? 'О программе' : undefined} className={`nav-item sidebar-about ${page === 'about' ? 'active' : ''}`} onClick={() => setPage('about')}><span className="nav-glyph"><NavGlyph name="about" /></span><span className="nav-item-label sidebar-copy">О программе</span></button>
+        <div className="system-status" title={sidebarCollapsed ? `${systemTitle}: ${systemNote}` : undefined}><StatusDot tone={systemTone} /><div className="sidebar-copy"><span>{systemTitle}</span><small>{systemNote}</small></div></div>
+        <div className="version-row sidebar-copy"><span>NEXUS v1.0.0</span><span className="online-dot" /> LOCAL</div>
+      </div>
+    </aside>
 
-    <main className="main-content"><header className="topbar"><div className="breadcrumb"><span>CONTROL CENTER</span><b>/</b><strong>{navItems.find((item) => item.id === page)?.label}</strong></div><div className="top-actions"><button className="circle-button" aria-label="Журнал событий" title="Открыть журнал" onClick={() => setPage('logs')}><span>♢</span>{logs.some((log) => log.level === 'error') ? <i /> : null}</button><div className="profile-wrap"><button className="user-chip" onClick={() => setProfileOpen((value) => !value)}><span className="user-avatar">{profileInitial}</span><span>{profileName}</span><b>⌄</b></button><ProfilePopover open={profileOpen} profile={profile} draft={profileDraft} setDraft={setProfileDraft} onSave={handleSaveProfile} /></div></div></header>
+    <main className="main-content"><header className="topbar"><div className="breadcrumb"><span>CONTROL CENTER</span><b>/</b><strong>{page === 'about' ? 'О программе' : navItems.find((item) => item.id === page)?.label}</strong></div><div className="top-actions"><button className={`logs-shortcut ${page === 'logs' ? 'is-active' : ''}`} aria-label="Открыть логи" onClick={() => setPage('logs')}><span className="logs-shortcut-icon"><NavGlyph name="logs" /></span><span>Логи</span>{logs.some((log) => log.level === 'error') ? <i /> : null}</button><div className="profile-wrap"><button className={`user-chip ${profileOpen ? 'is-open' : ''}`} aria-expanded={profileOpen} aria-haspopup="dialog" onClick={() => setProfileOpen((value) => !value)}><span className="user-avatar">{profileInitial}</span><span>{profileName}</span><span className="profile-chevron"><svg viewBox="0 0 20 20" aria-hidden="true"><path d="m5.5 7.5 4.5 4.5 4.5-4.5" /></svg></span></button><ProfilePopover open={profileOpen} profile={profile} draft={profileDraft} setDraft={setProfileDraft} onSave={handleSaveProfile} /></div></div></header>
 
       {page === 'dashboard' && <><section className="hero"><div className="hero-copy"><div className="hero-kicker"><span className="spark-line">✦</span> LOCAL NETWORK ORCHESTRATOR <span className="hero-line" /></div><h1>Сеть, которая<br /><span>работает на тебя.</span></h1><p>Единый центр для спокойного управления сетевыми инструментами,<br />локальными прокси и профилями маршрутизации.</p><div className="hero-actions"><button className="primary-button" onClick={() => setPage('modules')}><span>Открыть модули</span><b>↗</b></button><button className="quiet-button" onClick={handleReload}><span>⟳</span> Сканировать заново</button></div></div><HeroVisual /></section><section className="stats-grid"><StatCard label="ВСЕГО МОДУЛЕЙ" value={String(modules.length).padStart(2, '0')} note="обнаружено локально" icon="◈" tone="cyan" index={0} /><StatCard label="АКТИВНЫЕ" value={String(running).padStart(2, '0')} note={running ? 'контур запущен' : 'готовы к запуску'} icon="ϟ" tone="violet" index={1} /><StatCard label="ЗДОРОВЬЕ" value={`${modules.length ? Math.round((healthy / modules.length) * 100) : 100}%`} note={errors ? `${errors} с ошибкой` : 'без критических ошибок'} icon="⌁" tone="mint" index={2} /><StatCard label="ПОСЛЕДНИЙ СКАН" value={lastScanLabel} note={settings.autoStart ? 'автозапуск включён' : 'автозапуск выключен'} icon="◷" tone="amber" index={3} /></section><section className="section-heading"><div><span className="section-kicker">YOUR TOOLKIT</span><h2>Быстрый доступ</h2></div><button className="text-button" onClick={() => setPage('modules')}>Все модули <span>→</span></button></section><div className="dashboard-grid"><div className="module-grid compact">{filteredModules.slice(0, 4).map((module, index) => <ModuleCard key={module.id} module={module} index={index} onToggle={handleToggle} onStrategyChange={handleStrategyChange} />)}</div><PulsePanel running={running} total={modules.length} errors={errors} /></div></>}
 
@@ -313,16 +439,12 @@ function App() {
 
       {page === 'jey2ray' && <Jey2RayPage settings={settings} updates={updates} syncing={syncing} onSync={handleSyncUpdates} onSettings={(next) => void persistSettings(next)} onToast={setToast} />}
 
-      {page === 'logs' && <section className="page-section"><div className="page-heading"><div><span className="section-kicker">EVENT STREAM</span><h1>Журнал событий</h1><p>Последние сигналы от модулей и NEXUS runtime.</p></div><div className="log-live"><StatusDot tone="green" /> поток в реальном времени</div></div><div className="filter-row"><span className="filter-label">ИСТОЧНИК:</span><button className={`filter-chip ${logFilter === 'all' ? 'active' : ''}`} onClick={() => setLogFilter('all')}>Все <b>{logs.length}</b></button>{['system', ...modules.map((module) => module.id)].map((id) => <button key={id} className={`filter-chip ${logFilter === id ? 'active' : ''}`} onClick={() => setLogFilter(id)}>{id === 'system' ? 'NEXUS' : id}</button>)}</div><div className="logs-card"><div className="logs-toolbar"><span>СЕГОДНЯ</span><span>{visibleLogs.length} событий</span></div>{visibleLogs.length ? visibleLogs.map((log, index) => <LogRow key={`${log.timestamp}-${index}`} log={log} />) : <div className="empty-state"><span>≡</span><h3>Журнал пуст</h3><p>События появятся после запуска модуля.</p></div>}</div></section>}
+      {page === 'logs' && <LogsPage logs={logs} category={logCategory} setCategory={setLogCategory} onNotice={setToast} />}
 
       {page === 'settings' && <Settings settings={settings} onChange={(next) => void persistSettings(next)} />}
+      {page === 'about' && <AboutPage />}
     </main><Toast message={toast} />
   </div></div>;
-}
-
-function LogRow({ log }: { log: ModuleLog }) {
-  const tone: Tone = log.level === 'success' ? 'green' : log.level === 'error' ? 'red' : log.level === 'warn' ? 'amber' : 'muted';
-  return <div className="log-row"><span className="log-time">{formatTime(log.timestamp)}</span><span className={`status-dot ${tone}`} /><span className="log-source">{log.id === 'system' ? 'NEXUS' : log.id}</span><span className="log-message" title={log.message}>{log.message}</span><span className={`log-level ${tone}`}>{log.level}</span></div>;
 }
 
 function Settings({ settings, onChange }: {

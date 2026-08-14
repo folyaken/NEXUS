@@ -1012,6 +1012,10 @@ export class VpnManager extends EventEmitter {
     });
   }
 
+  getLogs(): ModuleLog[] {
+    return this.diagnosticEvents.map((log) => ({ ...log }));
+  }
+
   async disconnect(): Promise<VpnRuntime> {
     const child = this.child;
     if (!child?.pid) {

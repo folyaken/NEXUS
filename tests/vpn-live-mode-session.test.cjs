@@ -18,6 +18,11 @@ manager.setState('disconnected', null, null);
 assert.equal(manager.runtime().connectedAt, null, 'disconnect must end the session counter');
 manager.setState('error', 'profile-a', null, 'test');
 assert.equal(manager.runtime().connectedAt, null, 'a failed connection must not retain an active session');
+manager.emitLog('info', 'retained log event');
+const retainedLogs = manager.getLogs();
+assert.equal(retainedLogs[0]?.message, 'retained log event', 'the log screen must receive retained VPN events on initial load');
+retainedLogs[0].message = 'mutated renderer copy';
+assert.equal(manager.getLogs()[0]?.message, 'retained log event', 'log history must be returned as defensive copies');
 
 const main = fs.readFileSync(path.join(root, 'src', 'main', 'main.ts'), 'utf8');
 const switchStart = main.indexOf("ipcMain.handle('vpn:switch-mode'");
@@ -37,6 +42,7 @@ const env = fs.readFileSync(path.join(root, 'src', 'renderer', 'env.d.ts'), 'utf
 const types = fs.readFileSync(path.join(root, 'src', 'main', 'types.ts'), 'utf8');
 const app = fs.readFileSync(path.join(root, 'src', 'renderer', 'App.tsx'), 'utf8');
 const page = fs.readFileSync(path.join(root, 'src', 'renderer', 'Jey2RayPage.tsx'), 'utf8');
+const vpnManager = fs.readFileSync(path.join(root, 'src', 'main', 'vpn-manager.ts'), 'utf8');
 const styles = fs.readFileSync(path.join(root, 'src', 'renderer', 'styles.css'), 'utf8');
 
 assert.match(preload, /switchVpnMode: \(mode: 'proxy' \| 'tun'\)/);
@@ -70,6 +76,9 @@ assert.ok(page.indexOf("settingsTab === 'general' ? <section") < page.indexOf('r
 assert.match(page, /window\.nexus\?\.pickVpnApps\(\)/);
 assert.match(page, /role="radiogroup" aria-label="Режим маршрутизации приложений"/);
 assert.match(page, /Сначала отключи VPN, затем измени маршрутизацию приложений/);
+assert.doesNotMatch(page, /autoPing/, 'opening Jey2Ray must not trigger an automatic all-server ping');
+assert.equal((page.match(/void ping\(\)/g) ?? []).length, 1, 'the explicit manual ping action must remain available');
+assert.match(page, /sampleVpnLatency/);
 
 assert.doesNotMatch(app, /SettingsTab|settings-tabs|function ApplicationSettings|Настройки приложений/, 'VPN settings must not leak into global NEXUS settings');
 assert.match(app, /Глобальные параметры языка, оформления и поведения NEXUS/);
@@ -78,6 +87,20 @@ assert.match(app, /Тема/);
 assert.match(app, /Оформление/);
 assert.match(app, /appearance-options/);
 assert.match(app, /if \(name === 'settings'\) return <GearIcon \/>/);
+assert.match(app, /nexus-sidebar-collapsed/);
+assert.match(app, /aria-label=\{sidebarCollapsed \? 'Развернуть боковую панель' : 'Свернуть боковую панель'\}/);
+assert.match(app, />О программе<\/span>/);
+assert.match(app, /<h1>О программе<\/h1>/);
+assert.match(app, /<span>Логи<\/span>/);
+assert.match(app, /<h1>Логи<\/h1>/);
+assert.match(app, /role="tablist" aria-label="Источники логов"/);
+assert.match(app, /Основной лог/);
+assert.match(app, /Лог туннеля/);
+assert.match(app, /log-console-line/);
+assert.match(app, /profile-chevron/);
+assert.doesNotMatch(app, />⌄<\/b>/, 'the profile menu must use the animated SVG chevron');
+assert.match(main, /vpn\.getLogs\(\)/, 'the initial log list must include retained Jey2Ray events');
+assert.match(vpnManager, /getLogs\(\): ModuleLog\[\]/);
 
 assert.match(styles, /\.tunnel-session-counter \{[^}]*font-family: var\(--font-body\)/);
 assert.match(styles, /\.mode-switch button \{[^}]*font-family: var\(--font-body\)[^}]*text-transform: uppercase/);
@@ -95,6 +118,10 @@ for (const graphiteArea of ['.sidebar', '.hero', '.module-card-inner', '.jey-her
 }
 assert.match(styles, /\.appearance-graphite \.app-settings-tab\.is-active \{[^}]*rgba\(220,224,229/);
 assert.match(styles, /\.appearance-graphite \.primary-button \{[^}]*#e2e5e9/);
+assert.match(styles, /\.app-shell\.is-sidebar-collapsed \.sidebar \{[^}]*flex-basis: 82px/);
+assert.match(styles, /\.profile-chevron \{[^}]*transition:/);
+assert.match(styles, /\.log-source-tabs \{[^}]*grid-template-columns: repeat\(6/);
+assert.match(styles, /\.appearance-graphite \.app-shell \{ filter: grayscale\(1\) saturate\(0\); \}/);
 assert.doesNotMatch(styles, /\.settings-tab\.active \{|\.tunnel-ping|\.power-session/);
 
 console.log('Live VPN mode switching, session timer, pulse rings and separated settings regression checks passed.');

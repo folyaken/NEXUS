@@ -241,7 +241,13 @@ function wireIpc(): void {
   ipcMain.handle('modules:start', (_event, id: string) => manager.start(id));
   ipcMain.handle('modules:stop', (_event, id: string) => manager.stop(id));
   ipcMain.handle('modules:set-strategy', (_event, id: string, strategy: string) => manager.setStrategy(id, strategy));
-  ipcMain.handle('logs:list', (_event, id?: string) => manager.getLogs(id));
+  ipcMain.handle('logs:list', (_event, id?: string) => {
+    const moduleLogs = id === 'jey2ray' ? [] : manager.getLogs(id);
+    const vpnLogs = !id || id === 'jey2ray' ? vpn.getLogs() : [];
+    return [...moduleLogs, ...vpnLogs]
+      .sort((left, right) => Date.parse(right.timestamp) - Date.parse(left.timestamp))
+      .slice(0, 200);
+  });
   ipcMain.handle('updates:list', () => updater.list());
   ipcMain.handle('updates:sync', () => updater.syncAll());
   ipcMain.handle('profile:get', () => readProfile());
