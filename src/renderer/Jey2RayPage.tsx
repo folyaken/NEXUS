@@ -558,13 +558,13 @@ export function Jey2RayPage({
               <circle cx="10" cy="10.15" r="2.35" fill="none" stroke="currentColor" strokeWidth="1.35" />
             </svg>
           </button>
-          <button type="button" className="ghost-action subscription-manager-button" disabled={busy || Boolean(action)} onClick={() => setSubscriptionsOpen(true)}>
+          <button type="button" className="ghost-action subscription-manager-button" disabled={busy || Boolean(action)} onClick={() => setSubscriptionsOpen(true)} title="Управление подписками">
             <svg className="ico" viewBox="0 0 20 20" aria-hidden><path d="M4 5.25h12M4 10h12M4 14.75h12" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" /><circle cx="6" cy="5.25" r="1" fill="currentColor" /><circle cx="6" cy="10" r="1" fill="currentColor" /><circle cx="6" cy="14.75" r="1" fill="currentColor" /></svg>
             Подписки <span>{runtime.subscriptions?.length ?? 0}</span>
           </button>
-          <button className="ghost-action" onClick={() => setImportOpen((value) => !value)}>
+          <button className="ghost-action" onClick={() => setImportOpen((value) => !value)} title="Добавить подписку или отдельную ссылку">
             <svg className="ico" viewBox="0 0 16 16" aria-hidden><path d="M8 3v10M3 8h10" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" /></svg>
-            Добавить ссылку
+            Добавить
           </button>
           <button className={`ghost-action ${action === 'refresh' ? 'is-spin' : ''}`} disabled={busy || Boolean(action)} onClick={() => void refresh()}>
             <svg className="ico spin-ico" viewBox="0 0 24 24" aria-hidden>
@@ -572,15 +572,15 @@ export function Jey2RayPage({
             </svg>
             Обновить
           </button>
-          <button className={`ghost-action ${action === 'ping' ? 'is-rev' : ''}`} disabled={busy || Boolean(action)} onClick={() => void ping()}>
+          <button className={`ghost-action ${action === 'ping' ? 'is-rev' : ''}`} disabled={busy || Boolean(action)} onClick={() => void ping()} title="Проверить задержку всех серверов">
             <svg className="ico gauge-ico" viewBox="0 0 20 14" aria-hidden>
               <path d="M2.3 11.6a7.7 7.7 0 0 1 15.4 0" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" />
               <path className="gauge-needle" d="M10 11.55 5.35 6.55" fill="none" stroke="currentColor" strokeWidth="1.65" strokeLinecap="round" />
               <circle cx="10" cy="11.55" r="1.15" fill="currentColor" />
             </svg>
-            Тест пинга
+            Пинг
           </button>
-          {!runtime.xrayReady && <button className="ghost-action" disabled={syncing} onClick={onSync}>Скачать ядро {xrayUpdate?.latestVersion ?? ''}</button>}
+          {!runtime.xrayReady && <button className="ghost-action core-download-action" disabled={syncing} onClick={onSync}>Скачать ядро {xrayUpdate?.latestVersion ?? ''}</button>}
         </div>
       </div>
 
@@ -602,21 +602,29 @@ export function Jey2RayPage({
         </button>)}
       </div>}
 
-      <div className="happ-card">
-        <div className="happ-card-top">
-          <strong>{title}</strong>
-          <span>узлов {visible.length}</span>
+      <div className={`happ-card ${info ? 'is-subscription' : 'is-overview'}`}>
+        <div className="happ-card-main">
+          <span className="happ-card-symbol" aria-hidden>
+            <svg viewBox="0 0 24 24"><rect x="4" y="4" width="16" height="6" rx="2" fill="none" stroke="currentColor" strokeWidth="1.45" /><rect x="4" y="14" width="16" height="6" rx="2" fill="none" stroke="currentColor" strokeWidth="1.45" /><circle cx="7.5" cy="7" r=".9" fill="currentColor" /><circle cx="7.5" cy="17" r=".9" fill="currentColor" /><path d="M11 7h5.5M11 17h5.5" fill="none" stroke="currentColor" strokeWidth="1.35" strokeLinecap="round" /></svg>
+          </span>
+          <div className="happ-card-copy">
+            <small>{info ? 'Выбранная подписка' : 'Текущая выборка'}</small>
+            <strong>{title}</strong>
+            <span>{info
+              ? `Обновлено ${formatWhen(info.lastSync)}`
+              : tab === 'manual'
+                ? 'Серверы, добавленные отдельными ссылками'
+                : 'Серверы из всех доступных источников'}</span>
+          </div>
         </div>
-        <div className="happ-card-meta">
-          {info ? <>
-            <span>{formatBytes(used)} / {quota}</span>
-            <span className="happ-expire">истекает {formatExpire(info.expireAt)}</span>
-            <span>обновлено {formatWhen(info.lastSync)}</span>
-          </> : <>
-            <span>подписок {runtime.subscriptions?.length ?? 0}</span>
-            <span>{tab === 'manual' ? 'добавлены вручную' : 'выбери подписку для подробностей'}</span>
-          </>}
+        <div className="happ-card-metrics">
+          <span><small>Серверов</small><strong>{visible.length}</strong></span>
+          <span><small>{info ? 'Трафик' : 'Подписок'}</small><strong>{info ? `${formatBytes(used)} / ${quota}` : runtime.subscriptions?.length ?? 0}</strong></span>
         </div>
+        {info && <div className="happ-card-details">
+          <span className="happ-expire">Истекает {formatExpire(info.expireAt)}</span>
+          <span>{info.updateHours ? `Автообновление: каждые ${info.updateHours} ч.` : 'Интервал обновления не задан'}</span>
+        </div>}
         {info?.announce && <div className="happ-ribbon">{info.announce}</div>}
       </div>
 

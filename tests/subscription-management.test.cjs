@@ -109,17 +109,24 @@ async function refreshAndQueueTest(root) {
 }
 
 async function sourceContractTest() {
-  const [mainSource, preloadSource, envSource, uiSource] = await Promise.all([
+  const [mainSource, preloadSource, envSource, uiSource, pageSource, stylesSource] = await Promise.all([
     fs.readFile(path.join(__dirname, '../src/main/main.ts'), 'utf8'),
     fs.readFile(path.join(__dirname, '../src/main/preload.ts'), 'utf8'),
     fs.readFile(path.join(__dirname, '../src/renderer/env.d.ts'), 'utf8'),
     fs.readFile(path.join(__dirname, '../src/renderer/SubscriptionManager.tsx'), 'utf8'),
+    fs.readFile(path.join(__dirname, '../src/renderer/Jey2RayPage.tsx'), 'utf8'),
+    fs.readFile(path.join(__dirname, '../src/renderer/styles.css'), 'utf8'),
   ]);
   assert.match(mainSource, /vpn:remove-subscription/);
   assert.match(preloadSource, /removeVpnSubscription/);
   assert.match(envSource, /refreshVpn\(url\?: string\)/);
   assert.match(uiSource, /адрес скрыт/);
   assert.doesNotMatch(uiSource, />\{info\.url\}</, 'secret subscription URL is never rendered as visible text');
+  assert.match(pageSource, /happ-card-metrics/, 'server scope uses the finished summary layout');
+  assert.match(stylesSource, /grid-template-columns:\s*36px repeat\(4, minmax\(96px, 1fr\)\)/, 'toolbar keeps four text actions the same width');
+  assert.match(stylesSource, /\.jey-toolbar\.tight\s+\.ghost-action[^}]*height:\s*40px/, 'toolbar actions keep one stable height');
+  assert.doesNotMatch(pageSource, />\s*Добавить ссылку\s*</, 'compact toolbar label cannot wrap in a normal window');
+  assert.doesNotMatch(pageSource, />\s*Тест пинга\s*</, 'ping action uses its compact toolbar label');
 }
 
 async function run() {
