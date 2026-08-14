@@ -388,43 +388,22 @@ export function Jey2RayPage({
         <div><strong>VPN сейчас работает</strong><p>Отключи подключение, чтобы изменить режим или список приложений.</p></div>
       </div>}
 
-      <div className="app-settings-grid">
-        <section className="app-settings-card connection-settings-card">
-          <div className="app-settings-card-head">
-            <div><span className="settings-step">01</span><div><h3>Режим подключения</h3><p>Как NEXUS направляет сетевой трафик Windows.</p></div></div>
-          </div>
-          <div className="connection-choice-grid">
-            <button type="button" className={`connection-choice ${mode === 'proxy' ? 'is-active' : ''}`} disabled={routeSettingsLocked} onClick={() => selectConnectionMode('proxy')}>
-              <span className="connection-choice-icon">P</span>
-              <span><strong>Proxy</strong><small>Системный HTTP-прокси</small></span>
-              <i className="settings-radio" />
-            </button>
-            <button type="button" className={`connection-choice ${mode === 'tun' ? 'is-active' : ''}`} disabled={routeSettingsLocked} onClick={() => selectConnectionMode('tun')}>
-              <span className="connection-choice-icon">T</span>
-              <span><strong>TUN</strong><small>Весь трафик и правила приложений</small></span>
-              <i className="settings-radio" />
-            </button>
-          </div>
-          <p className="settings-footnote">Для маршрутизации отдельных приложений автоматически используется TUN. В Windows ему нужны права администратора.</p>
-        </section>
-
-        <section className="app-settings-card auto-settings-card">
-          <div className="app-settings-card-head compact">
-            <div><span className="settings-step">02</span><div><h3>Автоподключение</h3><p>Запускать последний сервер вместе с NEXUS.</p></div></div>
-            <button
-              type="button"
-              className={`settings-toggle ${settings.autoConnectVpn ? 'is-on' : ''}`}
-              onClick={() => onSettings({ ...settings, autoConnectVpn: !settings.autoConnectVpn })}
-              aria-label={settings.autoConnectVpn ? 'Выключить автоподключение' : 'Включить автоподключение'}
-            ><i /></button>
-          </div>
-          <div className={`auto-status ${settings.autoConnectVpn ? 'is-on' : ''}`}><i />{settings.autoConnectVpn ? 'Включено' : 'Выключено'}</div>
-        </section>
-      </div>
+      <section className="app-settings-card auto-settings-card">
+        <div className="app-settings-card-head compact">
+          <div><span className="settings-step">01</span><div><h3>Автоподключение</h3><p>Запускать последний сервер вместе с NEXUS.</p></div></div>
+          <button
+            type="button"
+            className={`settings-toggle ${settings.autoConnectVpn ? 'is-on' : ''}`}
+            onClick={() => onSettings({ ...settings, autoConnectVpn: !settings.autoConnectVpn })}
+            aria-label={settings.autoConnectVpn ? 'Выключить автоподключение' : 'Включить автоподключение'}
+          ><i /></button>
+        </div>
+        <div className={`auto-status ${settings.autoConnectVpn ? 'is-on' : ''}`}><i />{settings.autoConnectVpn ? 'Включено' : 'Выключено'}</div>
+      </section>
 
       <section className="app-settings-card routing-settings-card">
         <div className="app-settings-card-head">
-          <div><span className="settings-step">03</span><div><h3>Настройки прокси для приложений</h3><p>Выбери общую политику. Конкретные приложения можно добавить ниже.</p></div></div>
+          <div><span className="settings-step">02</span><div><h3>Настройки прокси для приложений</h3><p>Выбери общую политику. Конкретные приложения можно добавить ниже.</p></div></div>
         </div>
         <div className="routing-choice-list" role="radiogroup" aria-label="Режим маршрутизации приложений">
           <button type="button" role="radio" aria-checked={appRouting === 'system'} className={`routing-choice ${appRouting === 'system' ? 'is-active' : ''}`} disabled={routeSettingsLocked} onClick={() => selectAppRouting('system')}>
@@ -447,7 +426,7 @@ export function Jey2RayPage({
 
       <section className="app-settings-card selected-apps-card">
         <div className="app-settings-card-head selected-apps-head">
-          <div><span className="settings-step">04</span><div><h3>Выбранные приложения</h3><p>{splitApps.length ? `Добавлено: ${splitApps.length}` : 'Добавь приложения Windows, для которых будут действовать правила выше.'}</p></div></div>
+          <div><span className="settings-step">03</span><div><h3>Выбранные приложения</h3><p>{splitApps.length ? `Добавлено: ${splitApps.length}` : 'Добавь приложения Windows, для которых будут действовать правила выше.'}</p></div></div>
           <button type="button" className="app-add-button" disabled={routeSettingsLocked} onClick={() => void addSplitApps(appRouting)}>
             <svg viewBox="0 0 16 16" aria-hidden><path d="M8 3v10M3 8h10" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" /></svg>
             Добавить приложение
@@ -525,7 +504,7 @@ export function Jey2RayPage({
         </div>
         <div className="happ-card-meta">
           <span>{formatBytes(used)} / {quota}</span>
-          <span>истекает {formatExpire(info?.expireAt)}</span>
+          <span className="happ-expire">истекает {formatExpire(info?.expireAt)}</span>
           <span>обновлено {formatWhen(info?.lastSync)}</span>
         </div>
         {info?.announce && <div className="happ-ribbon">{info.announce}</div>}
@@ -564,17 +543,26 @@ export function Jey2RayPage({
         <strong>{selected ? (fastest?.id === selected.id ? 'Самый быстрый' : displayName(selected)) : 'Сервер не выбран'}</strong>
         <small>{powerLabel}</small>
       </div>
+      <div className="mode-switch" aria-label="Режим подключения">
+        <button
+          type="button"
+          className={mode === 'proxy' ? 'active' : ''}
+          disabled={routeSettingsLocked}
+          onClick={() => selectConnectionMode('proxy')}
+        >PROXY</button>
+        <button
+          type="button"
+          className={mode === 'tun' ? 'active' : ''}
+          disabled={routeSettingsLocked}
+          onClick={() => selectConnectionMode('tun')}
+        >TUN</button>
+      </div>
       <div className={`routing-summary ${appRoutingActive ? 'is-on' : ''}`}>
         <span className="routing-summary-icon">
           <svg viewBox="0 0 24 24" aria-hidden><path d="M6 5v8a4 4 0 0 0 4 4h8M14.5 13.5 18 17l-3.5 3.5M10 8.5 6 4.5 2 8.5" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" /></svg>
         </span>
         <span><small>{mode.toUpperCase()} · приложения</small><strong>{routeLabel}</strong><em>{routeDescription}</em></span>
       </div>
-      <button type="button" className="routing-manage-button" onClick={() => setSettingsOpen(true)}>
-        <svg viewBox="0 0 20 20" aria-hidden><path d="M7.9 2.7h4.2l.45 1.75c.4.17.78.39 1.13.65l1.72-.5 2.1 3.65-1.27 1.25c.03.2.04.42.04.64s-.01.43-.04.64l1.27 1.25-2.1 3.65-1.72-.5c-.35.26-.73.48-1.13.65l-.45 1.75H7.9l-.45-1.75a6.4 6.4 0 0 1-1.13-.65l-1.72.5-2.1-3.65 1.27-1.25a4.7 4.7 0 0 1 0-1.28L2.5 8.25 4.6 4.6l1.72.5c.35-.26.73-.48 1.13-.65L7.9 2.7Z" fill="none" stroke="currentColor" strokeWidth="1.35" strokeLinejoin="round" /><circle cx="10" cy="10.15" r="2.35" fill="none" stroke="currentColor" strokeWidth="1.35" /></svg>
-        Настройки приложений
-        <span>›</span>
-      </button>
       <div className={`auto-connect-summary ${settings.autoConnectVpn ? 'is-on' : ''}`}><i /><span>Автоподключение {settings.autoConnectVpn ? 'включено' : 'выключено'}</span></div>
       {!runtime.xrayReady && <div className="jey-note"><span>i</span><div><strong>Ставим ядро</strong><p>{xrayUpdate?.error || 'Качаем Xray / sing-box. Потом нажми большую кнопку.'}</p></div></div>}
     </aside>

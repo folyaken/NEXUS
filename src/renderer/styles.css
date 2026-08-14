@@ -237,6 +237,7 @@ kbd { padding: 3px 5px; border: 1px solid rgba(255,255,255,.1); border-radius: 5
 .happ-card-top { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; color: #e8eef8; font-size: 15px; }
 .happ-card-top span { color: #7d8aa0; font-size: 12px; }
 .happ-card-meta { display: flex; flex-wrap: wrap; gap: 8px 16px; margin-top: 8px; color: #8b97ab; font-size: 12px; }
+.happ-card-meta .happ-expire { color: #e5bc68; text-shadow: 0 0 12px rgba(229,188,104,.12); }
 .happ-ribbon { margin-top: 10px; padding: 8px 12px; border-radius: 8px; background: #1b2432; color: #9aa8bb; font-size: 11px; line-height: 1.45; text-align: center; }
 
 .happ-ping { display: inline-flex; align-items: center; gap: 6px; min-width: 58px; justify-content: flex-end; }
@@ -276,7 +277,12 @@ kbd { padding: 3px 5px; border: 1px solid rgba(255,255,255,.1); border-radius: 5
 /* Jey2Ray application settings */
 .settings-gear-button { width: 34px; height: 34px; justify-content: center; padding: 0; color: #a9b6ca; }
 .settings-gear-button .ico { width: 18px; height: 18px; flex-basis: 18px; }
-.routing-summary { display: flex; align-items: flex-start; gap: 11px; width: 100%; margin-top: 24px; padding: 14px; border: 1px solid rgba(168,149,255,.16); border-radius: 15px; background: rgba(168,149,255,.055); }
+.mode-switch { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: 7px; width: 100%; margin-top: 22px; padding: 4px; border: 1px solid rgba(168,149,255,.15); border-radius: 12px; background: rgba(8,12,21,.5); }
+.mode-switch button { min-height: 35px; border-radius: 9px; color: #78859a; font-family: "DM Mono", Consolas, monospace; font-size: 9px; font-weight: 700; letter-spacing: .09em; }
+.mode-switch button:hover:not(:disabled) { color: #c4bbff; background: rgba(168,149,255,.07); }
+.mode-switch button.active { background: linear-gradient(135deg, rgba(127,112,226,.95), rgba(92,79,190,.95)); color: #fff; box-shadow: 0 6px 16px rgba(75,62,168,.24); }
+.mode-switch button:disabled { cursor: not-allowed; opacity: .58; }
+.routing-summary { display: flex; align-items: flex-start; gap: 11px; width: 100%; margin-top: 14px; padding: 14px; border: 1px solid rgba(168,149,255,.16); border-radius: 15px; background: rgba(168,149,255,.055); }
 .routing-summary.is-on { border-color: rgba(113,244,184,.25); background: rgba(113,244,184,.055); }
 .routing-summary-icon { display: grid; flex: 0 0 34px; width: 34px; height: 34px; place-items: center; border-radius: 10px; background: rgba(168,149,255,.12); color: #b7abff; }
 .routing-summary.is-on .routing-summary-icon { background: rgba(113,244,184,.12); color: #82edc1; }
@@ -286,10 +292,7 @@ kbd { padding: 3px 5px; border: 1px solid rgba(255,255,255,.1); border-radius: 5
 .routing-summary small { color: #7e8ca1; font-family: "DM Mono", Consolas, monospace; font-size: 8px; letter-spacing: .08em; text-transform: uppercase; }
 .routing-summary strong { margin-top: 5px; color: #dae3f1; font-size: 11px; line-height: 1.35; }
 .routing-summary em { margin-top: 5px; color: #748197; font-size: 9px; font-style: normal; line-height: 1.45; }
-.routing-manage-button { display: grid; grid-template-columns: 18px 1fr auto; align-items: center; gap: 9px; width: 100%; margin-top: 10px; padding: 11px 12px; border: 1px solid rgba(168,149,255,.14); border-radius: 11px; background: rgba(168,149,255,.07); color: #c8c0ff; font-size: 10px; font-weight: 700; text-align: left; }
-.routing-manage-button:hover { border-color: rgba(168,149,255,.28); background: rgba(168,149,255,.12); color: #e5e0ff; }
-.routing-manage-button svg { width: 17px; height: 17px; }
-.routing-manage-button > span { color: #8f84cf; font-size: 17px; }
+
 .auto-connect-summary { display: flex; align-items: center; gap: 7px; margin-top: 15px; color: #6f7d91; font-size: 9px; }
 .auto-connect-summary i { width: 6px; height: 6px; border-radius: 50%; background: #566175; }
 .auto-connect-summary.is-on { color: #80d9b8; }
@@ -297,47 +300,37 @@ kbd { padding: 3px 5px; border: 1px solid rgba(255,255,255,.1); border-radius: 5
 
 .app-settings-page { min-height: calc(100vh - 78px); padding-top: 18px; padding-bottom: 50px; }
 .app-settings-toolbar { display: grid; grid-template-columns: 118px minmax(0,1fr) auto; align-items: center; gap: 18px; padding: 13px 16px; border: 1px solid rgba(255,255,255,.065); border-radius: 16px; background: rgba(13,18,29,.72); box-shadow: 0 14px 32px rgba(0,0,0,.18), inset 0 1px rgba(255,255,255,.035); }
-.app-settings-back { display: inline-flex; align-items: center; gap: 7px; width: fit-content; padding: 8px 10px; border-radius: 9px; background: rgba(255,255,255,.035); color: #a7b3c6; font-size: 11px; font-weight: 700; }
+.app-settings-back { display: inline-flex; align-items: center; gap: 8px; width: fit-content; padding: 9px 11px; border-radius: 9px; background: rgba(255,255,255,.035); color: #a7b3c6; font-size: 13px; font-weight: 700; }
 .app-settings-back:hover { background: rgba(168,149,255,.1); color: #d8d1ff; }
 .app-settings-back svg { width: 17px; height: 17px; }
 .app-settings-toolbar > div { min-width: 0; }
-.app-settings-toolbar > div > span { display: block; color: #8178bd; font-family: "DM Mono", Consolas, monospace; font-size: 8px; letter-spacing: .13em; text-transform: uppercase; }
-.app-settings-toolbar h2 { margin-top: 3px; color: #e8eef8; font-size: 18px; letter-spacing: -.025em; }
-.app-route-state { display: inline-flex; align-items: center; gap: 7px; padding: 7px 10px; border-radius: 999px; background: rgba(255,255,255,.04); color: #768398; font-family: "DM Mono", Consolas, monospace; font-size: 8px; white-space: nowrap; }
+.app-settings-toolbar > div > span { display: block; color: #9187ce; font-family: "DM Mono", Consolas, monospace; font-size: 10px; letter-spacing: .12em; text-transform: uppercase; }
+.app-settings-toolbar h2 { margin-top: 4px; color: #e8eef8; font-size: 21px; letter-spacing: -.025em; }
+.app-route-state { display: inline-flex; align-items: center; gap: 8px; padding: 8px 11px; border-radius: 999px; background: rgba(255,255,255,.04); color: #8794a8; font-family: "DM Mono", Consolas, monospace; font-size: 10px; white-space: nowrap; }
 .app-route-state i { width: 6px; height: 6px; border-radius: 50%; background: #596477; }
 .app-route-state.is-on { background: rgba(113,244,184,.08); color: #8de4c3; }
 .app-route-state.is-on i { background: #71f4b8; box-shadow: 0 0 8px rgba(113,244,184,.6); }
 .app-settings-scroll { display: grid; gap: 14px; max-width: 1020px; margin: 18px auto 0; }
 .app-settings-lock { display: flex; align-items: center; gap: 12px; padding: 12px 14px; border: 1px solid rgba(248,199,108,.18); border-radius: 13px; background: rgba(248,199,108,.065); }
 .app-settings-lock > span { display: grid; flex: 0 0 25px; width: 25px; height: 25px; place-items: center; border: 1px solid rgba(248,199,108,.28); border-radius: 50%; color: #edc66e; font-family: "DM Mono", Consolas, monospace; font-size: 11px; }
-.app-settings-lock strong { color: #e6ca88; font-size: 11px; }
-.app-settings-lock p { margin-top: 3px; color: #9f8b60; font-size: 9px; }
-.app-settings-grid { display: grid; grid-template-columns: minmax(0,1.65fr) minmax(230px,.75fr); gap: 14px; }
-.app-settings-card { padding: 18px; border: 1px solid rgba(255,255,255,.065); border-radius: 18px; background: linear-gradient(145deg, rgba(20,27,41,.78), rgba(13,18,29,.78)); box-shadow: 9px 13px 28px rgba(0,0,0,.18), inset 0 1px rgba(255,255,255,.03); }
+.app-settings-lock strong { color: #e6ca88; font-size: 13px; }
+.app-settings-lock p { margin-top: 4px; color: #ad996d; font-size: 11px; line-height: 1.45; }
+.app-settings-card { padding: 20px; border: 1px solid rgba(255,255,255,.065); border-radius: 18px; background: linear-gradient(145deg, rgba(20,27,41,.78), rgba(13,18,29,.78)); box-shadow: 9px 13px 28px rgba(0,0,0,.18), inset 0 1px rgba(255,255,255,.03); }
 .app-settings-card-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 18px; }
 .app-settings-card-head > div { display: flex; align-items: flex-start; gap: 11px; min-width: 0; }
-.app-settings-card-head h3 { color: #dfe7f3; font-size: 14px; letter-spacing: -.015em; }
-.app-settings-card-head p { margin-top: 4px; color: #768399; font-size: 10px; line-height: 1.45; }
-.settings-step { display: grid; flex: 0 0 28px; width: 28px; height: 28px; place-items: center; border-radius: 8px; background: rgba(168,149,255,.1); color: #aa9fff; font-family: "DM Mono", Consolas, monospace; font-size: 8px; }
-.connection-choice-grid { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: 9px; margin-top: 15px; }
-.connection-choice { display: grid; grid-template-columns: 34px minmax(0,1fr) 16px; align-items: center; gap: 10px; min-width: 0; padding: 12px; border: 1px solid rgba(255,255,255,.065); border-radius: 12px; background: rgba(255,255,255,.025); text-align: left; }
-.connection-choice:hover:not(:disabled) { border-color: rgba(168,149,255,.23); background: rgba(168,149,255,.055); }
-.connection-choice.is-active { border-color: rgba(168,149,255,.38); background: rgba(168,149,255,.1); box-shadow: inset 0 0 0 1px rgba(168,149,255,.07); }
-.connection-choice-icon { display: grid; width: 34px; height: 34px; place-items: center; border-radius: 9px; background: rgba(168,149,255,.1); color: #b7acff; font-family: "DM Mono", Consolas, monospace; font-size: 11px; font-weight: 700; }
-.connection-choice strong, .connection-choice small { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.connection-choice strong { color: #d7e0ec; font-size: 11px; }
-.connection-choice small { margin-top: 4px; color: #6f7c90; font-size: 8px; }
+.app-settings-card-head h3 { color: #e3eaf5; font-size: 16px; letter-spacing: -.015em; }
+.app-settings-card-head p { margin-top: 5px; color: #8794a8; font-size: 12px; line-height: 1.5; }
+.settings-step { display: grid; flex: 0 0 31px; width: 31px; height: 31px; place-items: center; border-radius: 9px; background: rgba(168,149,255,.1); color: #b8adff; font-family: "DM Mono", Consolas, monospace; font-size: 10px; }
 .settings-radio { display: block; width: 15px; height: 15px; border: 1px solid #58647a; border-radius: 50%; box-shadow: inset 0 0 0 3px #151c2a; }
 .is-active > .settings-radio, .is-active .settings-radio { border-color: #a895ff; background: #a895ff; }
-.connection-choice:disabled, .routing-choice:disabled, .app-add-button:disabled, .selected-app-remove:disabled { cursor: not-allowed; opacity: .48; }
-.settings-footnote { margin-top: 11px; color: #6f7c91; font-size: 8px; line-height: 1.45; }
+.routing-choice:disabled, .app-add-button:disabled, .selected-app-remove:disabled { cursor: not-allowed; opacity: .48; }
 .auto-settings-card { display: flex; flex-direction: column; justify-content: space-between; }
 .app-settings-card-head.compact { align-items: flex-start; }
 .settings-toggle { flex: 0 0 auto; width: 40px; height: 23px; padding: 3px; border-radius: 999px; background: #252d3d; box-shadow: inset 0 0 0 1px rgba(255,255,255,.07); }
 .settings-toggle > i { display: block; width: 17px; height: 17px; border-radius: 50%; background: #b8c1cf; transition: transform .16s ease, background .16s ease; }
 .settings-toggle.is-on { background: #28966f; box-shadow: 0 0 15px rgba(113,244,184,.11), inset 0 0 0 1px rgba(113,244,184,.18); }
 .settings-toggle.is-on > i { transform: translateX(17px); background: #f2fff9; }
-.auto-status { display: flex; align-items: center; gap: 7px; margin-top: 20px; padding: 10px; border-radius: 10px; background: rgba(255,255,255,.025); color: #728096; font-family: "DM Mono", Consolas, monospace; font-size: 8px; }
+.auto-status { display: flex; align-items: center; gap: 8px; margin-top: 20px; padding: 11px 12px; border-radius: 10px; background: rgba(255,255,255,.025); color: #8491a5; font-family: "DM Mono", Consolas, monospace; font-size: 11px; }
 .auto-status > i { width: 6px; height: 6px; border-radius: 50%; background: #5a6579; }
 .auto-status.is-on { background: rgba(113,244,184,.06); color: #86d8b9; }
 .auto-status.is-on > i { background: #71f4b8; box-shadow: 0 0 8px rgba(113,244,184,.5); }
@@ -347,11 +340,11 @@ kbd { padding: 3px 5px; border: 1px solid rgba(255,255,255,.1); border-radius: 5
 .routing-choice:hover:not(:disabled) { border-color: rgba(168,149,255,.22); background: rgba(168,149,255,.05); }
 .routing-choice.is-active { border-color: rgba(168,149,255,.38); background: linear-gradient(90deg, rgba(168,149,255,.115), rgba(168,149,255,.045)); box-shadow: inset 0 0 0 1px rgba(168,149,255,.055); }
 .routing-choice strong, .routing-choice small { display: block; }
-.routing-choice strong { color: #d8e0ed; font-size: 11px; }
-.routing-choice small { margin-top: 4px; color: #748197; font-size: 9px; line-height: 1.4; }
-.routing-choice em { padding: 5px 7px; border-radius: 6px; background: rgba(168,149,255,.075); color: #9d92e4; font-family: "DM Mono", Consolas, monospace; font-size: 7px; font-style: normal; white-space: nowrap; }
+.routing-choice strong { color: #dce4ef; font-size: 13px; }
+.routing-choice small { margin-top: 5px; color: #8491a5; font-size: 11px; line-height: 1.45; }
+.routing-choice em { padding: 6px 8px; border-radius: 6px; background: rgba(168,149,255,.075); color: #aaa0ec; font-family: "DM Mono", Consolas, monospace; font-size: 9px; font-style: normal; white-space: nowrap; }
 .selected-apps-head { align-items: center; }
-.app-add-button { display: inline-flex; flex: 0 0 auto; align-items: center; gap: 7px; padding: 9px 12px; border-radius: 9px; background: #6156c8; color: #fff; font-size: 9px; font-weight: 700; box-shadow: 0 7px 17px rgba(67,55,166,.2); }
+.app-add-button { display: inline-flex; flex: 0 0 auto; align-items: center; gap: 8px; padding: 10px 13px; border-radius: 9px; background: #6156c8; color: #fff; font-size: 11px; font-weight: 700; box-shadow: 0 7px 17px rgba(67,55,166,.2); }
 .app-add-button:hover:not(:disabled) { background: #7164dc; transform: translateY(-1px); }
 .app-add-button svg { width: 14px; height: 14px; }
 .selected-app-list { display: grid; gap: 7px; margin-top: 15px; }
@@ -360,9 +353,9 @@ kbd { padding: 3px 5px; border: 1px solid rgba(255,255,255,.1); border-radius: 5
 .selected-app-icon svg { width: 21px; height: 21px; }
 .selected-app-copy { min-width: 0; }
 .selected-app-copy strong, .selected-app-copy small { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.selected-app-copy strong { color: #d9e2ef; font-size: 11px; }
-.selected-app-copy small { margin-top: 4px; color: #68758a; font-family: "DM Mono", Consolas, monospace; font-size: 7px; }
-.selected-app-route { padding: 5px 8px; border-radius: 7px; background: rgba(255,255,255,.035); color: #69768a; font-family: "DM Mono", Consolas, monospace; font-size: 7px; white-space: nowrap; }
+.selected-app-copy strong { color: #dce5f1; font-size: 13px; }
+.selected-app-copy small { margin-top: 5px; color: #7b889d; font-family: "DM Mono", Consolas, monospace; font-size: 9px; }
+.selected-app-route { padding: 6px 9px; border-radius: 7px; background: rgba(255,255,255,.035); color: #7f8ba0; font-family: "DM Mono", Consolas, monospace; font-size: 9px; white-space: nowrap; }
 .selected-app-route.is-vpn { background: rgba(168,149,255,.1); color: #b0a5f4; }
 .selected-app-route.is-direct { background: rgba(248,199,108,.09); color: #d8b86e; }
 .selected-app-remove { display: grid; width: 28px; height: 28px; place-items: center; border-radius: 8px; background: rgba(255,255,255,.035); color: #778398; font-size: 17px; line-height: 1; }
@@ -370,11 +363,10 @@ kbd { padding: 3px 5px; border: 1px solid rgba(255,255,255,.1); border-radius: 5
 .selected-app-empty { display: grid; justify-items: center; margin-top: 15px; padding: 25px 15px; border: 1px dashed rgba(168,149,255,.18); border-radius: 13px; background: rgba(168,149,255,.025); text-align: center; }
 .selected-app-empty > span { display: grid; width: 46px; height: 46px; place-items: center; border-radius: 13px; background: rgba(168,149,255,.08); color: #9186d6; }
 .selected-app-empty svg { width: 27px; height: 27px; }
-.selected-app-empty strong { margin-top: 11px; color: #bfc8d6; font-size: 11px; }
-.selected-app-empty p { max-width: 400px; margin-top: 5px; color: #6f7c91; font-size: 9px; line-height: 1.45; }
+.selected-app-empty strong { margin-top: 12px; color: #cbd4e1; font-size: 13px; }
+.selected-app-empty p { max-width: 440px; margin-top: 6px; color: #8491a5; font-size: 11px; line-height: 1.5; }
 
 @media (max-width: 1240px) {
-  .app-settings-grid { grid-template-columns: 1fr; }
   .auto-settings-card { min-height: 140px; }
   .app-settings-scroll { max-width: none; }
   .jey-toolbar-actions { gap: 7px; }
