@@ -51,11 +51,17 @@ assert.doesNotMatch(JSON.stringify(packageJson), /arena/i, 'в манифест�
 assert.equal(packageJson.build.appId, 'com.folyaken.nexus');
 assert.match(gitignore, /NEXUS-patch-\*\.zip/, 'патч-архивы не должны попадать в репозиторий');
 
-// Локально собранный патч лежать в папке может — важно, что он не попадает
-// под контроль версий.
+// Патчи больше не накапливаются в корне: под контролем версий допускается
+// только текущий архив в patches/, чтобы его можно было скачать по ссылке.
 const trackedPatches = execFileSync('git', ['ls-files'], { cwd: root, encoding: 'utf8' })
   .split('\n')
-  .filter((name) => /^NEXUS-patch-.*\.zip$/i.test(name.trim()));
-assert.deepEqual(trackedPatches, [], 'патч-архивы не должны быть в репозитории');
+  .map((name) => name.trim())
+  .filter((name) => /NEXUS-patch-.*\.zip$/i.test(name));
+assert.deepEqual(
+  trackedPatches.filter((name) => !name.startsWith('patches/')),
+  [],
+  'патч-архивы не должны лежать в корне репозитория',
+);
+assert.ok(trackedPatches.length <= 1, 'в patches/ хранится только текущий патч');
 
 console.log('UI capture safety and repository hygiene checks passed.');
