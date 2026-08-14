@@ -380,10 +380,13 @@ export class VpnManager extends EventEmitter {
 
   private async pickPort(start: number): Promise<number> {
     for (let port = start; port < start + 20; port += 1) {
-      const free = await this.isFree(port);
-      if (free) return port;
+      const [socksFree, httpFree] = await Promise.all([
+        this.isFree(port),
+        this.isFree(port + 1),
+      ]);
+      if (socksFree && httpFree) return port;
     }
-    throw new Error(`Порт ${start} и следующие 20 заняты. Смените локальный SOCKS-порт в настройках.`);
+    throw new Error(`Не найдена свободная пара SOCKS/HTTP-портов, начиная с ${start}. Смените локальный SOCKS-порт в настройках.`);
   }
 
   private isFree(port: number): Promise<boolean> {
