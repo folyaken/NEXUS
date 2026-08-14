@@ -35,6 +35,16 @@ assert.equal(tgManifest.healthcheck.port, 1443);
 assert.equal(tgManifest.upstream_log_file, './bin/TgWsProxy_data/proxy.log');
 assert.doesNotMatch(JSON.stringify(tgManifest), /--listen|127\.0\.0\.1:8080|bin\/tg-ws-proxy\.exe/i);
 
+// Фикстуры обязаны следовать за платформой прогона: валидатор ждёт MZ на
+// Windows и ELF на остальных ОС. Зашитая в код одна сигнатура означает, что
+// тест зелёный только на машине разработчика.
+const lifecycleTestSource = fs.readFileSync(__filename, 'utf8');
+assert.match(
+  lifecycleTestSource,
+  /fakeExecutable\.set\(process\.platform === 'win32' \? \[0x4d, 0x5a\] : \[0x7f, 0x45, 0x4c, 0x46\], 0\)/,
+  'сигнатура тестового исполняемого файла должна зависеть от платформы',
+);
+
 const updaterSource = fs.readFileSync(path.join(root, 'src', 'main', 'github-updater.ts'), 'utf8');
 assert.match(updaterSource, /installed\.asset === asset\.name/, 'an asset change at the same release version must trigger migration');
 assert.match(updaterSource, /manager\.beginUpdate\(target\.id\)/, 'updates must lock module startup');
@@ -205,8 +215,11 @@ async function runTgPortableRuntimeTest() {
 async function runMockGithubUpdateTest() {
   const temp = await fsp.mkdtemp(path.join(os.tmpdir(), 'nexus-module-update-test-'));
   const assetName = tgWsProxyAssetCandidates()[0];
+  // Сигнатура должна соответствовать платформе прогона: валидатор требует MZ на
+  // Windows и ELF на остальных системах. Жёстко зашитый ELF валил тест на
+  // Windows ошибкой «не является исполняемым файлом Windows EXE».
   const fakeExecutable = Buffer.alloc(4096, 0x41);
-  fakeExecutable.set([0x7f, 0x45, 0x4c, 0x46], 0);
+  fakeExecutable.set(process.platform === 'win32' ? [0x4d, 0x5a] : [0x7f, 0x45, 0x4c, 0x46], 0);
   const assetUrl = `https://github.com/Flowseal/tg-ws-proxy/releases/download/v-test/${assetName}`;
   const validDigest = createHash('sha256').update(fakeExecutable).digest('hex');
   let releaseDigest = `sha256:${validDigest}`;
