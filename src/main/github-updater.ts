@@ -51,6 +51,18 @@ export class GithubUpdater extends EventEmitter {
     return this.list();
   }
 
+  async ensure(id: string): Promise<void> {
+    const target = this.targets.find((item) => item.id === id);
+    if (!target) throw new Error(`Нет цели обновления: ${id}`);
+    if (this.moduleExecutableExists(id)) return;
+    await this.syncOne(target);
+    if (this.moduleExecutableExists(id)) return;
+    if (id === 'jey2ray') await this.installXrayFromMirrors();
+    if (!this.moduleExecutableExists(id)) {
+      throw new Error(this.updates.get(id)?.error || 'Не удалось скачать Xray-core. Проверь интернет / GitHub, затем «Скачать Xray».');
+    }
+  }
+
   private readonly targets: UpdateTarget[] = [];
 
   private registerTargets(): void {
@@ -71,6 +83,23 @@ export class GithubUpdater extends EventEmitter {
         return undefined;
       },
       install: (assetPath, version) => this.installDirect(assetPath, version),
+    });
+    this.targets.push({
+      id: 'jey2ray',
+      name: 'Jey2Ray / Xray-core',
+      repo: 'XTLS/Xray-core',
+      selectAsset: (assets) => {
+        if (process.platform === 'win32') {
+          return assets.find((asset) => asset.name === 'Xray-windows-64.zip')
+            || assets.find((asset) => /windows-64\.zip$/i.test(asset.name) && !/arm/i.test(asset.name));
+        }
+        if (process.platform === 'linux' && os.arch() === 'x64') {
+          return assets.find((asset) => asset.name === 'Xray-linux-64.zip')
+            || assets.find((asset) => /linux-64\.zip$/i.test(asset.name) && !/arm/i.test(asset.name));
+        }
+        return undefined;
+      },
+      install: (assetPath, version) => this.installXray(assetPath, version),
     });
     for (const target of this.targets) {
       this.updates.set(target.id, this.info(target, { status: 'checking' }));
@@ -99,6 +128,7 @@ export class GithubUpdater extends EventEmitter {
       await fs.mkdir(tempDir, { recursive: true });
       const tempPath = path.join(tempDir, `${target.id}-${release.tag_name.replace(/[^a-z0-9._-]/gi, '_')}-${asset.name}`);
       await this.downloadAsset(asset.browser_download_url, tempPath, target.repo);
+      await this.assertZip(tempPath);
       const hash = await this.sha256(tempPath);
       const executable = await target.install(tempPath, release.tag_name);
       this.versions[target.id] = { version: release.tag_name, asset: asset.name, sha256: hash, installedAt: new Date().toISOString() };
@@ -113,26 +143,115 @@ export class GithubUpdater extends EventEmitter {
   }
 
   private async fetchRelease(repo: string): Promise<GithubRelease> {
-    const response = await fetch(`${GITHUB_API}/${repo}/releases/latest`, {
-      headers: { Accept: 'application/vnd.github+json', 'User-Agent': 'NEXUS-Network-Control-Plane' },
-    });
-    if (!response.ok) throw new Error(`GitHub API: HTTP ${response.status}`);
-    return await response.json() as GithubRelease;
+    let lastError: Error | null = null;
+    for (let attempt = 1; attempt <= 3; attempt += 1) {
+      try {
+        const response = await fetch(`${GITHUB_API}/${repo}/releases/latest`, {
+          headers: { Accept: 'application/vnd.github+json', 'User-Agent': 'NEXUS-Network-Control-Plane' },
+        });
+        if (response.status === 403) throw new Error('GitHub API: лимит запросов (HTTP 403). Повторите позже.');
+        if (!response.ok) throw new Error(`GitHub API: HTTP ${response.status}`);
+        return await response.json() as GithubRelease;
+      } catch (error) {
+        lastError = error instanceof Error ? error : new Error('GitHub API недоступен');
+        await new Promise((resolve) => setTimeout(resolve, attempt * 400));
+      }
+    }
+    throw lastError ?? new Error('GitHub API недоступен');
   }
 
   private async downloadAsset(url: string, destination: string, repo: string): Promise<void> {
     const parsed = new URL(url);
-    if (parsed.protocol !== 'https:' || parsed.hostname !== 'github.com' || !parsed.pathname.startsWith(`/Flowseal/`)) {
-      throw new Error(`Загрузка заблокирована: asset не принадлежит https://github.com/Flowseal (${repo})`);
+    const owner = repo.split('/')[0];
+    const allowedHost = parsed.hostname === 'github.com' || parsed.hostname.endsWith('githubusercontent.com') || parsed.hostname.includes('ghproxy');
+    if (parsed.protocol !== 'https:' || !allowedHost) {
+      throw new Error(`Загрузка заблокирована: ${parsed.hostname} (${repo})`);
+    }
+    if (parsed.hostname === 'github.com' && owner && !parsed.pathname.includes(`/${owner}/`)) {
+      throw new Error(`Загрузка заблокирована: asset не принадлежит https://github.com/${owner}`);
     }
     const response = await fetch(url, { headers: { 'User-Agent': 'NEXUS-Network-Control-Plane' }, redirect: 'follow' });
     if (!response.ok || !response.body) throw new Error(`GitHub asset: HTTP ${response.status}`);
+    const totalBytes = Number(response.headers.get('content-length') ?? 0);
+    let downloadedBytes = 0;
+    const target = this.targets.find((item) => item.repo === repo);
     await new Promise<void>((resolve, reject) => {
       const output = createWriteStream(destination, { flags: 'w' });
       output.once('finish', resolve);
       output.once('error', reject);
-      Readable.fromWeb(response.body as Parameters<typeof Readable.fromWeb>[0]).once('error', reject).pipe(output);
+      const input = Readable.fromWeb(response.body as Parameters<typeof Readable.fromWeb>[0]);
+      input.on('data', (chunk: Buffer) => {
+        downloadedBytes += chunk.length;
+        if (target) this.setStatus(target, 'downloading', { downloadedBytes, totalBytes: totalBytes || undefined, asset: path.basename(destination) });
+      });
+      input.once('error', reject).pipe(output);
     });
+  }
+
+  private async assertZip(filePath: string): Promise<void> {
+    const stat = await fs.stat(filePath);
+    if (stat.size < 800_000) {
+      throw new Error(`Скачался мусор (${Math.round(stat.size / 1024)} КБ), а не Xray ZIP. GitHub недоступен или отдал HTML.`);
+    }
+    const handle = await fs.open(filePath, 'r');
+    const buf = Buffer.alloc(2);
+    await handle.read(buf, 0, 2, 0);
+    await handle.close();
+    if (buf[0] !== 0x50 || buf[1] !== 0x4b) {
+      throw new Error('Файл не ZIP (нет сигнатуры PK). Повтори «Скачать Xray».');
+    }
+  }
+
+  private async installXrayFromMirrors(): Promise<void> {
+    const file = process.platform === 'win32' ? 'Xray-windows-64.zip' : 'Xray-linux-64.zip';
+    const mirrors = [
+      `https://github.com/XTLS/Xray-core/releases/latest/download/${file}`,
+      `https://ghproxy.net/https://github.com/XTLS/Xray-core/releases/latest/download/${file}`,
+      `https://mirror.ghproxy.com/https://github.com/XTLS/Xray-core/releases/latest/download/${file}`,
+    ];
+    const jey = this.targets.find((item) => item.id === 'jey2ray');
+    const tempPath = path.join(this.modulesDir, '.cache', file);
+    await fs.mkdir(path.dirname(tempPath), { recursive: true });
+    let lastError = 'Не удалось скачать Xray ни с одного зеркала';
+    for (const url of mirrors) {
+      try {
+        if (jey) this.setStatus(jey, 'downloading', { asset: file });
+        await this.downloadAsset(url, tempPath, 'XTLS/Xray-core');
+        await this.installXray(tempPath, 'latest');
+        await fs.rm(tempPath, { force: true });
+        return;
+      } catch (error) {
+        lastError = error instanceof Error ? error.message : lastError;
+      }
+    }
+    throw new Error(lastError);
+  }
+
+  private async installXray(assetPath: string, version: string): Promise<string> {
+    const extractRoot = path.join(this.modulesDir, '.cache', 'xray-extract');
+    await fs.rm(extractRoot, { recursive: true, force: true });
+    await fs.mkdir(extractRoot, { recursive: true });
+    await extract(assetPath, { dir: extractRoot });
+    const binaryName = process.platform === 'win32' ? 'xray.exe' : 'xray';
+    const found = await this.findFile(extractRoot, binaryName);
+    if (!found) throw new Error(`В ZIP Xray-core не найден ${binaryName}`);
+    const destination = path.join(this.modulesDir, 'bin', binaryName);
+    await fs.mkdir(path.dirname(destination), { recursive: true });
+    await fs.copyFile(found, destination);
+    if (process.platform !== 'win32') await fs.chmod(destination, 0o755);
+    const geoip = await this.findFile(extractRoot, 'geoip.dat');
+    const geosite = await this.findFile(extractRoot, 'geosite.dat');
+    if (geoip) await fs.copyFile(geoip, path.join(this.modulesDir, 'bin', 'geoip.dat'));
+    if (geosite) await fs.copyFile(geosite, path.join(this.modulesDir, 'bin', 'geosite.dat'));
+    await this.updateManifest('jey2ray', {
+      executable: `./bin/${binaryName}`,
+      working_dir: './bin',
+      args: ['-config', './configs/vpn/generated_config.json'],
+      installed_version: version,
+      development: false,
+    });
+    await fs.rm(extractRoot, { recursive: true, force: true });
+    return `./bin/${binaryName}`;
   }
 
   private async installDirect(assetPath: string, version: string): Promise<string> {
@@ -179,9 +298,17 @@ export class GithubUpdater extends EventEmitter {
 
   private async updateManifest(id: string, patch: Record<string, unknown>): Promise<void> {
     const entries = await fs.readdir(this.modulesDir, { withFileTypes: true });
-    const manifestEntry = entries.find((entry) => entry.isFile() && entry.name.endsWith('.module.json') && entry.name.startsWith(id));
-    const filename = manifestEntry?.name ?? `${id}.module.json`;
-    const manifestPath = path.join(this.modulesDir, filename);
+    let manifestPath = path.join(this.modulesDir, `${id}.module.json`);
+    for (const entry of entries) {
+      if (!entry.isFile() || !entry.name.endsWith('.module.json')) continue;
+      try {
+        const raw = JSON.parse(await fs.readFile(path.join(this.modulesDir, entry.name), 'utf8')) as { id?: string };
+        if (raw.id === id) {
+          manifestPath = path.join(this.modulesDir, entry.name);
+          break;
+        }
+      } catch { /* skip broken */ }
+    }
     const current = existsSync(manifestPath) ? JSON.parse(await fs.readFile(manifestPath, 'utf8')) as Record<string, unknown> : { id, name: id, enabled: false, args: [], status: 'stopped', pid: null, category: 'other', icon: '◈', log_file: `./logs/${id}.log` };
     await fs.writeFile(manifestPath, `${JSON.stringify({ ...current, ...patch }, null, 2)}\n`, 'utf8');
   }
@@ -200,6 +327,10 @@ export class GithubUpdater extends EventEmitter {
   }
 
   private moduleExecutableExists(id: string): boolean {
+    if (id === 'jey2ray') {
+      const binary = process.platform === 'win32' ? 'xray.exe' : 'xray';
+      return existsSync(path.join(this.modulesDir, 'bin', binary));
+    }
     const module = this.manager.list().find((item) => item.id === id);
     if (!module) return false;
     const executable = path.isAbsolute(module.executable) ? module.executable : path.resolve(this.modulesDir, module.executable.replace(/^\.\//, ''));

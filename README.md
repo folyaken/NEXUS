@@ -12,9 +12,23 @@
 - Перенаправление stdout/stderr в `log_file`, online event stream и PID в карточках модулей.
 - Dashboard, реестр модулей, журнал событий и настройки runtime.
 - `electron-builder` конфигурация для Windows NSIS и Linux AppImage.
-- Кастомная frameless title bar без стандартного меню Windows; окно фиксированного размера и перемещается за верхнюю панель.
+- Кастомная frameless title bar: свернуть, fullscreen (Esc), закрыть в трей или выйти полностью.
+- Настройки runtime сохраняются в `userData/settings.json`: автозапуск включённых модулей, уведомления, закрытие в трей.
+- При выходе все дочерние процессы останавливаются; второй экземпляр не запускается.
 - Локальный профиль: имя пользователя + device key, рассчитанный локально и сохранённый в `userData/profile.json`.
 - GitHub-only updater для `Flowseal/zapret-discord-youtube` и `Flowseal/tg-ws-proxy`: latest release API, allowlist asset URL, SHA-256 журнала, автоматическая синхронизация при старте.
+
+## Скачать без лишней папки
+
+Не используй кнопку GitHub «Download ZIP» — там будет обёртка `NEXUS-.../`.
+
+Бери готовый плоский архив `NEXUS.zip` из корня ветки (внутри сразу `package.json`, `src`, `modules`).
+
+При `npm install` / `npm start` ставятся официальные ядра: **Xray-core** (VLESS/VMess/Trojan/SS) и **sing-box** (Hysteria2) в `modules/bin`. Бинарники в git не кладём.
+
+## Jey2Ray
+
+Вкладка **Jey2Ray** — VPN-клиент на Xray-core. Вставь `vless://`, `vmess://`, `trojan://` или `ss://`. Ядро качается с `XTLS/Xray-core` в `modules/bin/xray.exe`. Профили лежат в `modules/configs/vpn/`. Локальный SOCKS: `127.0.0.1:10808`.
 
 ## Быстрый старт
 

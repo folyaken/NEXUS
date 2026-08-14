@@ -1,6 +1,8 @@
 import { useEffect, useMemo, useState } from 'react';
 import { animated, config, useSpring } from '@react-spring/web';
-import type { ModuleLog, ModuleManifest, ModuleStatus, UpdateInfo, UserProfile } from '../main/types';
+import type { AppSettings, ModuleLog, ModuleManifest, ModuleStatus, UpdateInfo, UserProfile } from '../main/types';
+import { DEFAULT_SETTINGS } from '../main/types';
+import { Jey2RayPage } from './Jey2RayPage';
 
 type Page = 'dashboard' | 'modules' | 'jey2ray' | 'logs' | 'settings';
 type Tone = 'green' | 'amber' | 'red' | 'muted';
@@ -77,10 +79,10 @@ function NavGlyph({ name }: { name: string }) {
   return <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="5" y="5" width="5" height="5" rx="1" /><rect x="14" y="5" width="5" height="5" rx="1" /><rect x="5" y="14" width="5" height="5" rx="1" /><rect x="14" y="14" width="5" height="5" rx="1" /></svg>;
 }
 
-function WindowBar() {
+function WindowBar({ fullscreen }: { fullscreen: boolean }) {
   return <div className="window-bar">
     <div className="window-drag"><span className="window-brand-mark">✦</span><strong>NEXUS</strong><span className="window-separator">/</span><span>Network Control Plane</span></div>
-    <div className="window-actions"><button className="window-control minimize" aria-label="Свернуть" onClick={() => void window.nexus?.minimizeWindow()}>−</button><button className="window-control fullscreen" aria-label="На весь экран" title="На весь экран" onClick={() => void window.nexus?.toggleFullscreen()}>⛶</button><button className="window-control close" aria-label="Закрыть" onClick={() => void window.nexus?.closeWindow()}>×</button></div>
+    <div className="window-actions"><button className="window-control minimize" aria-label="Свернуть" onClick={() => void window.nexus?.minimizeWindow()}>−</button><button className="window-control fullscreen" aria-label={fullscreen ? 'Оконный режим' : 'На весь экран'} title={fullscreen ? 'Оконный режим (Esc)' : 'На весь экран'} onClick={() => void window.nexus?.toggleFullscreen()}>{fullscreen ? '❐' : '⛶'}</button><button className="window-control close" aria-label="Закрыть" onClick={() => void window.nexus?.closeWindow()}>×</button></div>
   </div>;
 }
 
@@ -105,7 +107,7 @@ function ModuleCard({ module, index, onToggle, onStrategyChange }: { module: Mod
   const tone = moduleTone(module);
   return <animated.article className="module-card" onMouseEnter={() => setHovered(true)} onMouseLeave={() => setHovered(false)} style={{ opacity: entry.opacity, transform: entry.y.to((y) => `translateY(${y}px)`) }}><animated.div className="module-card-inner" style={{ transform: hover.y.to((y) => `translateY(${y}px)`), boxShadow: hover.shadow }}>
     <div className="card-head"><div className={`module-icon ${module.category}`}><span>{module.icon}</span></div><div className="card-head-copy"><div className="eyebrow-row"><span className="category-chip">{categoryNames[module.category] ?? 'OTHER'}</span><StatusDot tone={tone} /><span className={`status-copy ${tone}`}>{moduleLabel(module)}</span></div><h3>{module.name}</h3></div><Toggle checked={isRunning} busy={isBusy} disabled={isDevelopment} onChange={() => onToggle(module)} /></div>
-    {module.id === 'zapret' && <div className="strategy-row"><label htmlFor={`strategy-${module.id}`}>Профиль запуска</label><select id={`strategy-${module.id}`} value={module.strategy ?? zapretStrategies[0]} disabled={isRunning || isBusy} onChange={(event) => onStrategyChange(module, event.target.value)}>{zapretStrategies.map((strategy) => <option key={strategy} value={strategy}>{strategy}</option>)}</select></div>}
+    {(module.id === 'zapret' || module.strategies) && <div className="strategy-row"><label htmlFor={`strategy-${module.id}`}>Профиль запуска</label><select id={`strategy-${module.id}`} value={module.strategy ?? Object.keys(module.strategies ?? {})[0] ?? zapretStrategies[0]} disabled={isRunning || isBusy} onChange={(event) => onStrategyChange(module, event.target.value)}>{(Object.keys(module.strategies ?? {}).length ? Object.keys(module.strategies ?? {}) : zapretStrategies).map((strategy) => <option key={strategy} value={strategy}>{strategy}</option>)}</select></div>}
     <p className={`module-description ${module.status === 'error' ? 'error-copy' : ''} ${isDevelopment ? 'development-copy' : ''}`}>{isDevelopment ? 'Интеграция будет добавлена в следующей версии.' : module.status === 'error' && module.error ? module.error : module.description}</p><div className="card-divider" /><div className="card-foot"><span className="module-meta"><span className="meta-dot" />{isDevelopment ? 'Скоро' : module.pid ? `PID ${module.pid}` : 'Готов к запуску'}</span><button className={`module-action ${isDevelopment ? 'is-disabled' : ''}`} disabled={isDevelopment} onClick={() => onToggle(module)}>{isDevelopment ? 'В разработке' : isRunning ? 'Остановить' : isBusy ? 'Подождите' : 'Запустить'} <span>↗</span></button></div>
   </animated.div></animated.article>;
 }
@@ -115,10 +117,10 @@ function StatCard({ label, value, note, icon, tone, index }: { label: string; va
   return <animated.div className="stat-card" style={{ opacity: spring.opacity, transform: spring.y.to((y) => `translateY(${y}px)`) }}><div className={`stat-icon ${tone}`}><IconMark>{icon}</IconMark></div><div><span className="stat-label">{label}</span><strong>{value}</strong><span className="stat-note">{note}</span></div></animated.div>;
 }
 
-function PulsePanel({ running, total }: { running: number; total: number }) {
+function PulsePanel({ running, total, errors }: { running: number; total: number; errors: number }) {
   const progress = total ? Math.round((running / total) * 100) : 0;
   const spring = useSpring({ from: { opacity: 0, x: 12 }, to: { opacity: 1, x: 0 }, delay: 260, config: config.gentle });
-  return <animated.aside className="pulse-panel" style={{ opacity: spring.opacity, transform: spring.x.to((x) => `translateX(${x}px)`) }}><div className="panel-topline"><span className="mini-label">SYSTEM PULSE</span><span className="live-badge"><StatusDot tone="green" /> LIVE</span></div><div className="pulse-title"><div><strong>{running ? 'Контур активен' : 'Контур готов'}</strong><span>Все сигналы под контролем</span></div><span className="pulse-score">{progress}%</span></div><div className="pulse-chart" aria-hidden="true"><svg viewBox="0 0 330 110" preserveAspectRatio="none"><defs><linearGradient id="pulseFill" x1="0" x2="0" y1="0" y2="1"><stop offset="0" stopColor="#71f4b8" stopOpacity=".34" /><stop offset="1" stopColor="#71f4b8" stopOpacity="0" /></linearGradient></defs><path className="chart-grid" d="M0 22H330 M0 54H330 M0 86H330" /><path className="chart-fill" d="M0 78 C20 76, 23 58, 42 66 S66 94, 87 63 S111 34, 133 55 S160 78, 180 48 S204 31, 225 53 S247 80, 270 39 S300 50, 330 23 L330 110 L0 110 Z" /><path className="chart-line" d="M0 78 C20 76, 23 58, 42 66 S66 94, 87 63 S111 34, 133 55 S160 78, 180 48 S204 31, 225 53 S247 80, 270 39 S300 50, 330 23" /></svg></div><div className="pulse-foot"><span><i className="legend-line mint" /> Throughput</span><span>+18.4% <b>↗</b></span></div></animated.aside>;
+  return <animated.aside className="pulse-panel" style={{ opacity: spring.opacity, transform: spring.x.to((x) => `translateX(${x}px)`) }}><div className="panel-topline"><span className="mini-label">SYSTEM PULSE</span><span className="live-badge"><StatusDot tone={errors ? 'red' : running ? 'green' : 'muted'} /> {errors ? 'ALERT' : 'LIVE'}</span></div><div className="pulse-title"><div><strong>{errors ? 'Есть ошибки' : running ? 'Контур активен' : 'Контур готов'}</strong><span>{running} из {total} модулей запущено</span></div><span className="pulse-score">{progress}%</span></div><div className="pulse-chart" aria-hidden="true"><svg viewBox="0 0 330 110" preserveAspectRatio="none"><defs><linearGradient id="pulseFill" x1="0" x2="0" y1="0" y2="1"><stop offset="0" stopColor="#71f4b8" stopOpacity=".34" /><stop offset="1" stopColor="#71f4b8" stopOpacity="0" /></linearGradient></defs><path className="chart-grid" d="M0 22H330 M0 54H330 M0 86H330" /><path className="chart-fill" d="M0 78 C20 76, 23 58, 42 66 S66 94, 87 63 S111 34, 133 55 S160 78, 180 48 S204 31, 225 53 S247 80, 270 39 S300 50, 330 23 L330 110 L0 110 Z" /><path className="chart-line" d="M0 78 C20 76, 23 58, 42 66 S66 94, 87 63 S111 34, 133 55 S160 78, 180 48 S204 31, 225 53 S247 80, 270 39 S300 50, 330 23" /></svg></div><div className="pulse-foot"><span><i className="legend-line mint" /> Запущено</span><span>{errors ? `${errors} ошиб. ` : ''}{running}/{total}</span></div></animated.aside>;
 }
 
 function HeroVisual() {
@@ -138,7 +140,10 @@ function HeroVisual() {
 function GithubUpdateStrip({ updates, syncing, onSync }: { updates: UpdateInfo[]; syncing: boolean; onSync: () => void }) {
   const latest = updates.filter((item) => item.latestVersion).map((item) => `${item.name} ${item.latestVersion}`).join(' · ');
   const installed = updates.filter((item) => item.status === 'installed').length;
-  return <div className="github-strip"><div className="github-logo">◉</div><div className="github-copy"><strong>Flowseal GitHub · автообновление модулей</strong><span>{latest || 'Проверяем последние релизы…'}{installed ? ` · обновлено: ${installed}` : ''}</span></div><span className="github-lock">Только github.com/Flowseal</span><button className="github-button" disabled={syncing} onClick={onSync}>{syncing ? 'Синхронизация…' : 'Проверить GitHub'} <span>↗</span></button></div>;
+  const downloading = updates.find((item) => item.status === 'downloading');
+  const progress = downloading && downloading.totalBytes ? Math.round(((downloading.downloadedBytes ?? 0) / downloading.totalBytes) * 100) : null;
+  const failed = updates.find((item) => item.status === 'error');
+  return <div className="github-strip"><div className="github-logo">◉</div><div className="github-copy"><strong>Flowseal GitHub · автообновление модулей</strong><span className={failed ? 'github-error' : ''}>{failed?.error || latest || 'Проверяем последние релизы…'}{progress !== null ? ` · загрузка ${progress}%` : ''}{installed ? ` · обновлено: ${installed}` : ''}</span></div><span className="github-lock">Только github.com/Flowseal</span><button className="github-button" disabled={syncing} onClick={onSync}>{syncing ? (progress !== null ? `${progress}%` : 'Синхронизация…') : 'Проверить GitHub'} <span>↗</span></button></div>;
 }
 
 function ProfilePopover({ open, profile, draft, setDraft, onSave }: { open: boolean; profile: UserProfile; draft: string; setDraft: (value: string) => void; onSave: () => void }) {
@@ -151,12 +156,15 @@ function App() {
   const [modules, setModules] = useState<ModuleManifest[]>(DEMO_MODULES);
   const [logs, setLogs] = useState<ModuleLog[]>(DEMO_LOGS);
   const [updates, setUpdates] = useState<UpdateInfo[]>(DEMO_UPDATES);
-  const [query, setQuery] = useState('');
+  // Search is intentionally hidden for now (CSS .search-box already exists).
+  // const [query, setQuery] = useState('');
   const [moduleFilter, setModuleFilter] = useState<'all' | 'running' | 'stopped'>('all');
+  const [logFilter, setLogFilter] = useState('all');
   const [toast, setToast] = useState('');
-  const [autoStart, setAutoStart] = useState(false);
-  const [notifications, setNotifications] = useState(true);
+  const [settings, setSettings] = useState<AppSettings>(DEFAULT_SETTINGS);
   const [syncing, setSyncing] = useState(false);
+  const [fullscreen, setFullscreen] = useState(false);
+  const [lastScan, setLastScan] = useState<string | null>(null);
   const [profile, setProfile] = useState<UserProfile>({ displayName: '', deviceId: 'NX-LOCAL', deviceName: 'Локальное устройство' });
   const [profileDraft, setProfileDraft] = useState('');
   const [profileOpen, setProfileOpen] = useState(false);
@@ -171,27 +179,40 @@ function App() {
       localStorage.setItem('nexus-device-id', deviceId);
       setProfile({ displayName: savedName, deviceId, deviceName: 'Локальное устройство' });
       setProfileDraft(savedName);
+      try {
+        const raw = localStorage.getItem('nexus-settings');
+        if (raw) setSettings({ ...DEFAULT_SETTINGS, ...JSON.parse(raw) as AppSettings });
+      } catch { /* keep defaults */ }
       return () => { alive = false; };
     }
-    void Promise.all([api.getModules(), api.getLogs(), api.getUpdates(), api.getProfile()]).then(([nextModules, nextLogs, nextUpdates, nextProfile]) => {
+    void Promise.all([api.getModules(), api.getLogs(), api.getUpdates(), api.getProfile(), api.getSettings(), api.getLastScan(), api.isFullscreen()]).then(([nextModules, nextLogs, nextUpdates, nextProfile, nextSettings, scan, isFull]) => {
       if (!alive) return;
       setModules(nextModules); setLogs(nextLogs); setUpdates(nextUpdates); setProfile(nextProfile); setProfileDraft(nextProfile.displayName);
+      setSettings(nextSettings); setLastScan(scan); setFullscreen(isFull);
     }).catch((error: Error) => setToast(error.message));
     const offModules = api.onModulesChanged(setModules);
     const offLogs = api.onLog((log) => setLogs((current) => [log, ...current].slice(0, 200)));
     const offUpdates = api.onUpdatesChanged(setUpdates);
-    return () => { alive = false; offModules(); offLogs(); offUpdates(); };
+    const offFull = api.onFullscreen(setFullscreen);
+    const offScan = api.onScan(setLastScan);
+    return () => { alive = false; offModules(); offLogs(); offUpdates(); offFull(); offScan(); };
   }, []);
 
   useEffect(() => { if (!toast) return; const timeout = window.setTimeout(() => setToast(''), 3600); return () => window.clearTimeout(timeout); }, [toast]);
 
   const filteredModules = useMemo(() => modules.filter((module) => {
-    const matchesQuery = `${module.name} ${module.description} ${module.category}`.toLowerCase().includes(query.toLowerCase());
+    // const matchesQuery = `${module.name} ${module.description} ${module.category}`.toLowerCase().includes(query.toLowerCase());
     const matchesFilter = moduleFilter === 'all' || (moduleFilter === 'running' ? module.status === 'running' : module.status !== 'running');
-    return matchesQuery && matchesFilter;
-  }), [modules, query, moduleFilter]);
+    return matchesFilter;
+  }), [modules, moduleFilter]);
   const running = modules.filter((module) => module.status === 'running').length;
-  const healthy = modules.filter((module) => module.status !== 'error').length;
+  const errors = modules.filter((module) => module.status === 'error').length;
+  const healthy = modules.length - errors;
+  const visibleLogs = useMemo(() => logFilter === 'all' ? logs : logs.filter((log) => log.id === logFilter), [logs, logFilter]);
+  const lastScanLabel = lastScan ? formatTime(lastScan) : 'только что';
+  const systemTone: Tone = errors ? 'red' : running ? 'green' : 'muted';
+  const systemTitle = errors ? 'Есть ошибки модулей' : running ? 'Контур активен' : 'Система в норме';
+  const systemNote = errors ? `${errors} модуль(ей) в ошибке` : running ? `${running} запущено` : 'Ожидание запуска';
   const profileName = profile.displayName || 'Выбрать имя';
   const profileInitial = profile.displayName.trim().charAt(0).toUpperCase() || 'N';
 
@@ -228,6 +249,7 @@ function App() {
     try {
       if (desktop) await window.nexus?.reloadModules();
       else setLogs((current) => [{ id: 'system', level: 'success', message: `Повторное сканирование: найдено модулей — ${modules.length}`, timestamp: new Date().toISOString() }, ...current]);
+      setLastScan(new Date().toISOString());
       setToast('Модули синхронизированы');
     } catch (error) { setToast(error instanceof Error ? error.message : 'Ошибка сканирования'); }
   };
@@ -258,56 +280,45 @@ function App() {
     setProfileDraft(name); setProfileOpen(false); setToast('Профиль сохранён на этом устройстве');
   };
 
-  return <div className="app-frame"><WindowBar /><div className="app-shell"><div className="ambient ambient-one" /><div className="ambient ambient-two" />
-    <aside className="sidebar"><div className="brand"><div className="brand-orb"><NexusMark /></div><div><strong>NEXUS</strong><span>NETWORK CONTROL</span></div></div><div className="workspace-selector workspace-static"><span className="workspace-avatar">N</span><div><span className="workspace-label">DEVICE PROFILE · {profile.deviceId}</span><strong>{profile.deviceName || 'Локальное устройство'}</strong></div><span className="workspace-badge">LOCAL</span></div><div className="nav-label">CONTROL CENTER</div><nav>{navItems.map((item) => <button key={item.id} className={`nav-item ${page === item.id ? 'active' : ''}`} onClick={() => setPage(item.id)}><span className="nav-glyph"><NavGlyph name={item.icon} /></span><span>{item.label}</span>{item.id === 'logs' && logs.length > 0 ? <em>{Math.min(logs.length, 99)}</em> : null}</button>)}</nav><div className="sidebar-bottom"><div className="system-status"><StatusDot tone="green" /><div><span>Система в норме</span><small>Все сервисы отвечают</small></div></div><div className="version-row"><span>NEXUS v1.0.0</span><span className="online-dot" /> LOCAL</div></div></aside>
+  const persistSettings = async (next: AppSettings) => {
+    setSettings(next);
+    try {
+      if (desktop) {
+        const saved = await window.nexus?.saveSettings(next);
+        if (saved) setSettings(saved);
+      } else {
+        localStorage.setItem('nexus-settings', JSON.stringify(next));
+      }
+    } catch (error) {
+      setToast(error instanceof Error ? error.message : 'Не удалось сохранить настройки');
+    }
+  };
 
-    <main className="main-content"><header className="topbar"><div className="breadcrumb"><span>CONTROL CENTER</span><b>/</b><strong>{navItems.find((item) => item.id === page)?.label}</strong></div><div className="top-actions"><button className="circle-button" aria-label="Уведомления"><span>♢</span><i /></button><div className="profile-wrap"><button className="user-chip" onClick={() => setProfileOpen((value) => !value)}><span className="user-avatar">{profileInitial}</span><span>{profileName}</span><b>⌄</b></button><ProfilePopover open={profileOpen} profile={profile} draft={profileDraft} setDraft={setProfileDraft} onSave={handleSaveProfile} /></div></div></header>
+  return <div className="app-frame"><WindowBar fullscreen={fullscreen} /><div className="app-shell"><div className="ambient ambient-one" /><div className="ambient ambient-two" />
+    <aside className="sidebar"><div className="brand"><div className="brand-orb"><NexusMark /></div><div><strong>NEXUS</strong><span>NETWORK CONTROL</span></div></div><div className="workspace-selector workspace-static"><span className="workspace-avatar">N</span><div><span className="workspace-label">DEVICE PROFILE · {profile.deviceId}</span><strong>{profile.deviceName || 'Локальное устройство'}</strong></div><span className="workspace-badge">LOCAL</span></div><div className="nav-label">CONTROL CENTER</div><nav>{navItems.map((item) => <button key={item.id} className={`nav-item ${page === item.id ? 'active' : ''}`} onClick={() => setPage(item.id)}><span className="nav-glyph"><NavGlyph name={item.icon} /></span><span>{item.label}</span>{item.id === 'logs' && logs.length > 0 ? <em>{Math.min(logs.length, 99)}</em> : null}</button>)}</nav><div className="sidebar-bottom"><div className="system-status"><StatusDot tone={systemTone} /><div><span>{systemTitle}</span><small>{systemNote}</small></div></div><div className="version-row"><span>NEXUS v1.0.0</span><span className="online-dot" /> LOCAL</div></div></aside>
 
-      {page === 'dashboard' && <><section className="hero"><div className="hero-copy"><div className="hero-kicker"><span className="spark-line">✦</span> LOCAL NETWORK ORCHESTRATOR <span className="hero-line" /></div><h1>Сеть, которая<br /><span>работает на тебя.</span></h1><p>Единый центр для спокойного управления сетевыми инструментами,<br />локальными прокси и профилями маршрутизации.</p><div className="hero-actions"><button className="primary-button" onClick={() => setPage('modules')}><span>Открыть модули</span><b>↗</b></button><button className="quiet-button" onClick={handleReload}><span>⟳</span> Сканировать заново</button></div></div><HeroVisual /></section><section className="stats-grid"><StatCard label="ВСЕГО МОДУЛЕЙ" value={String(modules.length).padStart(2, '0')} note="обнаружено локально" icon="◈" tone="cyan" index={0} /><StatCard label="АКТИВНЫЕ" value={String(running).padStart(2, '0')} note={running ? 'контур запущен' : 'готовы к запуску'} icon="ϟ" tone="violet" index={1} /><StatCard label="ЗДОРОВЬЕ" value={`${modules.length ? Math.round((healthy / modules.length) * 100) : 100}%`} note="без критических ошибок" icon="⌁" tone="mint" index={2} /><StatCard label="ПОСЛЕДНИЙ СКАН" value="только что" note="автосинхронизация включена" icon="◷" tone="amber" index={3} /></section><section className="section-heading"><div><span className="section-kicker">YOUR TOOLKIT</span><h2>Быстрый доступ</h2></div><button className="text-button" onClick={() => setPage('modules')}>Все модули <span>→</span></button></section><div className="dashboard-grid"><div className="module-grid compact">{filteredModules.slice(0, 4).map((module, index) => <ModuleCard key={module.id} module={module} index={index} onToggle={handleToggle} onStrategyChange={handleStrategyChange} />)}</div><PulsePanel running={running} total={modules.length} /></div></>}
+    <main className="main-content"><header className="topbar"><div className="breadcrumb"><span>CONTROL CENTER</span><b>/</b><strong>{navItems.find((item) => item.id === page)?.label}</strong></div><div className="top-actions"><button className="circle-button" aria-label="Журнал событий" title="Открыть журнал" onClick={() => setPage('logs')}><span>♢</span>{logs.some((log) => log.level === 'error') ? <i /> : null}</button><div className="profile-wrap"><button className="user-chip" onClick={() => setProfileOpen((value) => !value)}><span className="user-avatar">{profileInitial}</span><span>{profileName}</span><b>⌄</b></button><ProfilePopover open={profileOpen} profile={profile} draft={profileDraft} setDraft={setProfileDraft} onSave={handleSaveProfile} /></div></div></header>
 
-      {page === 'modules' && <section className="page-section"><div className="page-heading"><div><span className="section-kicker">MODULE REGISTRY</span><h1>Все модули</h1><p>Манифесты из <code>./modules</code> · {modules.length} подключено</p></div><button className="primary-button small" onClick={handleReload}><span>⟳</span><b>Сканировать</b></button></div><GithubUpdateStrip updates={updates} syncing={syncing} onSync={handleSyncUpdates} /><div className="filter-row"><span className="filter-label">ФИЛЬТР:</span><button className={`filter-chip ${moduleFilter === 'all' ? 'active' : ''}`} onClick={() => setModuleFilter('all')}>Все <b>{modules.length}</b></button><button className={`filter-chip ${moduleFilter === 'running' ? 'active' : ''}`} onClick={() => setModuleFilter('running')}>Активные <b>{running}</b></button><button className={`filter-chip ${moduleFilter === 'stopped' ? 'active' : ''}`} onClick={() => setModuleFilter('stopped')}>Остановлены <b>{modules.length - running}</b></button></div><div className="module-grid full">{filteredModules.map((module, index) => <ModuleCard key={module.id} module={module} index={index} onToggle={handleToggle} onStrategyChange={handleStrategyChange} />)}</div>{filteredModules.length === 0 && <div className="empty-state"><span>⌕</span><h3>Ничего не найдено</h3><p>Попробуйте изменить поисковый запрос.</p></div>}</section>}
+      {page === 'dashboard' && <><section className="hero"><div className="hero-copy"><div className="hero-kicker"><span className="spark-line">✦</span> LOCAL NETWORK ORCHESTRATOR <span className="hero-line" /></div><h1>Сеть, которая<br /><span>работает на тебя.</span></h1><p>Единый центр для спокойного управления сетевыми инструментами,<br />локальными прокси и профилями маршрутизации.</p><div className="hero-actions"><button className="primary-button" onClick={() => setPage('modules')}><span>Открыть модули</span><b>↗</b></button><button className="quiet-button" onClick={handleReload}><span>⟳</span> Сканировать заново</button></div></div><HeroVisual /></section><section className="stats-grid"><StatCard label="ВСЕГО МОДУЛЕЙ" value={String(modules.length).padStart(2, '0')} note="обнаружено локально" icon="◈" tone="cyan" index={0} /><StatCard label="АКТИВНЫЕ" value={String(running).padStart(2, '0')} note={running ? 'контур запущен' : 'готовы к запуску'} icon="ϟ" tone="violet" index={1} /><StatCard label="ЗДОРОВЬЕ" value={`${modules.length ? Math.round((healthy / modules.length) * 100) : 100}%`} note={errors ? `${errors} с ошибкой` : 'без критических ошибок'} icon="⌁" tone="mint" index={2} /><StatCard label="ПОСЛЕДНИЙ СКАН" value={lastScanLabel} note={settings.autoStart ? 'автозапуск включён' : 'автозапуск выключен'} icon="◷" tone="amber" index={3} /></section><section className="section-heading"><div><span className="section-kicker">YOUR TOOLKIT</span><h2>Быстрый доступ</h2></div><button className="text-button" onClick={() => setPage('modules')}>Все модули <span>→</span></button></section><div className="dashboard-grid"><div className="module-grid compact">{filteredModules.slice(0, 4).map((module, index) => <ModuleCard key={module.id} module={module} index={index} onToggle={handleToggle} onStrategyChange={handleStrategyChange} />)}</div><PulsePanel running={running} total={modules.length} errors={errors} /></div></>}
 
-      {page === 'jey2ray' && <Jey2RayPage />}
+      {page === 'modules' && <section className="page-section"><div className="page-heading"><div><span className="section-kicker">MODULE REGISTRY</span><h1>Все модули</h1><p>Манифесты из <code>./modules</code> · {modules.length} подключено</p></div><button className="primary-button small" onClick={handleReload}><span>⟳</span><b>Сканировать</b></button></div><GithubUpdateStrip updates={updates} syncing={syncing} onSync={handleSyncUpdates} /><div className="filter-row"><span className="filter-label">ФИЛЬТР:</span><button className={`filter-chip ${moduleFilter === 'all' ? 'active' : ''}`} onClick={() => setModuleFilter('all')}>Все <b>{modules.length}</b></button><button className={`filter-chip ${moduleFilter === 'running' ? 'active' : ''}`} onClick={() => setModuleFilter('running')}>Активные <b>{running}</b></button><button className={`filter-chip ${moduleFilter === 'stopped' ? 'active' : ''}`} onClick={() => setModuleFilter('stopped')}>Остановлены <b>{modules.length - running}</b></button></div><div className="module-grid full">{filteredModules.map((module, index) => <ModuleCard key={module.id} module={module} index={index} onToggle={handleToggle} onStrategyChange={handleStrategyChange} />)}</div>{filteredModules.length === 0 && <div className="empty-state"><span>⌕</span><h3>Ничего не найдено</h3><p>Смените фильтр или просканируйте modules ещё раз.</p></div>}</section>}
 
-      {page === 'logs' && <section className="page-section"><div className="page-heading"><div><span className="section-kicker">EVENT STREAM</span><h1>Журнал событий</h1><p>Последние сигналы от модулей и NEXUS runtime.</p></div><div className="log-live"><StatusDot tone="green" /> поток в реальном времени</div></div><div className="logs-card"><div className="logs-toolbar"><span>СЕГОДНЯ</span><span>{logs.length} событий</span></div>{logs.length ? logs.map((log, index) => <LogRow key={`${log.timestamp}-${index}`} log={log} />) : <div className="empty-state"><span>≡</span><h3>Журнал пуст</h3><p>События появятся после запуска модуля.</p></div>}</div></section>}
+      {page === 'jey2ray' && <Jey2RayPage settings={settings} updates={updates} syncing={syncing} onSync={handleSyncUpdates} onSettings={(next) => void persistSettings(next)} onToast={setToast} />}
 
-      {page === 'settings' && <Settings autoStart={autoStart} notifications={notifications} setAutoStart={setAutoStart} setNotifications={setNotifications} updates={updates} />}
+      {page === 'logs' && <section className="page-section"><div className="page-heading"><div><span className="section-kicker">EVENT STREAM</span><h1>Журнал событий</h1><p>Последние сигналы от модулей и NEXUS runtime.</p></div><div className="log-live"><StatusDot tone="green" /> поток в реальном времени</div></div><div className="filter-row"><span className="filter-label">ИСТОЧНИК:</span><button className={`filter-chip ${logFilter === 'all' ? 'active' : ''}`} onClick={() => setLogFilter('all')}>Все <b>{logs.length}</b></button>{['system', ...modules.map((module) => module.id)].map((id) => <button key={id} className={`filter-chip ${logFilter === id ? 'active' : ''}`} onClick={() => setLogFilter(id)}>{id === 'system' ? 'NEXUS' : id}</button>)}</div><div className="logs-card"><div className="logs-toolbar"><span>СЕГОДНЯ</span><span>{visibleLogs.length} событий</span></div>{visibleLogs.length ? visibleLogs.map((log, index) => <LogRow key={`${log.timestamp}-${index}`} log={log} />) : <div className="empty-state"><span>≡</span><h3>Журнал пуст</h3><p>События появятся после запуска модуля.</p></div>}</div></section>}
+
+      {page === 'settings' && <Settings settings={settings} onChange={(next) => void persistSettings(next)} updates={updates} />}
     </main><Toast message={toast} />
   </div></div>;
 }
 
 function LogRow({ log }: { log: ModuleLog }) {
   const tone: Tone = log.level === 'success' ? 'green' : log.level === 'error' ? 'red' : log.level === 'warn' ? 'amber' : 'muted';
-  const spring = useSpring({ from: { opacity: 0, x: -8 }, to: { opacity: 1, x: 0 }, config: config.gentle });
-  return <animated.div className="log-row" style={{ opacity: spring.opacity, transform: spring.x.to((x) => `translateX(${x}px)`) }}><span className="log-time">{formatTime(log.timestamp)}</span><StatusDot tone={tone} /><span className="log-source">{log.id === 'system' ? 'NEXUS' : log.id}</span><span className="log-message">{log.message}</span><span className={`log-level ${tone}`}>{log.level}</span></animated.div>;
+  return <div className="log-row"><span className="log-time">{formatTime(log.timestamp)}</span><span className={`status-dot ${tone}`} /><span className="log-source">{log.id === 'system' ? 'NEXUS' : log.id}</span><span className="log-message" title={log.message}>{log.message}</span><span className={`log-level ${tone}`}>{log.level}</span></div>;
 }
 
-function JeyVisual() {
-  const spin = useSpring({ from: { turn: 0 }, to: { turn: 360 }, loop: true, config: { duration: 15000 } });
-  const reverse = useSpring({ from: { turn: 360 }, to: { turn: 0 }, loop: true, config: { duration: 21000 } });
-  const core = useSpring({ from: { scale: .9, opacity: .72 }, to: { scale: 1.08, opacity: 1 }, loop: { reverse: true }, config: { duration: 2200 } });
-  return <div className="jey-orb">
-    <animated.div className="jey-ring ring-one" style={{ transform: spin.turn.to((turn) => `rotate(${turn}deg) scaleY(.48)`) }} />
-    <animated.div className="jey-ring ring-two" style={{ transform: reverse.turn.to((turn) => `rotate(${turn - 32}deg) scaleY(.42)`) }} />
-    <animated.div className="jey-planet-track planet-track-one" style={{ transform: spin.turn.to((turn) => `rotate(${turn}deg)`) }}><span className="jey-planet planet-one" /></animated.div>
-    <animated.div className="jey-planet-track planet-track-two" style={{ transform: reverse.turn.to((turn) => `rotate(${turn}deg)`) }}><span className="jey-planet planet-two" /></animated.div>
-    <animated.span className="jey-core" style={{ transform: core.scale.to((scale) => `scale(${scale})`), opacity: core.opacity }}>✦</animated.span>
-  </div>;
-}
-
-function Jey2RayPage() {
-  const intro = useSpring({ from: { opacity: 0, y: 12 }, to: { opacity: 1, y: 0 }, config: config.gentle });
-  const cards = [
-    { name: 'VLESS', caption: 'Лёгкий профиль для современных VPN-соединений', icon: '◈', tone: 'cyan' },
-    { name: 'VMess', caption: 'Совместимость с классическими прокси-профилями', icon: '✦', tone: 'violet' },
-    { name: 'Trojan', caption: 'TLS-профиль для аккуратного сетевого транспорта', icon: '◇', tone: 'amber' },
-    { name: 'Shadowsocks', caption: 'Быстрый локальный профиль подключения', icon: '⌁', tone: 'mint' },
-  ];
-  return <section className="page-section jey-page"><animated.div className="jey-hero" style={{ opacity: intro.opacity, transform: intro.y.to((y) => `translateY(${y}px)`) }}><div><span className="section-kicker">PRIVATE NETWORK LAYER</span><h1>Jey2Ray</h1><p>Единый интерфейс для VPN-профилей, маршрутов и приватных подключений.</p><span className="coming-badge"><i /> В разработке</span></div><JeyVisual /></animated.div><div className="jey-toolbar"><div><span className="section-kicker">PROTOCOL LIBRARY</span><h2>Профили подключения</h2></div><button className="primary-button small" disabled>Добавить профиль</button></div><div className="jey-grid">{cards.map((card, index) => <animated.div key={card.name} className="jey-card" style={{ opacity: intro.opacity, transform: intro.y.to((y) => `translateY(${y}px)`) }}><div className={`jey-icon ${card.tone}`}>{card.icon}</div><div><h3>{card.name}</h3><p>{card.caption}</p></div><span className="jey-status">Скоро</span></animated.div>)}</div><div className="jey-note"><span>i</span><div><strong>Jey2Ray готовится</strong><p>На следующем этапе добавим импорт конфигураций, проверку профилей и безопасное переключение VPN-режимов без запуска неизвестных файлов.</p></div></div></section>;
-}
-
-function Settings({ autoStart, notifications, setAutoStart, setNotifications, updates }: { autoStart: boolean; notifications: boolean; setAutoStart: (value: boolean) => void; setNotifications: (value: boolean) => void; updates: UpdateInfo[] }) {
-  return <section className="page-section settings-page"><div className="page-heading"><div><span className="section-kicker">PREFERENCES</span><h1>Настройки</h1><p>Поведение локального control plane.</p></div></div><div className="settings-layout"><div className="settings-card"><div className="settings-card-head"><div className="settings-symbol"><GearIcon /></div><div><h3>Runtime</h3><p>Как NEXUS управляет процессами.</p></div></div><SettingRow label="Автозапуск модулей" description="Запускать enabled-модули при старте приложения." checked={autoStart} onChange={() => setAutoStart(!autoStart)} /><SettingRow label="Уведомления о событиях" description="Показывать системные сигналы при изменении состояния." checked={notifications} onChange={() => setNotifications(!notifications)} /></div><div className="settings-card"><div className="settings-card-head"><div className="settings-symbol violet">◈</div><div><h3>Module registry</h3><p>Последние версии загружаются только из GitHub Flowseal.</p></div></div><div className="source-list"><div><span>Flowseal / zapret-discord-youtube</span><b>{updates.find((item) => item.id === 'zapret')?.latestVersion ?? '—'}</b></div><div><span>Flowseal / tg-ws-proxy</span><b>{updates.find((item) => item.id === 'tg-ws-proxy')?.latestVersion ?? '—'}</b></div></div><div className="path-setting"><span className="setting-label">ПОЛИТИКА ПРОЦЕССОВ</span><code>shell: false</code><small>stdout и stderr записываются в log_file манифеста.</small></div></div></div><div className="info-callout"><span>i</span><div><strong>Локальный профиль и обновления</strong><p>Имя и device key хранятся только локально. Автообновление принимает только HTTPS-релизы с github.com/Flowseal и сохраняет SHA-256 скачанного файла.</p></div></div></section>;
+function Settings({ settings, onChange, updates }: { settings: AppSettings; onChange: (next: AppSettings) => void; updates: UpdateInfo[] }) {
+  return <section className="page-section settings-page"><div className="page-heading"><div><span className="section-kicker">PREFERENCES</span><h1>Настройки</h1><p>Поведение локального control plane.</p></div></div><div className="settings-layout"><div className="settings-card"><div className="settings-card-head"><div className="settings-symbol"><GearIcon /></div><div><h3>Runtime</h3><p>Как NEXUS управляет процессами.</p></div></div><SettingRow label="Автозапуск модулей" description="Запускать ранее включённые модули при старте приложения." checked={settings.autoStart} onChange={() => onChange({ ...settings, autoStart: !settings.autoStart })} /><SettingRow label="Уведомления о событиях" description="Системные уведомления при ошибках модулей и сворачивании в трей." checked={settings.notifications} onChange={() => onChange({ ...settings, notifications: !settings.notifications })} /><SettingRow label="Закрывать в трей" description="Крестик прячет окно. Полный выход — из меню трея." checked={settings.closeToTray} onChange={() => onChange({ ...settings, closeToTray: !settings.closeToTray })} /><SettingRow label="Автоподключение Jey2Ray" description="Подключать последний VPN-профиль при старте NEXUS." checked={settings.autoConnectVpn} onChange={() => onChange({ ...settings, autoConnectVpn: !settings.autoConnectVpn })} /></div><div className="settings-card"><div className="settings-card-head"><div className="settings-symbol violet">◈</div><div><h3>Module registry</h3><p>Релизы с GitHub Flowseal и XTLS/Xray-core.</p></div></div><div className="source-list"><div><span>Flowseal / zapret-discord-youtube</span><b>{updates.find((item) => item.id === 'zapret')?.latestVersion ?? '—'}</b></div><div><span>Flowseal / tg-ws-proxy</span><b>{updates.find((item) => item.id === 'tg-ws-proxy')?.latestVersion ?? '—'}</b></div><div><span>XTLS / Xray-core</span><b>{updates.find((item) => item.id === 'jey2ray')?.latestVersion ?? '—'}</b></div></div><div className="path-setting"><span className="setting-label">ПОЛИТИКА ПРОЦЕССОВ</span><code>shell: false</code><small>stdout и stderr записываются в log_file манифеста.</small></div></div></div><div className="info-callout"><span>i</span><div><strong>Локальный профиль и обновления</strong><p>Имя и device key хранятся только локально. Автообновление принимает только HTTPS-релизы с github.com/Flowseal и сохраняет SHA-256 скачанного файла.</p></div></div></section>;
 }
 
 function SettingRow({ label, description, checked, onChange }: { label: string; description: string; checked: boolean; onChange: () => void }) {

@@ -1,0 +1,15 @@
+{
+  "id": "jey2ray",
+  "name": "Jey2Ray",
+  "description": "VPN-клиент на Xray-core: VLESS, VMess, Trojan, Shadowsocks. Профили во вкладке Jey2Ray.",
+  "enabled": false,
+  "executable": "./bin/xray.exe",
+  "args": ["-config", "./configs/vpn/generated_config.json"],
+  "status": "stopped",
+  "category": "proxy",
+  "icon": "✦",
+  "pid": null,
+  "log_file": "./logs/vpn.log",
+  "working_dir": "./bin",
+  "development": false
+}
