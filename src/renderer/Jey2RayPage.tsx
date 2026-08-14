@@ -17,7 +17,6 @@ const EMPTY_RUNTIME: VpnRuntime = {
   xrayReady: false,
   xrayVersion: null,
   subscriptions: [],
-  mode: 'proxy',
 };
 
 function subscriptionKey(profile: VpnProfile): string {
@@ -144,7 +143,10 @@ export function Jey2RayPage({
   const tabs = useMemo(() => ['all', ...new Set(nodes.map(subscriptionKey))], [nodes]);
   const visible = useMemo(() => tab === 'all' ? nodes : nodes.filter((item) => subscriptionKey(item) === tab), [nodes, tab]);
   const fastest = useMemo(() => pickFastest(visible), [visible]);
-  const listed = useMemo(() => fastest ? [fastest, ...visible] : visible, [fastest, visible]);
+  const listed = useMemo(
+    () => fastest ? [fastest, ...visible.filter((item) => item.id !== fastest.id)] : visible,
+    [fastest, visible],
+  );
   const info: VpnSubscriptionInfo | undefined = (runtime.subscriptions ?? []).find((item) => tab !== 'all' && item.url === tab) ?? runtime.subscriptions?.[0];
   const selected = nodes.find((item) => item.id === selectedId) ?? fastest ?? nodes.find((item) => !canConnect(item)) ?? nodes[0] ?? null;
   const onAir = runtime.status === 'connected' && runtime.activeProfileId === selected?.id;
@@ -325,7 +327,7 @@ export function Jey2RayPage({
       </div>
 
       <div className="happ-list">
-        {visible.map((profile) => {
+        {listed.map((profile) => {
           const live = runtime.status === 'connected' && runtime.activeProfileId === profile.id;
           const picked = selected?.id === profile.id;
           const blocked = canConnect(profile);
