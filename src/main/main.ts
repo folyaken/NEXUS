@@ -288,7 +288,7 @@ if (gotLock) {
     createWindow();
     if (settings.autoStart) void manager.startEnabled();
     if (settings.autoConnectVpn && settings.lastVpnProfileId) {
-      void vpn.connect(settings.lastVpnProfileId, settings.vpnInboundPort).catch((error: Error) => {
+      void vpn.connect(settings.lastVpnProfileId, settings.vpnInboundPort, settings.vpnMode).catch((error: Error) => {
         notify('Jey2Ray', error.message);
       });
     }
