@@ -123,7 +123,7 @@ async function sourceContractTest() {
   assert.match(uiSource, /адрес скрыт/);
   assert.doesNotMatch(uiSource, />\{info\.url\}</, 'secret subscription URL is never rendered as visible text');
   assert.match(pageSource, /happ-card-metrics/, 'server scope uses the finished summary layout');
-  assert.match(stylesSource, /grid-template-columns:\s*repeat\(4, minmax\(96px, 1fr\)\)/, 'toolbar keeps its four remaining actions the same width');
+  assert.match(stylesSource, /grid-template-columns:\s*36px repeat\(4, minmax\(96px, 1fr\)\)/, 'toolbar reserves a compact Jey2Ray settings gear before four equal actions');
   assert.match(stylesSource, /\.jey-toolbar\.tight\s+\.ghost-action[^}]*height:\s*40px/, 'toolbar actions keep one stable height');
   assert.doesNotMatch(pageSource, />\s*Добавить ссылку\s*</, 'compact toolbar label cannot wrap in a normal window');
   assert.doesNotMatch(pageSource, />\s*Тест пинга\s*</, 'ping action uses its compact toolbar label');

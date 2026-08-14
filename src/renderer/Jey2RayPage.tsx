@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import type { AppSettings, UpdateInfo, VpnProfile, VpnRuntime, VpnSubscriptionInfo } from '../main/types';
+import type { AppSettings, UpdateInfo, VpnAppRoutingMode, VpnProfile, VpnRuntime, VpnSubscriptionInfo } from '../main/types';
 import { canConnect, displayName } from '../main/vpn-classify';
 import { Flag } from './Flag';
 import { ConnectionDiagnostics } from './ConnectionDiagnostics';
@@ -146,6 +146,7 @@ export function Jey2RayPage({
   const [link, setLink] = useState('');
   const [name, setName] = useState('');
   const [importOpen, setImportOpen] = useState(false);
+  const [settingsOpen, setSettingsOpen] = useState(false);
   const [subscriptionsOpen, setSubscriptionsOpen] = useState(false);
   const [diagnosticsOpen, setDiagnosticsOpen] = useState(false);
   const [profiles, setProfiles] = useState<VpnProfile[]>([]);
@@ -156,17 +157,23 @@ export function Jey2RayPage({
   const [tab, setTab] = useState('all');
   const [selectedId, setSelectedId] = useState<string | null>(settings.lastVpnProfileId);
   const [latencyMs, setLatencyMs] = useState<number | null>(null);
+  const [latencyUnavailable, setLatencyUnavailable] = useState(false);
   const [modeSwitching, setModeSwitching] = useState<'proxy' | 'tun' | null>(null);
   const [sessionNow, setSessionNow] = useState(Date.now());
   const autoPing = useRef(false);
+  const subscriptionImportInFlight = useRef(false);
   const desktop = Boolean(window.nexus);
   const xrayUpdate = updates.find((item) => item.id === 'jey2ray');
   const mode = settings.vpnMode === 'tun' ? 'tun' : 'proxy';
-  const storedAppRouting = settings.vpnAppRouting === 'exclude' || settings.vpnAppRouting === 'include'
+  const splitApps = settings.vpnSplitApps ?? [];
+  const storedAppRouting: VpnAppRoutingMode = settings.vpnAppRouting === 'exclude' || settings.vpnAppRouting === 'include'
     ? settings.vpnAppRouting
     : settings.vpnSplitTunnel
       ? 'include'
       : 'system';
+  const appRouting: VpnAppRoutingMode = mode === 'tun' && splitApps.length ? storedAppRouting : 'system';
+  const appRoutingActive = appRouting === 'include' || appRouting === 'exclude';
+  const routeSettingsLocked = runtime.status === 'connecting' || runtime.status === 'connected';
 
   useEffect(() => {
     const api = window.nexus;
@@ -220,6 +227,8 @@ export function Jey2RayPage({
   const title = tab === 'all' ? 'Все серверы' : tab === 'manual' ? 'Ручные профили' : telegramOf(info) || 'Подписка';
 
   const importLink = async () => {
+    if (subscriptionImportInFlight.current) return;
+    subscriptionImportInFlight.current = true;
     try {
       setBusy(true);
       if (!desktop) {
@@ -237,8 +246,67 @@ export function Jey2RayPage({
     } catch (error) {
       onToast(cleanError(error) || 'Не удалось импортировать ссылку');
     } finally {
+      subscriptionImportInFlight.current = false;
       setBusy(false);
     }
+  };
+
+  const addSplitApps = async (activate: VpnAppRoutingMode = appRouting) => {
+    if (routeSettingsLocked) {
+      onToast('Сначала отключи VPN, затем измени список приложений');
+      return;
+    }
+    if (!desktop) {
+      onToast('Выбор .exe работает в окне Electron (npm start)');
+      return;
+    }
+    try {
+      const picked = await window.nexus?.pickVpnApps();
+      if (!picked?.length) return;
+      const merged = new Map(splitApps.map((app) => [app.executable.toLocaleLowerCase('en-US'), app]));
+      for (const app of picked) merged.set(app.executable.toLocaleLowerCase('en-US'), app);
+      onSettings({
+        ...settings,
+        vpnMode: activate === 'system' ? mode : 'tun',
+        vpnAppRouting: activate,
+        vpnSplitTunnel: activate === 'include',
+        vpnSplitApps: [...merged.values()],
+      });
+    } catch (error) {
+      onToast(cleanError(error) || 'Не удалось выбрать приложение');
+    }
+  };
+
+  const selectAppRouting = (next: VpnAppRoutingMode) => {
+    if (routeSettingsLocked) {
+      onToast('Сначала отключи VPN, затем измени маршрутизацию приложений');
+      return;
+    }
+    if (next !== 'system' && !splitApps.length) {
+      void addSplitApps(next);
+      return;
+    }
+    onSettings({
+      ...settings,
+      vpnMode: next === 'system' ? mode : 'tun',
+      vpnAppRouting: next,
+      vpnSplitTunnel: next === 'include',
+    });
+  };
+
+  const removeSplitApp = (executable: string) => {
+    if (routeSettingsLocked) {
+      onToast('Сначала отключи VPN, затем измени список приложений');
+      return;
+    }
+    const next = splitApps.filter((app) => app.executable !== executable);
+    const nextRouting: VpnAppRoutingMode = next.length ? appRouting : 'system';
+    onSettings({
+      ...settings,
+      vpnSplitApps: next,
+      vpnAppRouting: nextRouting,
+      vpnSplitTunnel: nextRouting === 'include',
+    });
   };
 
   const selectConnectionMode = async (next: 'proxy' | 'tun') => {
@@ -339,6 +407,8 @@ export function Jey2RayPage({
   }, 1100);
 
   const addManagedSubscription = async (url: string): Promise<boolean> => {
+    if (subscriptionImportInFlight.current) return false;
+    subscriptionImportInFlight.current = true;
     try {
       const parsed = new URL(url);
       if (parsed.protocol !== 'https:') {
@@ -361,6 +431,7 @@ export function Jey2RayPage({
       onToast(cleanError(error) || 'Не удалось добавить подписку');
       return false;
     } finally {
+      subscriptionImportInFlight.current = false;
       setSubscriptionAction(null);
     }
   };
@@ -429,7 +500,8 @@ export function Jey2RayPage({
 
   useEffect(() => {
     setLatencyMs(null);
-    if (!desktop || runtime.status !== 'connected' || !runtime.activeProfileId || subscriptionsOpen || diagnosticsOpen) return;
+    setLatencyUnavailable(false);
+    if (!desktop || runtime.status !== 'connected' || !runtime.activeProfileId || settingsOpen || subscriptionsOpen || diagnosticsOpen) return;
     let cancelled = false;
     let pending = false;
     const sample = async () => {
@@ -437,11 +509,15 @@ export function Jey2RayPage({
       pending = true;
       try {
         const next = await window.nexus?.sampleVpnLatency();
-        if (!cancelled && next && Number.isFinite(next.pingMs) && next.pingMs > 0) {
+        if (cancelled) return;
+        if (next && Number.isFinite(next.pingMs) && next.pingMs > 0) {
           setLatencyMs(Math.round(next.pingMs));
+          setLatencyUnavailable(false);
+        } else {
+          setLatencyUnavailable(true);
         }
       } catch {
-        // A missed sample should not interrupt a working VPN or distract the user.
+        if (!cancelled) setLatencyUnavailable(true);
       } finally {
         pending = false;
       }
@@ -452,13 +528,96 @@ export function Jey2RayPage({
       cancelled = true;
       window.clearInterval(timer);
     };
-  }, [desktop, runtime.status, runtime.activeProfileId, subscriptionsOpen, diagnosticsOpen]);
+  }, [desktop, runtime.status, runtime.activeProfileId, settingsOpen, subscriptionsOpen, diagnosticsOpen]);
 
   const powerState = runtime.status === 'connecting'
     ? 'Подключаем…'
     : runtime.status === 'error'
       ? (runtime.error || 'Ошибка подключения')
       : 'Выключено';
+
+  if (settingsOpen) return <section className="page-section jey-page app-settings-page">
+    <div className="app-settings-toolbar">
+      <button type="button" className="app-settings-back" onClick={() => setSettingsOpen(false)} aria-label="Вернуться к серверам">
+        <svg viewBox="0 0 20 20" aria-hidden><path d="m12.5 4.5-5 5.5 5 5.5" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" /></svg>
+        Серверы
+      </button>
+      <div>
+        <span>Jey2Ray</span>
+        <h2>Настройки Jey2Ray</h2>
+      </div>
+      <span className={`app-route-state ${appRoutingActive ? 'is-on' : ''}`}>
+        <i />{appRoutingActive ? 'Маршрутизация включена' : 'Общие настройки'}
+      </span>
+    </div>
+
+    <div className="app-settings-scroll">
+      {routeSettingsLocked && <div className="app-settings-lock">
+        <span>i</span>
+        <div><strong>VPN сейчас работает</strong><p>Отключи подключение, чтобы изменить маршрутизацию или список приложений.</p></div>
+      </div>}
+
+      <section className="app-settings-card auto-settings-card">
+        <div className="app-settings-card-head compact">
+          <div><span className="settings-step">01</span><div><h3>Автоподключение</h3><p>Запускать последний сервер вместе с NEXUS.</p></div></div>
+          <button
+            type="button"
+            className={`settings-toggle ${settings.autoConnectVpn ? 'is-on' : ''}`}
+            onClick={() => onSettings({ ...settings, autoConnectVpn: !settings.autoConnectVpn })}
+            aria-label={settings.autoConnectVpn ? 'Выключить автоподключение' : 'Включить автоподключение'}
+          ><i /></button>
+        </div>
+        <div className={`auto-status ${settings.autoConnectVpn ? 'is-on' : ''}`}><i />{settings.autoConnectVpn ? 'Включено' : 'Выключено'}</div>
+      </section>
+
+      <section className="app-settings-card routing-settings-card">
+        <div className="app-settings-card-head">
+          <div><span className="settings-step">02</span><div><h3>Настройки прокси для приложений</h3><p>Выбери общую политику. Конкретные приложения можно добавить ниже.</p></div></div>
+        </div>
+        <div className="routing-choice-list" role="radiogroup" aria-label="Режим маршрутизации приложений">
+          <button type="button" role="radio" aria-checked={appRouting === 'system'} className={`routing-choice ${appRouting === 'system' ? 'is-active' : ''}`} disabled={routeSettingsLocked} onClick={() => selectAppRouting('system')}>
+            <i className="settings-radio" />
+            <span><strong>Системные настройки</strong><small>Без отдельных правил. Используется общий режим {mode === 'tun' ? 'TUN' : 'Proxy'}.</small></span>
+            <em>По умолчанию</em>
+          </button>
+          <button type="button" role="radio" aria-checked={appRouting === 'exclude'} className={`routing-choice ${appRouting === 'exclude' ? 'is-active' : ''}`} disabled={routeSettingsLocked} onClick={() => selectAppRouting('exclude')}>
+            <i className="settings-radio" />
+            <span><strong>Прямое подключение для выбранных приложений</strong><small>Выбранные приложения обходят VPN, все остальные идут через VPN.</small></span>
+            <em>Исключения</em>
+          </button>
+          <button type="button" role="radio" aria-checked={appRouting === 'include'} className={`routing-choice ${appRouting === 'include' ? 'is-active' : ''}`} disabled={routeSettingsLocked} onClick={() => selectAppRouting('include')}>
+            <i className="settings-radio" />
+            <span><strong>VPN только для выбранных приложений</strong><small>Выбранные приложения идут через VPN, все остальные — напрямую.</small></span>
+            <em>Split Tunneling</em>
+          </button>
+        </div>
+      </section>
+
+      <section className="app-settings-card selected-apps-card">
+        <div className="app-settings-card-head selected-apps-head">
+          <div><span className="settings-step">03</span><div><h3>Выбранные приложения</h3><p>{splitApps.length ? `Добавлено: ${splitApps.length}` : 'Добавь приложения Windows, для которых будут действовать правила выше.'}</p></div></div>
+          <button type="button" className="app-add-button" disabled={routeSettingsLocked} onClick={() => void addSplitApps(appRouting)}>
+            <svg viewBox="0 0 16 16" aria-hidden><path d="M8 3v10M3 8h10" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" /></svg>
+            Добавить приложение
+          </button>
+        </div>
+        {splitApps.length ? <div className="selected-app-list">
+          {splitApps.map((app) => <div className="selected-app-row" key={app.executable.toLocaleLowerCase('en-US')} title={app.path}>
+            <span className="selected-app-icon"><svg viewBox="0 0 24 24" aria-hidden><rect x="4" y="3.5" width="16" height="17" rx="3" fill="none" stroke="currentColor" strokeWidth="1.5" /><path d="M8 8h8M8 12h5" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" /></svg></span>
+            <span className="selected-app-copy"><strong>{app.executable}</strong><small>{app.path}</small></span>
+            <span className={`selected-app-route ${appRouting === 'exclude' ? 'is-direct' : appRouting === 'include' ? 'is-vpn' : ''}`}>
+              {appRouting === 'exclude' ? 'Напрямую' : appRouting === 'include' ? 'Через VPN' : 'Не активно'}
+            </span>
+            <button type="button" className="selected-app-remove" disabled={routeSettingsLocked} onClick={() => removeSplitApp(app.executable)} aria-label={`Удалить ${app.executable}`}>×</button>
+          </div>)}
+        </div> : <div className="selected-app-empty">
+          <span><svg viewBox="0 0 32 32" aria-hidden><rect x="7" y="5" width="18" height="22" rx="4" fill="none" stroke="currentColor" strokeWidth="1.5" /><path d="M12 12h8M12 17h6" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" /></svg></span>
+          <strong>Приложения ещё не выбраны</strong>
+          <p>Нажми «Добавить приложение» и выбери один или несколько файлов .exe.</p>
+        </div>}
+      </section>
+    </div>
+  </section>;
 
   if (subscriptionsOpen) return <SubscriptionManager
     subscriptions={runtime.subscriptions ?? []}
@@ -482,6 +641,12 @@ export function Jey2RayPage({
       <div className="jey-toolbar tight">
         <h2>Серверы</h2>
         <div className="jey-toolbar-actions">
+          <button type="button" className="ghost-action settings-gear-button" onClick={() => setSettingsOpen(true)} title="Настройки Jey2Ray" aria-label="Открыть настройки Jey2Ray">
+            <svg className="ico" viewBox="0 0 20 20" aria-hidden>
+              <path d="M7.9 2.7h4.2l.45 1.75c.4.17.78.39 1.13.65l1.72-.5 2.1 3.65-1.27 1.25c.03.2.04.42.04.64s-.01.43-.04.64l1.27 1.25-2.1 3.65-1.72-.5c-.35.26-.73.48-1.13.65l-.45 1.75H7.9l-.45-1.75a6.4 6.4 0 0 1-1.13-.65l-1.72.5-2.1-3.65 1.27-1.25a4.7 4.7 0 0 1 0-1.28L2.5 8.25 4.6 4.6l1.72.5c.35-.26.73-.48 1.13-.65L7.9 2.7Z" fill="none" stroke="currentColor" strokeWidth="1.35" strokeLinejoin="round" />
+              <circle cx="10" cy="10.15" r="2.35" fill="none" stroke="currentColor" strokeWidth="1.35" />
+            </svg>
+          </button>
           <button type="button" className="ghost-action subscription-manager-button" disabled={busy || Boolean(action)} onClick={() => setSubscriptionsOpen(true)} title="Управление подписками">
             <svg className="ico" viewBox="0 0 20 20" aria-hidden><path d="M4 5.25h12M4 10h12M4 14.75h12" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" /><circle cx="6" cy="5.25" r="1" fill="currentColor" /><circle cx="6" cy="10" r="1" fill="currentColor" /><circle cx="6" cy="14.75" r="1" fill="currentColor" /></svg>
             Подписки <span>{runtime.subscriptions?.length ?? 0}</span>
@@ -594,7 +759,7 @@ export function Jey2RayPage({
         <strong>{panelLocation.country}</strong>
         {panelLocation.detail !== panelLocation.country && <small className="power-location">{panelLocation.detail}</small>}
         {runtime.status === 'connected'
-          ? <span className="power-connected"><i />Подключено {latencyMs == null ? '· замеряем…' : <>· <b>{latencyMs} мс</b></>}</span>
+          ? <span className={`power-connected ${latencyUnavailable ? 'is-unavailable' : ''}`}><i />Подключено {latencyMs != null ? <>· <b>{latencyMs} мс</b></> : latencyUnavailable ? '· пинг недоступен' : '· замеряем…'}</span>
           : <span className={`power-state ${runtime.status === 'error' ? 'is-error' : ''}`}>{powerState}</span>}
       </div>
       <div className="mode-switch" aria-label="Режим подключения">

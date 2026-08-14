@@ -127,6 +127,32 @@ async function managerQueueTests(root) {
     'an all-source failure is reported while retaining previous state',
   );
 
+  let duplicateCalls = 0;
+  manager.importSubscriptionUnlocked = async () => {
+    duplicateCalls += 1;
+    await new Promise((resolve) => setTimeout(resolve, 10));
+    return [{ id: 'shared-profile' }];
+  };
+  const duplicateFirst = manager.importSubscription('https://three.example.com/list');
+  const duplicateSecond = manager.importSubscription('  https://THREE.example.com/list  ');
+  assert.equal(duplicateFirst, duplicateSecond, 'concurrent imports of one normalized URL share the exact promise');
+  assert.deepEqual(await duplicateFirst, [{ id: 'shared-profile' }]);
+  assert.equal(duplicateCalls, 1, 'one user action cannot multiply provider requests');
+
+  let failedCalls = 0;
+  manager.importSubscriptionUnlocked = async () => {
+    failedCalls += 1;
+    await new Promise((resolve) => setTimeout(resolve, 5));
+    throw new Error('provider rejected');
+  };
+  const failedFirst = manager.importSubscription('https://failed.example.com/list');
+  const failedDuplicate = manager.importSubscription('https://FAILED.example.com/list');
+  assert.equal(failedFirst, failedDuplicate, 'failed concurrent imports are coalesced too');
+  await assert.rejects(failedFirst, /provider rejected/);
+  assert.equal(failedCalls, 1, 'a provider rejection is delivered without background retries');
+  await assert.rejects(manager.importSubscription('https://failed.example.com/list'), /provider rejected/);
+  assert.equal(failedCalls, 2, 'the in-flight lock clears so a later explicit user retry remains possible');
+
   let active = 0;
   let maximumActive = 0;
   manager.importSubscriptionUnlocked = async () => {
@@ -140,7 +166,7 @@ async function managerQueueTests(root) {
     manager.importSubscription('https://three.example.com/list'),
     manager.importSubscription('https://four.example.com/list'),
   ]);
-  assert.equal(maximumActive, 1, 'subscription mutations are serialized');
+  assert.equal(maximumActive, 1, 'different subscription mutations remain serialized');
 }
 
 async function run() {

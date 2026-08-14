@@ -50,6 +50,7 @@ export class VpnManager extends EventEmitter {
   private systemProxyConfigured = false;
   private diagnosticEvents: ModuleLog[] = [];
   private profileMutationQueue: Promise<void> = Promise.resolve();
+  private subscriptionImportsInFlight = new Map<string, Promise<VpnProfile[]>>();
   private refreshInFlight: Promise<number> | null = null;
   private latencyProbeInFlight: Promise<VpnLatencySample | null> | null = null;
   private lastLatencySample: VpnLatencySample | null = null;
@@ -251,8 +252,24 @@ export class VpnManager extends EventEmitter {
     return profile;
   }
 
-  async importSubscription(url: string): Promise<VpnProfile[]> {
-    return this.enqueueProfileMutation(() => this.importSubscriptionUnlocked(url));
+  importSubscription(url: string): Promise<VpnProfile[]> {
+    let normalizedUrl: string;
+    try {
+      normalizedUrl = validateSubscriptionUrl(url.trim()).toString();
+    } catch (error) {
+      return Promise.reject(error);
+    }
+    const source = profileSourceKey(normalizedUrl);
+    const existing = this.subscriptionImportsInFlight.get(source);
+    if (existing) return existing;
+
+    const task = this.enqueueProfileMutation(() => this.importSubscriptionUnlocked(normalizedUrl));
+    this.subscriptionImportsInFlight.set(source, task);
+    void task.then(
+      () => { if (this.subscriptionImportsInFlight.get(source) === task) this.subscriptionImportsInFlight.delete(source); },
+      () => { if (this.subscriptionImportsInFlight.get(source) === task) this.subscriptionImportsInFlight.delete(source); },
+    );
+    return task;
   }
 
   private async importSubscriptionUnlocked(url: string): Promise<VpnProfile[]> {
@@ -450,52 +467,57 @@ export class VpnManager extends EventEmitter {
   }
 
   private measureTunnelLatency(timeoutMs = 4500): Promise<VpnLatencySample | null> {
-    const fallbackDelayMs = 900;
+    const targets = [
+      { host: 'cp.cloudflare.com', path: '/generate_204', status: 204, delayMs: 0 },
+      { host: 'www.gstatic.com', path: '/generate_204', status: 204, delayMs: 700 },
+      { host: 'detectportal.firefox.com', path: '/success.txt', status: 200, delayMs: 1400 },
+    ] as const;
     const controller = new AbortController();
     return new Promise((resolve) => {
       let settled = false;
-      let pending = 1;
-      let fallbackStarted = false;
-      let fallbackTimer: NodeJS.Timeout;
+      let completed = 0;
+      const launchTimers: NodeJS.Timeout[] = [];
       let overallTimer: NodeJS.Timeout;
       const finish = (sample: VpnLatencySample | null) => {
         if (settled) return;
         settled = true;
-        clearTimeout(fallbackTimer);
+        for (const timer of launchTimers) clearTimeout(timer);
         clearTimeout(overallTimer);
         controller.abort();
         resolve(sample);
       };
-      const startFallback = () => {
-        if (settled || fallbackStarted) return;
-        fallbackStarted = true;
-        pending += 1;
-        void this.probeTunnelLatencyTarget(
-          'www.gstatic.com',
-          Math.max(1200, timeoutMs - fallbackDelayMs),
-          controller.signal,
-        ).then((sample) => onResult(sample, false));
-      };
-      const onResult = (sample: VpnLatencySample | null, primary: boolean) => {
-        pending -= 1;
+      const onResult = (sample: VpnLatencySample | null) => {
+        completed += 1;
         if (settled) return;
         if (sample) {
           finish(sample);
           return;
         }
-        if (primary) startFallback();
-        if (fallbackStarted && pending === 0) finish(null);
+        if (completed === targets.length) finish(null);
       };
 
-      fallbackTimer = setTimeout(startFallback, fallbackDelayMs);
       overallTimer = setTimeout(() => finish(null), timeoutMs + 100);
-      void this.probeTunnelLatencyTarget('cp.cloudflare.com', timeoutMs, controller.signal)
-        .then((sample) => onResult(sample, true));
+      for (const target of targets) {
+        const launch = () => {
+          if (settled) return;
+          void this.probeTunnelLatencyTarget(
+            target.host,
+            target.path,
+            target.status,
+            Math.max(1200, timeoutMs - target.delayMs),
+            controller.signal,
+          ).then(onResult, () => onResult(null));
+        };
+        if (target.delayMs === 0) launch();
+        else launchTimers.push(setTimeout(launch, target.delayMs));
+      }
     });
   }
 
   private probeTunnelLatencyTarget(
-    targetHost: 'cp.cloudflare.com' | 'www.gstatic.com',
+    targetHost: string,
+    targetPath: string,
+    expectedStatus: number,
     timeoutMs: number,
     signal: AbortSignal,
   ): Promise<VpnLatencySample | null> {
@@ -503,7 +525,6 @@ export class VpnManager extends EventEmitter {
       const socket = new Socket();
       let secureSocket: TLSSocket | null = null;
       let settled = false;
-      let warmupComplete = false;
       let measuredStartedAt = 0;
       let proxyResponse = '';
       let remoteResponse = '';
@@ -523,15 +544,17 @@ export class VpnManager extends EventEmitter {
         done(null);
         return;
       }
-      const sendRemoteProbe = (closeAfterResponse: boolean) => {
+      const sendRemoteProbe = () => {
         const nonce = `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
+        const separator = targetPath.includes('?') ? '&' : '?';
+        measuredStartedAt = Date.now();
         secureSocket?.write([
-          `GET /generate_204?nexus=${nonce} HTTP/1.1`,
+          `GET ${targetPath}${separator}nexus=${nonce} HTTP/1.1`,
           `Host: ${targetHost}`,
           'Accept: */*',
           'Cache-Control: no-cache, no-store',
           'Pragma: no-cache',
-          `Connection: ${closeAfterResponse ? 'close' : 'keep-alive'}`,
+          'Connection: close',
           'User-Agent: NEXUS-Latency/1.0',
           '',
           '',
@@ -547,20 +570,14 @@ export class VpnManager extends EventEmitter {
         const end = remoteResponse.indexOf('\r\n\r\n');
         if (end < 0) return;
         const statusLine = remoteResponse.slice(0, remoteResponse.indexOf('\r\n'));
-        // generate_204 has no response body, so another request can safely reuse this verified TLS tunnel.
-        if (!/^HTTP\/1\.[01]\s+204\b/i.test(statusLine)) {
+        const status = Number(statusLine.match(/^HTTP\/1\.[01]\s+(\d{3})\b/i)?.[1] || 0);
+        if (status !== expectedStatus || !measuredStartedAt) {
           done(null);
           return;
         }
-        remoteResponse = remoteResponse.slice(end + 4);
-        if (!warmupComplete) {
-          warmupComplete = true;
-          measuredStartedAt = Date.now();
-          sendRemoteProbe(true);
-          return;
-        }
         done({
-          // Measure one application round trip after CONNECT/TLS setup, not several setup handshakes.
+          // TLS verification proves this is a remote response through the active VPN,
+          // while starting after secureConnect excludes local CONNECT/TLS setup time.
           pingMs: Math.max(1, Date.now() - measuredStartedAt),
           measuredAt: new Date().toISOString(),
         });
@@ -589,7 +606,7 @@ export class VpnManager extends EventEmitter {
           });
           secureSocket.once('error', () => done(null));
           secureSocket.on('data', onRemoteData);
-          secureSocket.once('secureConnect', () => sendRemoteProbe(false));
+          secureSocket.once('secureConnect', sendRemoteProbe);
         } catch {
           done(null);
         }

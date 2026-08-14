@@ -42,6 +42,10 @@ const styles = fs.readFileSync(path.join(root, 'src', 'renderer', 'styles.css'),
 assert.match(preload, /switchVpnMode: \(mode: 'proxy' \| 'tun'\)/);
 assert.match(env, /switchVpnMode\(mode: 'proxy' \| 'tun'\): Promise<VpnRuntime>/);
 assert.match(types, /connectedAt: string \| null/);
+assert.match(types, /language: 'ru'/);
+assert.match(types, /theme: 'dark'/);
+assert.match(types, /appearance: 'indigo' \| 'graphite'/);
+assert.match(main, /appearance: raw\.appearance === 'graphite' \? 'graphite' : 'indigo'/);
 assert.match(page, /const selectConnectionMode = async/);
 assert.match(page, /await window\.nexus\?\.switchVpnMode\(next\)/);
 assert.match(page, /disabled=\{busy \|\| runtime\.status === 'connecting'\}/, 'connected VPN must not disable the PROXY/TUN buttons');
@@ -53,15 +57,20 @@ assert.doesNotMatch(page, /<PingSparkline|className="tunnel-ping"|className="pow
 assert.match(page, /orb-halo orb-halo-primary/);
 assert.match(page, /orb-halo orb-halo-follow/);
 assert.match(page, /orb-halo orb-halo-wait/);
-assert.doesNotMatch(page, /settingsOpen|app-settings-page|settings-gear-button|Открыть настройки приложений/);
+assert.match(page, /if \(settingsOpen\) return <section className="page-section jey-page app-settings-page">/);
+assert.match(page, /settings-gear-button/);
+assert.match(page, /Открыть настройки Jey2Ray/);
+assert.match(page, /window\.nexus\?\.pickVpnApps\(\)/);
+assert.match(page, /role="radiogroup" aria-label="Режим маршрутизации приложений"/);
+assert.match(page, /Сначала отключи VPN, затем измени маршрутизацию приложений/);
 
-assert.match(app, /type SettingsTab = 'general' \| 'applications'/);
-assert.match(app, /className="settings-tabs" role="tablist"/);
-assert.match(app, />Настройки приложений<\/strong>/);
-assert.match(app, /function ApplicationSettings/);
-assert.match(app, /window\.nexus\?\.pickVpnApps\(\)/);
-assert.match(app, /role="radiogroup" aria-label="Режим маршрутизации приложений"/);
-assert.match(app, /Сначала отключи VPN, затем измени маршрутизацию приложений/);
+assert.doesNotMatch(app, /SettingsTab|settings-tabs|function ApplicationSettings|Настройки приложений/, 'VPN settings must not leak into global NEXUS settings');
+assert.match(app, /Глобальные параметры языка, оформления и поведения NEXUS/);
+assert.match(app, /Язык интерфейса/);
+assert.match(app, /Тема/);
+assert.match(app, /Оформление/);
+assert.match(app, /appearance-options/);
+assert.match(app, /if \(name === 'settings'\) return <GearIcon \/>/);
 
 assert.match(styles, /\.tunnel-session-counter \{[^}]*font-family: var\(--font-body\)/);
 assert.match(styles, /\.mode-switch button \{[^}]*font-family: var\(--font-body\)[^}]*text-transform: uppercase/);
@@ -69,7 +78,8 @@ assert.match(styles, /\.power-orb\.is-on \.orb-halo-primary \{ animation: orb-wa
 assert.match(styles, /\.power-orb\.is-on \.orb-halo-follow \{ animation: orb-wave-follow/);
 assert.match(styles, /\.power-orb\.is-wait \.orb-halo-wait \{ animation: orb-wave-wait/);
 assert.match(styles, /100% \{ transform: scale\(1\.82\); opacity: 0; \}/);
-assert.match(styles, /\.settings-tab\.active \{/);
-assert.doesNotMatch(styles, /\.tunnel-ping|\.power-session/);
+assert.match(styles, /\.global-settings-hero \{/);
+assert.match(styles, /\.app-settings-page \.app-settings-card-head h3 \{ font-size: 18px/);
+assert.doesNotMatch(styles, /\.settings-tab\.active \{|\.tunnel-ping|\.power-session/);
 
-console.log('Live VPN mode switching, session timer, pulse rings and settings tabs regression checks passed.');
+console.log('Live VPN mode switching, session timer, pulse rings and separated settings regression checks passed.');

@@ -39,6 +39,9 @@ function normalizeSettings(raw: Partial<AppSettings>): AppSettings {
   const vpnSplitApps = normalizeVpnSplitApps(raw.vpnSplitApps);
   const vpnAppRouting = resolveVpnAppRouting(raw.vpnAppRouting, raw.vpnSplitTunnel, vpnMode, vpnSplitApps);
   return {
+    language: 'ru',
+    theme: 'dark',
+    appearance: raw.appearance === 'graphite' ? 'graphite' : 'indigo',
     autoStart: Boolean(raw.autoStart),
     notifications: raw.notifications !== false,
     closeToTray: raw.closeToTray !== false,

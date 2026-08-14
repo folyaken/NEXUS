@@ -47,14 +47,13 @@ void (async () => {
       assert.match(message, /^GET \/generate_204\?nexus=[a-z0-9-]+ HTTP\/1\.1\r\n/m);
       assert.match(message, /\r\nHost: cp\.cloudflare\.com\r\n/i);
       remoteRequests += 1;
-      const warmup = remoteRequests === 1;
       setTimeout(() => socket.write([
         'HTTP/1.1 204 No Content',
         'Server: remote-test',
-        `Connection: ${warmup ? 'keep-alive' : 'close'}`,
+        'Connection: close',
         '',
         '',
-      ].join('\r\n')), warmup ? 140 : 75);
+      ].join('\r\n')), 75);
     });
   });
   const httpPort = await listen(proxy);
@@ -67,11 +66,11 @@ void (async () => {
   manager.status = 'connected';
   manager.activeProfileId = 'safe-test-profile';
   const [first, deduplicated] = await Promise.all([manager.sampleLatency(), manager.sampleLatency()]);
-  assert.ok(first && first.pingMs >= 60 && first.pingMs < 130, 'sample must time the warm TLS tunnel round trip, not the slower setup request');
+  assert.ok(first && first.pingMs >= 60 && first.pingMs < 130, 'sample must time the first real HTTPS round trip after secureConnect');
   assert.deepEqual(deduplicated, first, 'concurrent samples must share one safe probe');
   assert.match(first.measuredAt, /^\d{4}-\d{2}-\d{2}T/);
   assert.equal(requests, 1, 'concurrent IPC calls must not multiply tunnel traffic');
-  assert.equal(remoteRequests, 2, 'one verified warmup and one measured HTTPS response are required');
+  assert.equal(remoteRequests, 1, 'a successful target receives exactly one measured HTTPS request');
 
   manager.status = 'disconnected';
   manager.activeProfileId = null;
@@ -106,7 +105,7 @@ void (async () => {
       socket.write([
         'HTTP/1.1 204 No Content',
         'Server: fallback-test',
-        `Connection: ${fallbackRemoteRequests === 1 ? 'keep-alive' : 'close'}`,
+        'Connection: close',
         '',
         '',
       ].join('\r\n'));
@@ -122,8 +121,8 @@ void (async () => {
   const fallbackElapsed = Date.now() - fallbackStarted;
   assert.ok(fallbackSample && fallbackSample.pingMs > 0, 'an alternate verified HTTPS target must recover a stalled regional probe');
   assert.deepEqual(fallbackTargets, ['cp.cloudflare.com', 'www.gstatic.com']);
-  assert.equal(fallbackRemoteRequests, 2);
-  assert.ok(fallbackElapsed >= 800 && fallbackElapsed < 2500, `fallback must replace the long timeout (${fallbackElapsed} ms)`);
+  assert.equal(fallbackRemoteRequests, 1);
+  assert.ok(fallbackElapsed >= 650 && fallbackElapsed < 2000, `staggered fallback must replace the long timeout (${fallbackElapsed} ms)`);
   await close(fallbackProxy);
   tls.connect = nativeTlsConnect;
 
@@ -131,15 +130,16 @@ void (async () => {
   const source = fs.readFileSync(path.join(root, 'src', 'main', 'vpn-manager.ts'), 'utf8');
   const method = source.slice(source.indexOf('sampleLatency()'), source.indexOf('async refreshSubscription', source.indexOf('sampleLatency()')));
   assert.match(method, /127\.0\.0\.1/);
-  assert.match(method, /probeTunnelLatencyTarget\('cp\.cloudflare\.com'/);
-  assert.match(method, /'www\.gstatic\.com'/);
-  assert.match(method, /fallbackDelayMs = 900/);
+  assert.match(method, /host: 'cp\.cloudflare\.com'.*delayMs: 0/);
+  assert.match(method, /host: 'www\.gstatic\.com'.*delayMs: 700/);
+  assert.match(method, /host: 'detectportal\.firefox\.com'.*delayMs: 1400/);
   assert.match(method, /CONNECT \$\{targetHost\}:443/);
   assert.match(method, /connectTls\(\{/);
   assert.match(method, /rejectUnauthorized: true/);
-  assert.match(method, /GET \/generate_204\?nexus=/);
-  assert.match(method, /warmupComplete/);
-  assert.match(method, /HTTP\\\/1\\\.\[01\]\\s\+204/, 'only a real remote generate_204 response may complete the sample');
+  assert.match(method, /GET \$\{targetPath\}\$\{separator\}nexus=/);
+  assert.match(method, /secureSocket\.once\('secureConnect', sendRemoteProbe\)/);
+  assert.doesNotMatch(method, /warmupComplete|sendWarmup/, 'latency probing must not send a warmup request');
+  assert.match(method, /status !== expectedStatus/, 'only an expected remote HTTPS status may complete the sample');
   assert.doesNotMatch(method, /CONNECT 1\.1\.1\.1:443/, 'the old loopback-only probe must not return');
   assert.doesNotMatch(method, /profile\.server|profile\.port/, 'connected sampling must not probe the VPN endpoint directly');
 
@@ -159,6 +159,8 @@ void (async () => {
   assert.match(page, /profile\.city/);
   assert.match(page, /Подключено/);
   assert.match(page, /setInterval\(\(\) => void sample\(\), 3000\)/);
+  assert.match(page, /setLatencyUnavailable\(true\)/);
+  assert.match(page, /пинг недоступен/);
   assert.match(page, /tunnel-session-counter/);
   assert.match(page, /switchVpnMode\(next\)/);
   assert.doesNotMatch(page, /PingSparkline|tunnel-ping|latencySamples/, 'the latency graph and its history must stay removed');

@@ -169,7 +169,7 @@ async function run() {
   assert.equal(privateLogs.join('\n').includes('device-secret'), false);
 
   assert.equal(SUBSCRIPTION_TRANSPORT_LIMITS.maxRedirects, 5);
-  assert.equal(SUBSCRIPTION_TRANSPORT_LIMITS.maxRequests, 48);
+  assert.equal(SUBSCRIPTION_TRANSPORT_LIMITS.maxRequests, 8);
   assert.equal(SUBSCRIPTION_TRANSPORT_LIMITS.maxResponseBytes, 8 * 1024 * 1024);
   assert.ok(SUBSCRIPTION_TRANSPORT_LIMITS.requestTimeoutMs > 0);
   assert.ok(SUBSCRIPTION_TRANSPORT_LIMITS.totalTimeoutMs >= SUBSCRIPTION_TRANSPORT_LIMITS.requestTimeoutMs);
@@ -182,6 +182,14 @@ async function run() {
   assert.equal(source.includes("responseHeader(response.headers, 'content-length')"), true, 'declared body size is checked');
   assert.equal(source.includes('size > SUBSCRIPTION_TRANSPORT_LIMITS.maxResponseBytes'), true, 'streamed body size is checked');
   assert.equal(source.includes("new TextDecoder('utf-8', { fatal: true })"), true, 'subscription payloads require valid UTF-8');
+  assert.equal(source.includes("const SUBSCRIPTION_USER_AGENT = 'Happ/3.4.6'"), true, 'the provider receives one stable supported client identity');
+  assert.equal(source.includes('candidateUrls('), false, 'subscription URLs must not be sprayed through query/path variants');
+  assert.equal(source.includes("'v2rayN/"), false, 'subscription import must not retry with unrelated client identities');
+  assert.match(source, /const response = await downloadOnce\(initialTarget\.toString\(\), SUBSCRIPTION_USER_AGENT\)/);
+  assert.match(source, /if \(response\.status < 200 \|\| response\.status >= 300\)[\s\S]*throw new SubscriptionTransportError/);
+  assert.match(source, /const address = addresses\[0\]/, 'a failed URL is not retried against every DNS address');
+  assert.doesNotMatch(source, /for \(const address of addresses\)/, 'one failed provider attempt must stay one attempt');
+  assert.match(source, /extractUrlsFromHtml\(body, response\.finalUrl\.toString\(\), \[/, 'an HTML landing page cannot link back into the same failed request');
   assert.equal(managerSource.includes('this.hwid.slice'), false, 'HWID fragments must never be written to subscription logs');
 
   console.log('subscription security tests: ok');

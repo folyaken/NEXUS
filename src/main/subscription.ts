@@ -12,11 +12,7 @@ import { profileConnectionKey } from './vpn-identity';
 
 export { extractClashProfiles, extractJsonProfiles } from './subscription-parser';
 
-const CLIENT_UAS = [
-  'Happ/3.4.6',
-  'v2rayN/6.55',
-  'clash-meta/1.18.0',
-];
+const SUBSCRIPTION_USER_AGENT = 'Happ/3.4.6';
 
 const SUBSCRIPTION_UTF8_DECODER = new TextDecoder('utf-8', { fatal: true });
 
@@ -25,9 +21,11 @@ export const SUBSCRIPTION_TRANSPORT_LIMITS = Object.freeze({
   requestTimeoutMs: 12_000,
   totalTimeoutMs: 75_000,
   maxRedirects: 5,
-  maxRequests: 48,
+  // One supplied URL plus at most one link deliberately discovered on its landing page.
+  // Redirect hops share this budget; format/UA spraying is intentionally forbidden.
+  maxRequests: 8,
   maxResponseBytes: 8 * 1024 * 1024,
-  maxDiscoveredUrls: 8,
+  maxDiscoveredUrls: 1,
 });
 
 const BLOCKED_IPV4_ADDRESSES = new BlockList();
@@ -275,18 +273,15 @@ async function connectToSafeSubscriptionTarget(
   budget: SubscriptionRequestBudget,
 ): Promise<OpenSubscriptionResponse> {
   const { addresses } = await resolveSafeSubscriptionTarget(url);
-  let lastError: unknown;
-
-  for (const address of addresses) {
-    try {
-      return await openSubscriptionResponse(url, address, requestHeaders, remainingRequestTime(budget));
-    } catch (error) {
-      lastError = error;
-    }
+  // A failed provider request must not be silently repeated against every DNS address:
+  // some subscription services send one device-limit notification per attempt.
+  const address = addresses[0];
+  try {
+    return await openSubscriptionResponse(url, address, requestHeaders, remainingRequestTime(budget));
+  } catch (error) {
+    const reason = error instanceof SubscriptionTransportError ? error.message : 'защищённое соединение не установлено';
+    throw new SubscriptionTransportError(`Не удалось подключиться к ${url.host}: ${reason}`);
   }
-
-  const reason = lastError instanceof SubscriptionTransportError ? lastError.message : 'защищённое соединение не установлено';
-  throw new SubscriptionTransportError(`Не удалось подключиться к ${url.host}: ${reason}`);
 }
 
 function responseBodyStream(response: IncomingMessage): Readable {
@@ -405,39 +400,26 @@ function headers(ua: string, hwid: string): Record<string, string> {
   };
 }
 
-function candidateUrls(raw: string): string[] {
-  const url = new URL(raw);
-  const base = `${url.origin}${url.pathname.replace(/\/$/, '')}`;
-  const extras = [
-    raw,
-    `${base}?flag=v2ray`,
-    `${base}?flag=clash`,
-    `${base}?flag=happ`,
-    `${base}?flag=sing`,
-    `${base}?flag=sing-box`,
-    `${base}?target=v2ray`,
-    `${base}?target=clash`,
-    `${base}?format=v2ray`,
-    `${base}/v2ray`,
-    `${base}/clash`,
-    `${base}/singbox`,
-  ];
-  return [...new Set(extras)];
-}
-
 function htmlLooksLikePage(text: string): boolean {
   const head = text.slice(0, 400).toLowerCase();
   return head.includes('<!doctype') || head.includes('<html') || head.includes('<head') || text.includes('Add Subscription');
 }
 
-function extractUrlsFromHtml(html: string, pageUrl: string): string[] {
+function extractUrlsFromHtml(html: string, pageUrl: string, excludedUrls: Iterable<string> = []): string[] {
   const found = new Set<string>();
+  const excluded = new Set([...excludedUrls].map((value) => {
+    const url = new URL(value);
+    url.hash = '';
+    return url.toString();
+  }));
   const hrefs = html.matchAll(/href=["']([^"']+)["']/gi);
   for (const match of hrefs) {
     try {
       const resolved = new URL(match[1], pageUrl);
       if (resolved.protocol !== 'https:') continue;
+      resolved.hash = '';
       const href = resolved.toString();
+      if (excluded.has(href)) continue;
       if (/v2ray|clash|sub|happ|sing-box|xray/i.test(href)) found.add(href);
       if (found.size >= SUBSCRIPTION_TRANSPORT_LIMITS.maxDiscoveredUrls) break;
     } catch { /* ignore */ }
@@ -523,20 +505,19 @@ export async function fetchSubscriptionMaterial(url: string, hwid: string, log: 
   const initialTarget = validateSubscriptionUrl(url);
   await resolveSafeSubscriptionTarget(initialTarget);
 
-  const urls = candidateUrls(initialTarget.toString());
   const trustedOrigin = initialTarget.origin;
   const budget: SubscriptionRequestBudget = {
     deadline: Date.now() + SUBSCRIPTION_TRANSPORT_LIMITS.totalTimeoutMs,
     requests: 0,
   };
-  let htmlExtra: string[] = [];
   const links = new Set<string>();
   const clash: VpnProfile[] = [];
   const seenClash = new Set<string>();
   let info: VpnSubscriptionInfo | undefined;
-  let lastTransportError: SubscriptionTransportError | undefined;
 
-  const take = (nextLinks: string[], nextClash: VpnProfile[], nextInfo?: VpnSubscriptionInfo) => {
+  const take = (response: SubscriptionTextResponse) => {
+    const nextLinks = extractShareLinks(response.body);
+    const nextClash = [...extractClashProfiles(response.body), ...extractJsonProfiles(response.body)];
     for (const link of nextLinks) {
       if (links.size >= PROFILE_PARSER_LIMITS.maxExtractedLinks
         || links.size + clash.length >= PROFILE_PARSER_LIMITS.maxProfiles) break;
@@ -550,58 +531,42 @@ export async function fetchSubscriptionMaterial(url: string, hwid: string, log: 
       seenClash.add(identity);
       clash.push(profile);
     }
-    if (nextInfo && (!info || (nextInfo.expireAt && !info.expireAt))) info = nextInfo;
+    const nextInfo = parseSubscriptionUserInfo(response.headers, initialTarget.toString(), response.body);
+    if (!info || (nextInfo.expireAt && !info.expireAt)) info = nextInfo;
   };
 
-  candidateRequests:
-  for (const target of urls) {
-    for (const ua of CLIENT_UAS) {
-      if (Date.now() >= budget.deadline || budget.requests >= SUBSCRIPTION_TRANSPORT_LIMITS.maxRequests) break candidateRequests;
-      try {
-        const response = await downloadSubscriptionText(target, headers(ua, hwid), trustedOrigin, budget);
-        if (response.status < 200 || response.status >= 300) continue;
-        const body = response.body;
-        if (!body.trim()) continue;
-        if (htmlLooksLikePage(body)) {
-          htmlExtra = [...new Set([
-            ...htmlExtra,
-            ...extractUrlsFromHtml(body, response.finalUrl.toString()),
-          ])].slice(0, SUBSCRIPTION_TRANSPORT_LIMITS.maxDiscoveredUrls);
-          continue;
-        }
-        take(
-          extractShareLinks(body),
-          [...extractClashProfiles(body), ...extractJsonProfiles(body)],
-          parseSubscriptionUserInfo(response.headers, initialTarget.toString(), body),
-        );
-      } catch (error) {
-        if (error instanceof SubscriptionTransportError) lastTransportError = error;
-        const reason = error instanceof Error ? error.message : 'ошибка сети';
-        log(`Не удалось скачать подписку с ${safeSubscriptionUrlForLog(target)} (${ua.split('/')[0]}): ${reason}`);
-        if (Date.now() >= budget.deadline || budget.requests >= SUBSCRIPTION_TRANSPORT_LIMITS.maxRequests) break candidateRequests;
-      }
-    }
-  }
-
-  for (const extra of htmlExtra.slice(0, SUBSCRIPTION_TRANSPORT_LIMITS.maxDiscoveredUrls)) {
-    if (Date.now() >= budget.deadline || budget.requests >= SUBSCRIPTION_TRANSPORT_LIMITS.maxRequests) break;
+  const downloadOnce = async (target: string, userAgent: string): Promise<SubscriptionTextResponse> => {
     try {
-      const response = await downloadSubscriptionText(extra, headers('v2rayN/6.55', hwid), trustedOrigin, budget);
-      if (response.status < 200 || response.status >= 300) continue;
-      const body = response.body;
-      take(
-        extractShareLinks(body),
-        [...extractClashProfiles(body), ...extractJsonProfiles(body)],
-        parseSubscriptionUserInfo(response.headers, initialTarget.toString(), body),
-      );
+      const response = await downloadSubscriptionText(target, headers(userAgent, hwid), trustedOrigin, budget);
+      if (response.status < 200 || response.status >= 300) {
+        throw new SubscriptionTransportError(`Сервер подписки отклонил запрос (HTTP ${response.status || 'без статуса'})`);
+      }
+      return response;
     } catch (error) {
-      if (error instanceof SubscriptionTransportError) lastTransportError = error;
       const reason = error instanceof Error ? error.message : 'ошибка сети';
-      log(`Не удалось скачать найденную подписку с ${safeSubscriptionUrlForLog(extra)}: ${reason}`);
+      log(`Не удалось скачать подписку с ${safeSubscriptionUrlForLog(target)}: ${reason}`);
+      throw error;
+    }
+  };
+
+  // The supplied subscription URL is authoritative. Older builds tried many UA/query/path
+  // combinations even after a rejection, so one click could reach a provider dozens of
+  // times and trigger repeated device-limit Telegram notifications.
+  const response = await downloadOnce(initialTarget.toString(), SUBSCRIPTION_USER_AGENT);
+  const body = response.body;
+  if (body.trim() && !htmlLooksLikePage(body)) {
+    take(response);
+  } else if (body.trim()) {
+    const discovered = extractUrlsFromHtml(body, response.finalUrl.toString(), [
+      initialTarget.toString(),
+      response.finalUrl.toString(),
+    ]).slice(0, SUBSCRIPTION_TRANSPORT_LIMITS.maxDiscoveredUrls);
+    if (discovered[0]) {
+      const linkedResponse = await downloadOnce(discovered[0], SUBSCRIPTION_USER_AGENT);
+      if (linkedResponse.body.trim() && !htmlLooksLikePage(linkedResponse.body)) take(linkedResponse);
     }
   }
 
-  if (!links.size && !clash.length && lastTransportError) throw lastTransportError;
   log(`Подписка: ссылок ${links.size} · профилей clash ${clash.length}`);
   return { links: [...links], clash, info };
 }

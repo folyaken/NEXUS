@@ -60,6 +60,9 @@ export interface VpnSplitApp {
 }
 
 export interface AppSettings {
+  language: 'ru';
+  theme: 'dark';
+  appearance: 'indigo' | 'graphite';
   autoStart: boolean;
   notifications: boolean;
   closeToTray: boolean;
@@ -74,6 +77,9 @@ export interface AppSettings {
 }
 
 export const DEFAULT_SETTINGS: AppSettings = {
+  language: 'ru',
+  theme: 'dark',
+  appearance: 'indigo',
   autoStart: false,
   notifications: true,
   closeToTray: true,
