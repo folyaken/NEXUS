@@ -2,7 +2,7 @@ const fs = require('node:fs');
 const path = require('node:path');
 const https = require('node:https');
 const { pipeline } = require('node:stream/promises');
-const extract = require('extract-zip');
+const { Open } = require('unzipper');
 
 const root = path.resolve(__dirname, '..');
 const binDir = path.join(root, 'modules', 'bin');
@@ -94,7 +94,7 @@ async function main() {
       await download(url, zipPath);
       const extractDir = path.join(cacheDir, 'singbox-extract');
       fs.rmSync(extractDir, { recursive: true, force: true });
-      await extract(zipPath, { dir: extractDir });
+      await (await Open.file(zipPath)).extract({ path: extractDir });
       const found = walk(extractDir, binary);
       if (!found) throw new Error(`${binary} нет в архиве`);
       fs.mkdirSync(binDir, { recursive: true });

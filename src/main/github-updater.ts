@@ -5,7 +5,7 @@ import { promises as fs, createReadStream } from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { Readable } from 'node:stream';
-import extract from 'extract-zip';
+import { Open } from 'unzipper';
 import type { ModuleManifest, UpdateInfo, UpdateStatus } from './types';
 import { ModuleManager } from './module-manager';
 
@@ -20,6 +20,7 @@ type UpdateTarget = {
   id: string;
   name: string;
   repo: string;
+  assetKind: 'zip' | 'executable';
   selectAsset: (assets: GithubRelease['assets']) => GithubRelease['assets'][number] | undefined;
   install: (assetPath: string, version: string) => Promise<string>;
 };
@@ -70,6 +71,7 @@ export class GithubUpdater extends EventEmitter {
       id: 'zapret',
       name: 'Обход DPI',
       repo: 'Flowseal/zapret-discord-youtube',
+      assetKind: 'zip',
       selectAsset: (assets) => process.platform === 'win32' ? assets.find((asset) => asset.name.endsWith('.zip') && asset.name.includes('zapret-discord-youtube')) : undefined,
       install: (assetPath, version) => this.installZapret(assetPath, version),
     });
@@ -77,6 +79,7 @@ export class GithubUpdater extends EventEmitter {
       id: 'tg-ws-proxy',
       name: 'TG WS Proxy',
       repo: 'Flowseal/tg-ws-proxy',
+      assetKind: 'executable',
       selectAsset: (assets) => {
         if (process.platform === 'win32') return assets.find((asset) => asset.name === 'TgWsProxy_windows.exe');
         if (process.platform === 'linux' && os.arch() === 'x64') return assets.find((asset) => asset.name === 'TgWsProxy_linux_amd64');
@@ -88,6 +91,7 @@ export class GithubUpdater extends EventEmitter {
       id: 'jey2ray',
       name: 'Jey2Ray / Xray-core',
       repo: 'XTLS/Xray-core',
+      assetKind: 'zip',
       selectAsset: (assets) => {
         if (process.platform === 'win32') {
           return assets.find((asset) => asset.name === 'Xray-windows-64.zip')
@@ -128,7 +132,7 @@ export class GithubUpdater extends EventEmitter {
       await fs.mkdir(tempDir, { recursive: true });
       const tempPath = path.join(tempDir, `${target.id}-${release.tag_name.replace(/[^a-z0-9._-]/gi, '_')}-${asset.name}`);
       await this.downloadAsset(asset.browser_download_url, tempPath, target.repo);
-      await this.assertZip(tempPath);
+      await this.assertAsset(tempPath, target.assetKind, asset.size, asset.name);
       const hash = await this.sha256(tempPath);
       const executable = await target.install(tempPath, release.tag_name);
       this.versions[target.id] = { version: release.tag_name, asset: asset.name, sha256: hash, installedAt: new Date().toISOString() };
@@ -188,17 +192,36 @@ export class GithubUpdater extends EventEmitter {
     });
   }
 
-  private async assertZip(filePath: string): Promise<void> {
+  private async assertAsset(filePath: string, kind: UpdateTarget['assetKind'], expectedSize: number, assetName: string): Promise<void> {
     const stat = await fs.stat(filePath);
-    if (stat.size < 800_000) {
-      throw new Error(`Скачался мусор (${Math.round(stat.size / 1024)} КБ), а не Xray ZIP. GitHub недоступен или отдал HTML.`);
+    if (stat.size < 1024) {
+      throw new Error(`GitHub asset ${assetName} слишком мал (${stat.size} байт)`);
     }
+    if (expectedSize > 0 && stat.size !== expectedSize) {
+      throw new Error(`GitHub asset ${assetName} скачан не полностью: ${stat.size} из ${expectedSize} байт`);
+    }
+
     const handle = await fs.open(filePath, 'r');
-    const buf = Buffer.alloc(2);
-    await handle.read(buf, 0, 2, 0);
-    await handle.close();
-    if (buf[0] !== 0x50 || buf[1] !== 0x4b) {
-      throw new Error('Файл не ZIP (нет сигнатуры PK). Повтори «Скачать Xray».');
+    const signature = Buffer.alloc(4);
+    try {
+      await handle.read(signature, 0, signature.length, 0);
+    } finally {
+      await handle.close();
+    }
+
+    if (kind === 'zip') {
+      if (signature[0] !== 0x50 || signature[1] !== 0x4b) {
+        throw new Error(`GitHub asset ${assetName} не является ZIP-архивом (нет сигнатуры PK)`);
+      }
+      return;
+    }
+
+    const validExecutable = process.platform === 'win32'
+      ? signature[0] === 0x4d && signature[1] === 0x5a
+      : signature[0] === 0x7f && signature[1] === 0x45 && signature[2] === 0x4c && signature[3] === 0x46;
+    if (!validExecutable) {
+      const format = process.platform === 'win32' ? 'Windows EXE' : 'Linux ELF';
+      throw new Error(`GitHub asset ${assetName} не является исполняемым файлом ${format}`);
     }
   }
 
@@ -217,6 +240,7 @@ export class GithubUpdater extends EventEmitter {
       try {
         if (jey) this.setStatus(jey, 'downloading', { asset: file });
         await this.downloadAsset(url, tempPath, 'XTLS/Xray-core');
+        await this.assertAsset(tempPath, 'zip', 0, file);
         await this.installXray(tempPath, 'latest');
         await fs.rm(tempPath, { force: true });
         return;
@@ -231,7 +255,7 @@ export class GithubUpdater extends EventEmitter {
     const extractRoot = path.join(this.modulesDir, '.cache', 'xray-extract');
     await fs.rm(extractRoot, { recursive: true, force: true });
     await fs.mkdir(extractRoot, { recursive: true });
-    await extract(assetPath, { dir: extractRoot });
+    await (await Open.file(assetPath)).extract({ path: extractRoot });
     const binaryName = process.platform === 'win32' ? 'xray.exe' : 'xray';
     const found = await this.findFile(extractRoot, binaryName);
     if (!found) throw new Error(`В ZIP Xray-core не найден ${binaryName}`);
@@ -269,7 +293,7 @@ export class GithubUpdater extends EventEmitter {
     const installRoot = path.join(this.modulesDir, 'bin', 'zapret');
     await fs.rm(installRoot, { recursive: true, force: true });
     await fs.mkdir(installRoot, { recursive: true });
-    await extract(assetPath, { dir: installRoot });
+    await (await Open.file(assetPath)).extract({ path: installRoot });
     const executablePath = await this.findFile(installRoot, 'winws.exe');
     if (!executablePath) throw new Error('В GitHub ZIP не найден winws.exe');
     const relativeExecutable = `./${path.relative(this.modulesDir, executablePath).split(path.sep).join('/')}`;
