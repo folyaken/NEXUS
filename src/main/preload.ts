@@ -1,5 +1,5 @@
 import { contextBridge, ipcRenderer } from 'electron';
-import type { AppSettings, ModuleLog, ModuleManifest, UpdateInfo, UserProfile, VpnProfile, VpnRuntime, VpnSplitApp } from './types';
+import type { AppSettings, ModuleLog, ModuleManifest, UpdateInfo, UserProfile, VpnDiagnostics, VpnProfile, VpnRuntime, VpnSplitApp } from './types';
 
 contextBridge.exposeInMainWorld('nexus', {
   getModules: (): Promise<ModuleManifest[]> => ipcRenderer.invoke('modules:list'),
@@ -20,6 +20,7 @@ contextBridge.exposeInMainWorld('nexus', {
   isFullscreen: (): Promise<boolean> => ipcRenderer.invoke('window:is-fullscreen'),
   closeWindow: (): Promise<void> => ipcRenderer.invoke('window:close'),
   getVpn: (): Promise<{ profiles: VpnProfile[]; runtime: VpnRuntime }> => ipcRenderer.invoke('vpn:list'),
+  getVpnDiagnostics: (profileId?: string | null): Promise<VpnDiagnostics> => ipcRenderer.invoke('vpn:diagnostics', profileId ?? null),
   importVpn: (link: string, name?: string): Promise<VpnProfile[]> => ipcRenderer.invoke('vpn:import', link, name),
   refreshVpn: (url?: string): Promise<number> => ipcRenderer.invoke('vpn:refresh', url),
   removeVpn: (id: string): Promise<void> => ipcRenderer.invoke('vpn:remove', id),

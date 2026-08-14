@@ -157,3 +157,36 @@ export interface VpnRuntime {
   error?: string;
   subscriptions?: VpnSubscriptionInfo[];
 }
+
+export type VpnDiagnosticTone = 'ok' | 'warning' | 'error' | 'info';
+
+export interface VpnDiagnosticCheck {
+  id: string;
+  title: string;
+  tone: VpnDiagnosticTone;
+  summary: string;
+  detail: string | null;
+}
+
+export interface VpnDiagnosticEvent {
+  timestamp: string;
+  level: ModuleLog['level'];
+  message: string;
+}
+
+export interface VpnDiagnostics {
+  generatedAt: string;
+  overall: Exclude<VpnDiagnosticTone, 'info'>;
+  headline: string;
+  runtimeStatus: VpnStatus;
+  mode: 'proxy' | 'tun';
+  engine: 'Xray-core' | 'sing-box';
+  profileName: string | null;
+  protocol: VpnProtocol | null;
+  endpoint: string | null;
+  localSocks: string;
+  localHttp: string;
+  checks: VpnDiagnosticCheck[];
+  events: VpnDiagnosticEvent[];
+  report: string;
+}

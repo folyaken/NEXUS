@@ -12,7 +12,8 @@ import { applyGeo } from './vpn-geo';
 import { buildXrayConfig } from './xray-config';
 import { buildSingboxConfig } from './singbox-config';
 import { clearSystemProxy, setSystemProxy } from './system-proxy';
-import type { ModuleLog, VpnAppRoutingMode, VpnProfile, VpnRuntime, VpnSplitApp, VpnStatus, VpnSubscriptionInfo } from './types';
+import { createVpnDiagnostics } from './vpn-diagnostics';
+import type { ModuleLog, VpnAppRoutingMode, VpnDiagnosticCheck, VpnDiagnostics, VpnProfile, VpnRuntime, VpnSplitApp, VpnStatus, VpnSubscriptionInfo } from './types';
 import { waitForExit } from './process-watch';
 import { commitAtomicFileTransaction, recoverAtomicFileTransactions } from './atomic-files';
 
@@ -44,6 +45,8 @@ export class VpnManager extends EventEmitter {
   private hwid = 'NX-LOCAL';
   private subscriptions = new Map<string, VpnSubscriptionInfo>();
   private mode: 'proxy' | 'tun' = 'proxy';
+  private systemProxyConfigured = false;
+  private diagnosticEvents: ModuleLog[] = [];
   private profileMutationQueue: Promise<void> = Promise.resolve();
   private refreshInFlight: Promise<number> | null = null;
 
@@ -556,6 +559,7 @@ export class VpnManager extends EventEmitter {
     if (this.child) await this.disconnect();
 
     this.mode = mode;
+    this.systemProxyConfigured = false;
     this.setState('connecting', id, null);
     const port = await this.pickPort(preferredPort);
     this.inboundPort = port;
@@ -598,12 +602,14 @@ export class VpnManager extends EventEmitter {
     child.once('error', (error) => {
       logStream.end();
       this.child = null;
+      this.systemProxyConfigured = false;
       this.setState('error', id, null, error.message);
     });
     child.once('exit', (code) => {
       logStream.end();
       this.child = null;
       this.pid = null;
+      this.systemProxyConfigured = false;
       void clearSystemProxy();
       void fs.rm(this.generatedPath(), { force: true });
       if (this.status === 'connecting' || this.status === 'connected') {
@@ -620,8 +626,10 @@ export class VpnManager extends EventEmitter {
     if (mode === 'proxy') {
       try {
         await setSystemProxy('127.0.0.1', port + 1);
+        this.systemProxyConfigured = true;
         this.emitLog('info', `Системный прокси: 127.0.0.1:${port + 1}`);
       } catch (error) {
+        this.systemProxyConfigured = false;
         this.emitLog('warn', `Не удалось выставить системный прокси: ${error instanceof Error ? error.message : 'ошибка'}`);
       }
     }
@@ -635,9 +643,178 @@ export class VpnManager extends EventEmitter {
     return this.runtime();
   }
 
+  async diagnostics(profileId: string | null = null, preferredMode: 'proxy' | 'tun' = this.mode): Promise<VpnDiagnostics> {
+    if (profileId && !isSafeProfileId(profileId)) throw new Error('Некорректный идентификатор профиля');
+    const currentProfileId = this.status === 'disconnected' ? profileId : (this.activeProfileId ?? profileId);
+    const profile = currentProfileId ? this.profiles.get(currentProfileId) ?? null : null;
+    const mode = this.status === 'disconnected' ? preferredMode : this.mode;
+    const useSingbox = profile?.protocol === 'hysteria2';
+    const engineName = useSingbox ? 'sing-box' : 'Xray-core';
+    const enginePath = useSingbox ? this.singboxPath() : this.xrayPath();
+    const engineReady = existsSync(enginePath);
+    const processAlive = Boolean(this.child?.pid && this.child.exitCode === null && !this.child.killed);
+    const configReady = existsSync(useSingbox ? this.singboxConfigPath() : this.generatedPath());
+    const shouldProbeLocal = this.status === 'connected';
+    // A direct probe from the NEXUS process can be captured by an active TUN
+    // route and loop back through the VPN itself, so it is skipped in that case.
+    const shouldProbeEndpoint = Boolean(profile && profile.protocol !== 'hysteria2' && !(this.status === 'connected' && mode === 'tun'));
+    const [socksListening, httpListening, endpointReachable] = await Promise.all([
+      shouldProbeLocal ? this.probeTcp('127.0.0.1', this.inboundPort, 1200) : Promise.resolve(false),
+      shouldProbeLocal ? this.probeTcp('127.0.0.1', this.inboundPort + 1, 1200) : Promise.resolve(false),
+      shouldProbeEndpoint && profile ? this.probeTcp(profile.server, profile.port, 1800) : Promise.resolve(false),
+    ]);
+
+    const checks: VpnDiagnosticCheck[] = [{
+      id: 'core',
+      title: 'VPN-ядро',
+      tone: engineReady ? 'ok' : 'error',
+      summary: engineReady ? `${engineName} готово к запуску` : `${engineName} не найдено`,
+      detail: engineReady ? 'Исполняемый файл установлен локально' : 'Перезапустите npm start, чтобы восстановить ядро',
+    }];
+
+    if (!profile) {
+      checks.push({
+        id: 'profile', title: 'Профиль', tone: 'warning', summary: 'Сервер не выбран', detail: 'Выберите профиль Jey2Ray перед подключением',
+      });
+    } else {
+      const profileProblem = canConnect(profile);
+      checks.push({
+        id: 'profile',
+        title: 'Профиль',
+        tone: profileProblem ? 'error' : 'ok',
+        summary: profileProblem || `${profile.name} · ${profile.protocol.toUpperCase()}`,
+        detail: `${profile.server}:${profile.port}`,
+      });
+    }
+
+    if (this.status === 'connected' || this.status === 'connecting') {
+      checks.push({
+        id: 'config',
+        title: 'Конфигурация',
+        tone: configReady ? 'ok' : 'error',
+        summary: configReady ? 'Временная конфигурация создана' : 'Файл конфигурации не найден',
+        detail: 'Секретные параметры конфигурации не читаются и не выводятся',
+      });
+    } else {
+      checks.push({
+        id: 'config', title: 'Конфигурация', tone: 'info', summary: 'Будет создана при подключении', detail: null,
+      });
+    }
+
+    if (this.status === 'error') {
+      checks.push({
+        id: 'process', title: 'Процесс', tone: 'error', summary: 'Ядро завершилось с ошибкой', detail: this.error || 'Причина не получена',
+      });
+    } else if (this.status === 'connected') {
+      checks.push({
+        id: 'process',
+        title: 'Процесс',
+        tone: processAlive ? 'ok' : 'error',
+        summary: processAlive ? 'Процесс VPN работает' : 'Состояние процесса не совпадает с подключением',
+        detail: processAlive && this.pid ? `PID ${this.pid}` : null,
+      });
+    } else if (this.status === 'connecting') {
+      checks.push({
+        id: 'process', title: 'Процесс', tone: 'warning', summary: 'Ядро запускается', detail: this.pid ? `PID ${this.pid}` : null,
+      });
+    } else {
+      checks.push({
+        id: 'process', title: 'Процесс', tone: 'info', summary: 'VPN сейчас выключен', detail: null,
+      });
+    }
+
+    if (this.status === 'connected') {
+      const localReady = socksListening && httpListening;
+      checks.push({
+        id: 'local-ports',
+        title: 'Локальные порты',
+        tone: localReady ? 'ok' : 'error',
+        summary: localReady ? 'SOCKS и HTTP принимают подключения' : 'Один из локальных портов не отвечает',
+        detail: `127.0.0.1:${this.inboundPort} · 127.0.0.1:${this.inboundPort + 1}`,
+      });
+    } else {
+      checks.push({
+        id: 'local-ports', title: 'Локальные порты', tone: 'info', summary: 'Проверка начнётся после включения VPN', detail: `SOCKS ${this.inboundPort} · HTTP ${this.inboundPort + 1}`,
+      });
+    }
+
+    if (!profile) {
+      checks.push({
+        id: 'endpoint', title: 'Сервер', tone: 'info', summary: 'Нет сервера для проверки', detail: null,
+      });
+    } else if (profile.protocol === 'hysteria2') {
+      checks.push({
+        id: 'endpoint', title: 'Сервер', tone: 'info', summary: 'Hysteria2 использует UDP', detail: 'TCP-проверка намеренно не выполняется',
+      });
+    } else if (this.status === 'connected' && mode === 'tun') {
+      checks.push({
+        id: 'endpoint', title: 'Сервер', tone: 'info', summary: 'Канал контролируется работающим TUN-ядром', detail: 'Прямая TCP-проверка пропущена, чтобы не создавать петлю маршрутизации',
+      });
+    } else {
+      checks.push({
+        id: 'endpoint',
+        title: 'Сервер',
+        tone: endpointReachable ? 'ok' : 'warning',
+        summary: endpointReachable ? 'Удалённый порт доступен' : 'Удалённый порт не ответил на быструю проверку',
+        detail: endpointReachable ? `${profile.server}:${profile.port}` : 'Это может быть временная сетевая блокировка или фильтрация сервера',
+      });
+    }
+
+    if (mode === 'proxy' && process.platform !== 'win32') {
+      checks.push({
+        id: 'routing', title: 'Маршрутизация', tone: 'info', summary: 'Системный proxy не изменяется на этой платформе', detail: `Локальный HTTP ${this.inboundPort + 1}`,
+      });
+    } else if (mode === 'proxy') {
+      const proxyReady = this.status === 'connected' && this.systemProxyConfigured;
+      checks.push({
+        id: 'routing',
+        title: 'Маршрутизация',
+        tone: this.status !== 'connected' ? 'info' : proxyReady ? 'ok' : 'warning',
+        summary: this.status !== 'connected' ? 'Системный proxy будет включён после запуска' : proxyReady ? 'Системный proxy включён' : 'Системный proxy не подтверждён',
+        detail: `HTTP 127.0.0.1:${this.inboundPort + 1}`,
+      });
+    } else {
+      checks.push({
+        id: 'routing',
+        title: 'Маршрутизация',
+        tone: this.status === 'connected' && processAlive ? 'ok' : this.status === 'error' ? 'error' : 'info',
+        summary: this.status === 'connected' && processAlive ? 'Ядро запущено в режиме TUN' : 'TUN активируется вместе с VPN',
+        detail: 'Системный HTTP-proxy в режиме TUN не используется',
+      });
+    }
+
+    const overall = checks.some((check) => check.tone === 'error')
+      ? 'error'
+      : checks.some((check) => check.tone === 'warning') ? 'warning' : 'ok';
+    const headline = overall === 'error'
+      ? 'Найдены проблемы подключения'
+      : overall === 'warning'
+        ? (this.status === 'connected' ? 'Подключение требует внимания' : 'Не всё готово к запуску')
+        : (this.status === 'connected' ? 'Подключение работает' : 'Готово к подключению');
+    const endpoint = profile ? `${profile.server.includes(':') ? `[${profile.server}]` : profile.server}:${profile.port}` : null;
+
+    return createVpnDiagnostics({
+      generatedAt: new Date().toISOString(),
+      overall,
+      headline,
+      runtimeStatus: this.status,
+      mode,
+      engine: engineName,
+      profileName: profile?.name ?? null,
+      protocol: profile?.protocol ?? null,
+      endpoint,
+      localSocks: `127.0.0.1:${this.inboundPort}`,
+      localHttp: `127.0.0.1:${this.inboundPort + 1}`,
+      checks,
+      events: this.diagnosticEvents.map(({ timestamp, level, message }) => ({ timestamp, level, message })),
+    });
+  }
+
   async disconnect(): Promise<VpnRuntime> {
     const child = this.child;
     if (!child?.pid) {
+      await clearSystemProxy().catch(() => undefined);
+      this.systemProxyConfigured = false;
       this.setState('disconnected', null, null);
       return this.runtime();
     }
@@ -652,6 +829,8 @@ export class VpnManager extends EventEmitter {
     await waitForExit(child, 5000);
     this.child = null;
     this.pid = null;
+    await clearSystemProxy().catch(() => undefined);
+    this.systemProxyConfigured = false;
     await fs.rm(this.generatedPath(), { force: true });
     await fs.rm(this.singboxConfigPath(), { force: true });
     this.setState('disconnected', null, null);
@@ -668,6 +847,24 @@ export class VpnManager extends EventEmitter {
       if (socksFree && httpFree) return port;
     }
     throw new Error(`Не найдена свободная пара SOCKS/HTTP-портов, начиная с ${start}. Смените локальный SOCKS-порт в настройках.`);
+  }
+
+  private probeTcp(host: string, port: number, timeoutMs: number): Promise<boolean> {
+    return new Promise((resolve) => {
+      const socket = new Socket();
+      let settled = false;
+      const finish = (reachable: boolean) => {
+        if (settled) return;
+        settled = true;
+        socket.destroy();
+        resolve(reachable);
+      };
+      socket.setTimeout(timeoutMs);
+      socket.once('connect', () => finish(true));
+      socket.once('timeout', () => finish(false));
+      socket.once('error', () => finish(false));
+      socket.connect({ host, port });
+    });
   }
 
   private isFree(port: number): Promise<boolean> {
@@ -696,6 +893,7 @@ export class VpnManager extends EventEmitter {
 
   private emitLog(level: ModuleLog['level'], message: string): void {
     const log: ModuleLog = { id: 'jey2ray', level, message, timestamp: new Date().toISOString() };
+    this.diagnosticEvents = [log, ...this.diagnosticEvents].slice(0, 40);
     this.emit('log', log);
   }
 }

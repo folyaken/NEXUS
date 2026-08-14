@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import type { AppSettings, UpdateInfo, VpnAppRoutingMode, VpnProfile, VpnRuntime, VpnSubscriptionInfo } from '../main/types';
 import { canConnect, displayName } from '../main/vpn-classify';
 import { Flag } from './Flag';
+import { ConnectionDiagnostics } from './ConnectionDiagnostics';
 import { SubscriptionManager, type SubscriptionAction } from './SubscriptionManager';
 
 function cleanError(error: unknown): string {
@@ -123,6 +124,7 @@ export function Jey2RayPage({
   const [importOpen, setImportOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [subscriptionsOpen, setSubscriptionsOpen] = useState(false);
+  const [diagnosticsOpen, setDiagnosticsOpen] = useState(false);
   const [profiles, setProfiles] = useState<VpnProfile[]>([]);
   const [runtime, setRuntime] = useState<VpnRuntime>(EMPTY_RUNTIME);
   const [busy, setBusy] = useState(false);
@@ -464,6 +466,12 @@ export function Jey2RayPage({
     onRemove={removeManagedSubscription}
   />;
 
+  if (diagnosticsOpen) return <ConnectionDiagnostics
+    profileId={runtime.activeProfileId ?? selected?.id ?? null}
+    onBack={() => setDiagnosticsOpen(false)}
+    onToast={onToast}
+  />;
+
   if (settingsOpen) return <section className="page-section jey-page app-settings-page">
     <div className="app-settings-toolbar">
       <button type="button" className="app-settings-back" onClick={() => setSettingsOpen(false)} aria-label="Вернуться к серверам">
@@ -686,6 +694,11 @@ export function Jey2RayPage({
         </span>
         <span><small>{mode.toUpperCase()} · приложения</small><strong>{routeLabel}</strong><em>{routeDescription}</em></span>
       </div>
+      <button type="button" className="diagnostics-entry" onClick={() => setDiagnosticsOpen(true)}>
+        <span className="diagnostics-entry-icon"><svg viewBox="0 0 24 24" aria-hidden><path d="M4 13h3l2-6 4 11 2-5h5" /><circle cx="12" cy="12" r="9" /></svg></span>
+        <span><strong>Диагностика</strong><small>Ядро, процесс и порты</small></span>
+        <b>→</b>
+      </button>
       <div className={`auto-connect-summary ${settings.autoConnectVpn ? 'is-on' : ''}`}><i /><span>Автоподключение {settings.autoConnectVpn ? 'включено' : 'выключено'}</span></div>
       {!runtime.xrayReady && <div className="jey-note"><span>i</span><div><strong>Ставим ядро</strong><p>{xrayUpdate?.error || 'Качаем Xray / sing-box. Потом нажми большую кнопку.'}</p></div></div>}
     </aside>

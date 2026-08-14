@@ -246,6 +246,10 @@ function wireIpc(): void {
   ipcMain.handle('settings:get', () => settings);
   ipcMain.handle('settings:save', (_event, next: AppSettings) => saveSettings(next ?? settings));
   ipcMain.handle('vpn:list', () => vpn.snapshot());
+  ipcMain.handle('vpn:diagnostics', (_event, profileId: unknown) => vpn.diagnostics(
+    typeof profileId === 'string' ? profileId : null,
+    settings.vpnMode,
+  ));
   ipcMain.handle('vpn:import', (_event, link: string, name?: string) => vpn.importInput(String(link ?? ''), typeof name === 'string' ? name : undefined));
   ipcMain.handle('vpn:refresh', (_event, url?: string) => typeof url === 'string' && url.trim()
     ? vpn.refreshSubscription(url)
