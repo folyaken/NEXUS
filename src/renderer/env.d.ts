@@ -1,4 +1,4 @@
-import type { AppSettings, ModuleLog, ModuleManifest, UpdateInfo, UserProfile, VpnProfile, VpnRuntime } from '../main/types';
+import type { AppSettings, ModuleLog, ModuleManifest, UpdateInfo, UserProfile, VpnProfile, VpnRuntime, VpnSplitApp } from '../main/types';
 
 declare global {
   interface Window {
@@ -24,6 +24,7 @@ declare global {
       importVpn(link: string, name?: string): Promise<VpnProfile[]>;
       refreshVpn(): Promise<number>;
       removeVpn(id: string): Promise<void>;
+      pickVpnApps(): Promise<VpnSplitApp[]>;
       connectVpn(id: string): Promise<VpnRuntime>;
       disconnectVpn(): Promise<VpnRuntime>;
       ensureVpnCore(): Promise<void>;

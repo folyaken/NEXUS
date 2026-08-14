@@ -1,4 +1,4 @@
-import { app, BrowserWindow, ipcMain, Menu, Notification, nativeImage, nativeTheme, Tray } from 'electron';
+import { app, BrowserWindow, dialog, ipcMain, Menu, Notification, nativeImage, nativeTheme, Tray } from 'electron';
 import path from 'node:path';
 import { createHash } from 'node:crypto';
 import { existsSync } from 'node:fs';
@@ -7,7 +7,8 @@ import os from 'node:os';
 import { ModuleManager } from './module-manager';
 import { GithubUpdater } from './github-updater';
 import { VpnManager } from './vpn-manager';
-import { DEFAULT_SETTINGS, type AppSettings, type ModuleLog, type UserProfile } from './types';
+import { normalizeVpnSplitApps } from './split-tunnel';
+import { DEFAULT_SETTINGS, type AppSettings, type ModuleLog, type UserProfile, type VpnSplitApp } from './types';
 
 declare const __dirname: string;
 
@@ -33,36 +34,49 @@ function settingsPath(): string {
   return path.join(app.getPath('userData'), 'settings.json');
 }
 
+function normalizeSettings(raw: Partial<AppSettings>): AppSettings {
+  const vpnMode = raw.vpnMode === 'tun' ? 'tun' : 'proxy';
+  const vpnSplitApps = normalizeVpnSplitApps(raw.vpnSplitApps);
+  return {
+    autoStart: Boolean(raw.autoStart),
+    notifications: raw.notifications !== false,
+    closeToTray: raw.closeToTray !== false,
+    autoConnectVpn: Boolean(raw.autoConnectVpn),
+    lastVpnProfileId: typeof raw.lastVpnProfileId === 'string' ? raw.lastVpnProfileId : null,
+    vpnInboundPort: Number(raw.vpnInboundPort) > 0 ? Number(raw.vpnInboundPort) : 10808,
+    vpnMode,
+    vpnSplitTunnel: vpnMode === 'tun' && Boolean(raw.vpnSplitTunnel) && vpnSplitApps.length > 0,
+    vpnSplitApps,
+  };
+}
+
 async function readSettings(): Promise<AppSettings> {
   try {
     const raw = JSON.parse(await fs.readFile(settingsPath(), 'utf8')) as Partial<AppSettings>;
-    return {
-      autoStart: Boolean(raw.autoStart),
-      notifications: raw.notifications !== false,
-      closeToTray: raw.closeToTray !== false,
-      autoConnectVpn: Boolean(raw.autoConnectVpn),
-      lastVpnProfileId: typeof raw.lastVpnProfileId === 'string' ? raw.lastVpnProfileId : null,
-      vpnInboundPort: Number(raw.vpnInboundPort) > 0 ? Number(raw.vpnInboundPort) : 10808,
-      vpnMode: raw.vpnMode === 'tun' ? 'tun' : 'proxy',
-    };
+    return normalizeSettings(raw);
   } catch {
-    return { ...DEFAULT_SETTINGS };
+    return { ...DEFAULT_SETTINGS, vpnSplitApps: [] };
   }
 }
 
 async function saveSettings(next: AppSettings): Promise<AppSettings> {
-  settings = {
-    autoStart: Boolean(next.autoStart),
-    notifications: Boolean(next.notifications),
-    closeToTray: Boolean(next.closeToTray),
-    autoConnectVpn: Boolean(next.autoConnectVpn),
-    lastVpnProfileId: next.lastVpnProfileId ?? null,
-    vpnInboundPort: Number(next.vpnInboundPort) > 0 ? Number(next.vpnInboundPort) : 10808,
-    vpnMode: next.vpnMode === 'tun' ? 'tun' : 'proxy',
-  };
+  settings = normalizeSettings(next ?? settings);
   await fs.mkdir(path.dirname(settingsPath()), { recursive: true });
   await fs.writeFile(settingsPath(), `${JSON.stringify(settings, null, 2)}\n`, 'utf8');
   return settings;
+}
+
+async function pickVpnApplications(): Promise<VpnSplitApp[]> {
+  const options: Electron.OpenDialogOptions = {
+    title: 'Выберите приложения для VPN',
+    buttonLabel: 'Добавить',
+    properties: ['openFile', 'multiSelections'],
+    filters: [{ name: 'Приложения Windows', extensions: ['exe'] }],
+  };
+  const owner = mainWindow && !mainWindow.isDestroyed() ? mainWindow : null;
+  const result = owner ? await dialog.showOpenDialog(owner, options) : await dialog.showOpenDialog(options);
+  if (result.canceled) return [];
+  return normalizeVpnSplitApps(result.filePaths.map((filePath) => ({ executable: '', path: filePath })));
 }
 
 function showWindow(): void {
@@ -233,12 +247,14 @@ function wireIpc(): void {
   ipcMain.handle('vpn:import', (_event, link: string, name?: string) => vpn.importInput(String(link ?? ''), typeof name === 'string' ? name : undefined));
   ipcMain.handle('vpn:refresh', () => vpn.refreshSubscriptions());
   ipcMain.handle('vpn:remove', (_event, id: string) => vpn.remove(String(id ?? '')));
+  ipcMain.handle('vpn:pick-apps', () => pickVpnApplications());
   ipcMain.handle('vpn:connect', async (_event, id: string) => {
     if (!vpn.hasXray()) {
       mainWindow?.webContents.send('logs:append', { id: 'jey2ray', level: 'info', message: 'Скачиваем Xray-core…', timestamp: new Date().toISOString() });
       await updater.ensure('jey2ray');
     }
-    const runtime = await vpn.connect(String(id ?? ''), settings.vpnInboundPort, settings.vpnMode);
+    const splitApps = settings.vpnSplitTunnel ? settings.vpnSplitApps : [];
+    const runtime = await vpn.connect(String(id ?? ''), settings.vpnInboundPort, settings.vpnMode, splitApps);
     await saveSettings({ ...settings, lastVpnProfileId: String(id ?? '') });
     return runtime;
   });
@@ -288,7 +304,8 @@ if (gotLock) {
     createWindow();
     if (settings.autoStart) void manager.startEnabled();
     if (settings.autoConnectVpn && settings.lastVpnProfileId) {
-      void vpn.connect(settings.lastVpnProfileId, settings.vpnInboundPort, settings.vpnMode).catch((error: Error) => {
+      const splitApps = settings.vpnSplitTunnel ? settings.vpnSplitApps : [];
+      void vpn.connect(settings.lastVpnProfileId, settings.vpnInboundPort, settings.vpnMode, splitApps).catch((error: Error) => {
         notify('Jey2Ray', error.message);
       });
     }

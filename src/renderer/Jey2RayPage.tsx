@@ -117,6 +117,9 @@ export function Jey2RayPage({
   const desktop = Boolean(window.nexus);
   const xrayUpdate = updates.find((item) => item.id === 'jey2ray');
   const mode = settings.vpnMode === 'tun' ? 'tun' : 'proxy';
+  const splitApps = settings.vpnSplitApps ?? [];
+  const splitEnabled = mode === 'tun' && settings.vpnSplitTunnel && splitApps.length > 0;
+  const routeSettingsLocked = runtime.status === 'connecting' || runtime.status === 'connected';
 
   useEffect(() => {
     const api = window.nexus;
@@ -175,6 +178,56 @@ export function Jey2RayPage({
     } finally {
       setBusy(false);
     }
+  };
+
+  const addSplitApps = async () => {
+    if (routeSettingsLocked) {
+      onToast('Сначала отключи VPN, затем измени список приложений');
+      return;
+    }
+    if (!desktop) {
+      onToast('Выбор .exe работает в окне Electron (npm start)');
+      return;
+    }
+    try {
+      const picked = await window.nexus?.pickVpnApps();
+      if (!picked?.length) return;
+      const merged = new Map(splitApps.map((app) => [app.executable.toLocaleLowerCase('en-US'), app]));
+      for (const app of picked) merged.set(app.executable.toLocaleLowerCase('en-US'), app);
+      onSettings({
+        ...settings,
+        vpnMode: 'tun',
+        vpnSplitTunnel: true,
+        vpnSplitApps: [...merged.values()],
+      });
+    } catch (error) {
+      onToast(cleanError(error) || 'Не удалось выбрать приложение');
+    }
+  };
+
+  const toggleSplitTunnel = () => {
+    if (routeSettingsLocked) {
+      onToast('Сначала отключи VPN, затем измени Split Tunneling');
+      return;
+    }
+    if (splitEnabled) {
+      onSettings({ ...settings, vpnSplitTunnel: false });
+      return;
+    }
+    if (!splitApps.length) {
+      void addSplitApps();
+      return;
+    }
+    onSettings({ ...settings, vpnMode: 'tun', vpnSplitTunnel: true });
+  };
+
+  const removeSplitApp = (executable: string) => {
+    if (routeSettingsLocked) {
+      onToast('Сначала отключи VPN, затем измени список приложений');
+      return;
+    }
+    const next = splitApps.filter((app) => app.executable !== executable);
+    onSettings({ ...settings, vpnSplitApps: next, vpnSplitTunnel: splitEnabled && next.length > 0 });
   };
 
   const connect = async (id: string) => {
@@ -263,7 +316,7 @@ export function Jey2RayPage({
   }, [desktop, nodes.length]);
 
   const powerLabel = onAir
-    ? `Работает · ${mode.toUpperCase()} · 127.0.0.1:${runtime.inboundPort + 1}`
+    ? `Работает · ${splitEnabled ? `TUN SPLIT · ${splitApps.length} прил.` : mode.toUpperCase()} · 127.0.0.1:${runtime.inboundPort + 1}`
     : otherLive
       ? 'Другой сервер онлайн. Нажми — переключить сюда'
       : runtime.status === 'connecting'
@@ -360,14 +413,51 @@ export function Jey2RayPage({
         <small>{powerLabel}</small>
       </div>
       <div className="mode-switch">
-        <button className={mode === 'proxy' ? 'active' : ''} onClick={() => onSettings({ ...settings, vpnMode: 'proxy' })}>Proxy</button>
-        <button className={mode === 'tun' ? 'active' : ''} onClick={() => onSettings({ ...settings, vpnMode: 'tun' })}>TUN</button>
+        <button
+          className={mode === 'proxy' ? 'active' : ''}
+          disabled={routeSettingsLocked}
+          onClick={() => onSettings({ ...settings, vpnMode: 'proxy', vpnSplitTunnel: false })}
+        >Proxy</button>
+        <button
+          className={mode === 'tun' ? 'active' : ''}
+          disabled={routeSettingsLocked}
+          onClick={() => onSettings({ ...settings, vpnMode: 'tun' })}
+        >TUN</button>
       </div>
       <p className="mode-hint">
         {mode === 'proxy'
-          ? 'Proxy: Windows получит системный HTTP-прокси. Браузер начнёт ходить через выбранный сервер.'
-          : 'TUN: весь трафик системы. Нужны права администратора. Если не стартует — вернись на Proxy.'}
+          ? 'Proxy: системный HTTP-прокси. Split Tunneling для приложений работает только в TUN.'
+          : splitEnabled
+            ? `TUN Split: через VPN идут только выбранные приложения (${splitApps.length}), остальные — напрямую.`
+            : 'TUN: весь трафик системы через VPN. Нужны права администратора.'}
       </p>
+
+      <div className={`split-panel ${splitEnabled ? 'is-on' : ''}`}>
+        <div className="split-panel-head">
+          <div>
+            <strong>Split Tunneling</strong>
+            <small>Только выбранные .exe через VPN</small>
+          </div>
+          <button
+            type="button"
+            className={`split-toggle ${splitEnabled ? 'is-on' : ''}`}
+            disabled={routeSettingsLocked}
+            onClick={toggleSplitTunnel}
+            aria-label={splitEnabled ? 'Выключить Split Tunneling' : 'Включить Split Tunneling'}
+          ><i /></button>
+        </div>
+        {splitApps.length ? <div className="split-app-list">
+          {splitApps.map((app) => <div className="split-app" key={app.executable.toLocaleLowerCase('en-US')} title={app.path}>
+            <span><strong>{app.executable}</strong><small>{app.path}</small></span>
+            <button type="button" disabled={routeSettingsLocked} onClick={() => removeSplitApp(app.executable)} aria-label={`Удалить ${app.executable}`}>×</button>
+          </div>)}
+        </div> : <p className="split-empty">Список пуст. Выбери одно или несколько приложений Windows.</p>}
+        <button type="button" className="split-add" disabled={routeSettingsLocked} onClick={() => void addSplitApps()}>
+          <span>＋</span> Выбрать .exe
+        </button>
+        {routeSettingsLocked && <small className="split-locked">Для изменения сначала отключи VPN.</small>}
+      </div>
+
       <button type="button" className={`nx-switch ${settings.autoConnectVpn ? 'is-on' : ''}`} onClick={() => onSettings({ ...settings, autoConnectVpn: !settings.autoConnectVpn })}>
         <i />
         <span>Автоподключение</span>

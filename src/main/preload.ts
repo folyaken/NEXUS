@@ -1,5 +1,5 @@
 import { contextBridge, ipcRenderer } from 'electron';
-import type { AppSettings, ModuleLog, ModuleManifest, UpdateInfo, UserProfile, VpnProfile, VpnRuntime } from './types';
+import type { AppSettings, ModuleLog, ModuleManifest, UpdateInfo, UserProfile, VpnProfile, VpnRuntime, VpnSplitApp } from './types';
 
 contextBridge.exposeInMainWorld('nexus', {
   getModules: (): Promise<ModuleManifest[]> => ipcRenderer.invoke('modules:list'),
@@ -23,6 +23,7 @@ contextBridge.exposeInMainWorld('nexus', {
   importVpn: (link: string, name?: string): Promise<VpnProfile[]> => ipcRenderer.invoke('vpn:import', link, name),
   refreshVpn: (): Promise<number> => ipcRenderer.invoke('vpn:refresh'),
   removeVpn: (id: string): Promise<void> => ipcRenderer.invoke('vpn:remove', id),
+  pickVpnApps: (): Promise<VpnSplitApp[]> => ipcRenderer.invoke('vpn:pick-apps'),
   connectVpn: (id: string): Promise<VpnRuntime> => ipcRenderer.invoke('vpn:connect', id),
   disconnectVpn: (): Promise<VpnRuntime> => ipcRenderer.invoke('vpn:disconnect'),
   ensureVpnCore: (): Promise<void> => ipcRenderer.invoke('vpn:ensure-core'),

@@ -53,6 +53,11 @@ export interface UserProfile {
   deviceName: string;
 }
 
+export interface VpnSplitApp {
+  executable: string;
+  path: string;
+}
+
 export interface AppSettings {
   autoStart: boolean;
   notifications: boolean;
@@ -61,6 +66,8 @@ export interface AppSettings {
   lastVpnProfileId: string | null;
   vpnInboundPort: number;
   vpnMode: 'proxy' | 'tun';
+  vpnSplitTunnel: boolean;
+  vpnSplitApps: VpnSplitApp[];
 }
 
 export const DEFAULT_SETTINGS: AppSettings = {
@@ -71,6 +78,8 @@ export const DEFAULT_SETTINGS: AppSettings = {
   lastVpnProfileId: null,
   vpnInboundPort: 10808,
   vpnMode: 'proxy',
+  vpnSplitTunnel: false,
+  vpnSplitApps: [],
 };
 
 export interface VpnLinkParams {

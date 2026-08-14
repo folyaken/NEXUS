@@ -1,5 +1,6 @@
 const fs = require('node:fs');
 const path = require('node:path');
+const { spawnSync } = require('node:child_process');
 const { Open } = require('unzipper');
 const { downloadZip, safeUrlForLog } = require('./bootstrap-network.cjs');
 
@@ -12,9 +13,37 @@ const zipName = isWin ? 'Xray-windows-64.zip' : 'Xray-linux-64.zip';
 const dest = path.join(binDir, binary);
 const repo = 'XTLS/Xray-core';
 const userAgent = 'NEXUS-Xray-Bootstrap';
+// Windows TUN auto-routing was added after the latest stable v26.3.27.
+// Pin a reviewed release whose JSON schema supports Split Tunneling.
+const requiredRelease = 'v26.7.28';
+const minimumTunVersion = [26, 4, 13];
 
 function ok() {
   return fs.existsSync(dest) && fs.statSync(dest).size > 1_000_000;
+}
+
+function installedVersion() {
+  if (!ok()) return null;
+  try {
+    const result = spawnSync(dest, ['version'], {
+      encoding: 'utf8',
+      timeout: 5000,
+      windowsHide: true,
+    });
+    const output = `${result.stdout || ''}\n${result.stderr || ''}`;
+    const match = output.match(/\bXray\s+(\d+)\.(\d+)\.(\d+)/i);
+    return match ? match.slice(1, 4).map(Number) : null;
+  } catch {
+    return null;
+  }
+}
+
+function supportsTunSplit(version) {
+  if (!version) return false;
+  for (let index = 0; index < minimumTunVersion.length; index += 1) {
+    if (version[index] !== minimumTunVersion[index]) return version[index] > minimumTunVersion[index];
+  }
+  return true;
 }
 
 async function download(url, file) {
@@ -26,15 +55,21 @@ async function download(url, file) {
 }
 
 async function main() {
-  if (ok()) {
-    console.log(`Xray уже на месте: ${path.relative(root, dest)}`);
+  const currentVersion = installedVersion();
+  if (supportsTunSplit(currentVersion)) {
+    console.log(`Xray уже на месте: ${path.relative(root, dest)} (${currentVersion.join('.')})`);
     return;
   }
-  console.log('Ставим Xray-core (как ядро внутри Happ)…');
+  if (ok()) {
+    const label = currentVersion ? currentVersion.join('.') : 'неизвестная версия';
+    console.log(`Обновляем Xray ${label}: для TUN Split нужен 26.4.13 или новее…`);
+  } else {
+    console.log('Ставим Xray-core (как ядро внутри Happ)…');
+  }
   const zipPath = path.join(cacheDir, zipName);
   const urls = [
-    `https://github.com/${repo}/releases/latest/download/${zipName}`,
-    `https://ghproxy.net/https://github.com/${repo}/releases/latest/download/${zipName}`,
+    `https://github.com/${repo}/releases/download/${requiredRelease}/${zipName}`,
+    `https://ghproxy.net/https://github.com/${repo}/releases/download/${requiredRelease}/${zipName}`,
   ];
   let last = 'не удалось скачать';
   for (const url of urls) {
@@ -49,15 +84,17 @@ async function main() {
       fs.mkdirSync(binDir, { recursive: true });
       fs.copyFileSync(found, dest);
       if (!isWin) fs.chmodSync(dest, 0o755);
-      if (!ok()) throw new Error('скопированный бинарник пустой');
-      console.log(`Xray установлен: ${path.relative(root, dest)}`);
+      const nextVersion = installedVersion();
+      if (!supportsTunSplit(nextVersion)) throw new Error('ядро не поддерживает TUN Split');
+      console.log(`Xray установлен: ${path.relative(root, dest)} (${nextVersion.join('.')})`);
       return;
     } catch (error) {
       last = error instanceof Error ? error.message : String(error);
       console.warn(`  не вышло: ${last}`);
     }
   }
-  console.warn(`Xray не установлен (${last}). VPN заработает после удачной загрузки GitHub.`);
+  const action = ok() ? 'не обновлён; Proxy может продолжить работу, но TUN Split требует Xray 26.4.13+' : 'не установлен';
+  console.warn(`Xray ${action} (${last}). Повтори запуск после восстановления доступа к GitHub.`);
 }
 
 function walk(dir, name) {
@@ -72,6 +109,14 @@ function walk(dir, name) {
   return null;
 }
 
-main().catch((error) => {
-  console.warn(error.message);
-});
+if (require.main === module) {
+  main().catch((error) => {
+    console.warn(error.message);
+  });
+}
+
+module.exports = {
+  minimumTunVersion,
+  requiredRelease,
+  supportsTunSplit,
+};

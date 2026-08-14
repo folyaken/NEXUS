@@ -13,6 +13,7 @@
     "dev:web": "vite --host 0.0.0.0",
     "build": "npm run build:main && vite build",
     "build:main": "tsc -p tsconfig.main.json",
+    "test:split-tunnel": "npm run build:main && node tests/split-tunnel-config.test.cjs",
     "package": "npm run build && electron-builder",
     "preview": "vite preview --host 0.0.0.0"
   },

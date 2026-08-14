@@ -21,6 +21,7 @@ type UpdateTarget = {
   id: string;
   name: string;
   repo: string;
+  releaseTag?: string;
   assetKind: 'zip' | 'executable';
   selectAsset: (assets: GithubRelease['assets']) => GithubRelease['assets'][number] | undefined;
   install: (assetPath: string, version: string) => Promise<string>;
@@ -29,6 +30,9 @@ type UpdateTarget = {
 type VersionRecord = { version: string; asset: string; sha256: string; installedAt: string };
 
 const GITHUB_API = 'https://api.github.com/repos';
+// v26.3.27 is the latest stable release, but lacks Windows TUN auto-routing.
+// This reviewed release supports the routing schema used by Split Tunneling.
+export const XRAY_TUN_RELEASE = 'v26.7.28';
 const MAX_DOWNLOAD_REDIRECTS = 5;
 const REDIRECT_STATUS_CODES = new Set([301, 302, 303, 307, 308]);
 const TRUSTED_MIRROR_HOSTS = new Set(['ghproxy.net', 'mirror.ghproxy.com']);
@@ -95,6 +99,7 @@ export class GithubUpdater extends EventEmitter {
       id: 'jey2ray',
       name: 'Jey2Ray / Xray-core',
       repo: 'XTLS/Xray-core',
+      releaseTag: XRAY_TUN_RELEASE,
       assetKind: 'zip',
       selectAsset: (assets) => {
         if (process.platform === 'win32') {
@@ -118,7 +123,7 @@ export class GithubUpdater extends EventEmitter {
     this.setStatus(target, 'checking');
     let tempPath: string | undefined;
     try {
-      const release = await this.fetchRelease(target.repo);
+      const release = await this.fetchRelease(target.repo, target.releaseTag);
       const asset = target.selectAsset(release.assets);
       if (!asset) {
         this.setStatus(target, 'unsupported', { latestVersion: release.tag_name, error: `Для ${process.platform}/${os.arch()} нет подходящего GitHub asset` });
@@ -152,11 +157,12 @@ export class GithubUpdater extends EventEmitter {
     }
   }
 
-  private async fetchRelease(repo: string): Promise<GithubRelease> {
+  private async fetchRelease(repo: string, releaseTag?: string): Promise<GithubRelease> {
     let lastError: Error | null = null;
+    const endpoint = releaseTag ? `releases/tags/${encodeURIComponent(releaseTag)}` : 'releases/latest';
     for (let attempt = 1; attempt <= 3; attempt += 1) {
       try {
-        const response = await fetch(`${GITHUB_API}/${repo}/releases/latest`, {
+        const response = await fetch(`${GITHUB_API}/${repo}/${endpoint}`, {
           headers: { Accept: 'application/vnd.github+json', 'User-Agent': 'NEXUS-Network-Control-Plane' },
         });
         if (response.status === 403) throw new Error('GitHub API: лимит запросов (HTTP 403). Повторите позже.');
@@ -292,10 +298,11 @@ export class GithubUpdater extends EventEmitter {
 
   private async installXrayFromMirrors(): Promise<void> {
     const file = process.platform === 'win32' ? 'Xray-windows-64.zip' : 'Xray-linux-64.zip';
+    const releasePath = `releases/download/${XRAY_TUN_RELEASE}`;
     const mirrors = [
-      `https://github.com/XTLS/Xray-core/releases/latest/download/${file}`,
-      `https://ghproxy.net/https://github.com/XTLS/Xray-core/releases/latest/download/${file}`,
-      `https://mirror.ghproxy.com/https://github.com/XTLS/Xray-core/releases/latest/download/${file}`,
+      `https://github.com/XTLS/Xray-core/${releasePath}/${file}`,
+      `https://ghproxy.net/https://github.com/XTLS/Xray-core/${releasePath}/${file}`,
+      `https://mirror.ghproxy.com/https://github.com/XTLS/Xray-core/${releasePath}/${file}`,
     ];
     const jey = this.targets.find((item) => item.id === 'jey2ray');
     const tempPath = path.join(this.modulesDir, '.cache', file);
@@ -307,7 +314,7 @@ export class GithubUpdater extends EventEmitter {
           if (jey) this.setStatus(jey, 'downloading', { asset: file });
           await this.downloadAsset(url, tempPath, 'XTLS/Xray-core');
           await this.assertAsset(tempPath, 'zip', 0, file);
-          await this.installXray(tempPath, 'latest');
+          await this.installXray(tempPath, XRAY_TUN_RELEASE);
           return;
         } catch (error) {
           lastError = error instanceof Error ? error.message : lastError;

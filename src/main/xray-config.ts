@@ -1,4 +1,5 @@
-import type { VpnLinkParams } from './types';
+import { xrayProcessSelectors } from './split-tunnel';
+import type { VpnLinkParams, VpnSplitApp } from './types';
 
 function vlessFlow(params: VpnLinkParams): string {
   const network = (params.network || 'tcp').toLowerCase();
@@ -136,7 +137,12 @@ function outbound(params: VpnLinkParams): Record<string, unknown> {
   };
 }
 
-export function buildXrayConfig(params: VpnLinkParams, inboundPort: number, mode: 'proxy' | 'tun' = 'proxy'): Record<string, unknown> {
+export function buildXrayConfig(
+  params: VpnLinkParams,
+  inboundPort: number,
+  mode: 'proxy' | 'tun' = 'proxy',
+  splitApps: VpnSplitApp[] = [],
+): Record<string, unknown> {
   const inbounds: Record<string, unknown>[] = [{
     tag: 'socks-in',
     port: inboundPort,
@@ -156,15 +162,27 @@ export function buildXrayConfig(params: VpnLinkParams, inboundPort: number, mode
       tag: 'tun-in',
       protocol: 'tun',
       settings: {
+        name: 'nexus',
+        desc: 'NEXUS',
         mtu: 1500,
-        name: 'jey2ray',
-        stack: 'gvisor',
-        autoRoute: true,
-        strictRoute: true,
+        gateway: ['172.19.0.1/30', 'fdfe:dcba:9876::1/126'],
+        autoSystemRoutingTable: ['0.0.0.0/0', '::/0'],
+        autoOutboundsInterface: 'auto',
       },
       sniffing: { enabled: true, destOverride: ['http', 'tls', 'quic'] },
     });
   }
+
+  const process = mode === 'tun' ? xrayProcessSelectors(splitApps) : [];
+  const routing = process.length ? {
+    domainStrategy: 'AsIs',
+    rules: [
+      { type: 'field', process: ['self/', 'xray/'], outboundTag: 'direct' },
+      { type: 'field', inboundTag: ['tun-in'], process, outboundTag: 'proxy' },
+      { type: 'field', inboundTag: ['tun-in'], outboundTag: 'direct' },
+    ],
+  } : undefined;
+
   return {
     log: { loglevel: 'warning' },
     inbounds,
@@ -173,5 +191,6 @@ export function buildXrayConfig(params: VpnLinkParams, inboundPort: number, mode
       { tag: 'direct', protocol: 'freedom', settings: {} },
       { tag: 'block', protocol: 'blackhole', settings: {} },
     ],
+    ...(routing ? { routing } : {}),
   };
 }
