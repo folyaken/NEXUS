@@ -3,12 +3,13 @@ import path from 'node:path';
 import { createHash } from 'node:crypto';
 import { existsSync } from 'node:fs';
 import { promises as fs } from 'node:fs';
+import { execFile } from 'node:child_process';
 import os from 'node:os';
 import { ModuleManager } from './module-manager';
 import { GithubUpdater } from './github-updater';
 import { VpnManager } from './vpn-manager';
 import { normalizeVpnSplitApps, resolveVpnAppRouting } from './split-tunnel';
-import { DEFAULT_SETTINGS, type AppSettings, type ModuleLog, type UserProfile, type VpnSplitApp, type VpnStatus } from './types';
+import { DEFAULT_SETTINGS, type AboutSystemInfo, type AppSettings, type ModuleLog, type NexusUpdateCheck, type UserProfile, type VpnSplitApp, type VpnStatus } from './types';
 
 declare const __dirname: string;
 
@@ -305,6 +306,59 @@ async function saveProfile(displayName: string): Promise<UserProfile> {
   return profile;
 }
 
+function coreVersion(executable: string, product: 'xray' | 'sing-box'): Promise<string | null> {
+  if (!existsSync(executable)) return Promise.resolve(null);
+  return new Promise((resolve) => {
+    execFile(executable, ['version'], {
+      encoding: 'utf8',
+      timeout: 2_500,
+      maxBuffer: 64 * 1024,
+      windowsHide: true,
+    }, (_error, stdout, stderr) => {
+      const output = `${stdout || ''}\n${stderr || ''}`.trim().slice(0, 8_192);
+      const productPattern = product === 'xray'
+        ? /\bXray\s+v?([0-9][0-9A-Za-z.+-]*)/i
+        : /\bsing-box(?:\s+version)?\s+v?([0-9][0-9A-Za-z.+-]*)/i;
+      const version = output.match(productPattern)?.[1]
+        ?? output.match(/\bv?([0-9]+(?:\.[0-9A-Za-z+-]+){1,3})\b/)?.[1]
+        ?? null;
+      resolve(version);
+    });
+  });
+}
+
+function operatingSystemName(): string {
+  if (process.platform === 'win32') return `Windows ${os.release()}`;
+  if (process.platform === 'darwin') return `macOS ${os.release()}`;
+  return `${os.type()} ${os.release()}`;
+}
+
+async function aboutSystemInfo(): Promise<AboutSystemInfo> {
+  const profile = await readProfile();
+  const [xrayVersion, singBoxVersion] = await Promise.all([
+    coreVersion(vpn.xrayPath(), 'xray'),
+    coreVersion(vpn.singboxPath(), 'sing-box'),
+  ]);
+  return {
+    nexusVersion: app.getVersion(),
+    xrayVersion,
+    singBoxVersion,
+    hwid: profile.deviceId,
+    computer: `${operatingSystemName()} · ${os.hostname()} · ${os.arch()}`,
+  };
+}
+
+function checkNexusUpdate(): NexusUpdateCheck {
+  return {
+    status: 'placeholder',
+    currentVersion: app.getVersion(),
+    latestVersion: null,
+    canInstall: false,
+    checkedAt: new Date().toISOString(),
+    message: 'Канал автоматических обновлений пока не подключён. Проверка выполнена, установка станет доступна после публикации первого релиза NEXUS.',
+  };
+}
+
 function wireIpc(): void {
   ipcMain.handle('modules:list', () => manager.list());
   ipcMain.handle('modules:reload', () => manager.reload());
@@ -322,6 +376,8 @@ function wireIpc(): void {
   ipcMain.handle('updates:sync', () => updater.syncAll());
   ipcMain.handle('profile:get', () => readProfile());
   ipcMain.handle('profile:save', (_event, name: string) => saveProfile(typeof name === 'string' ? name : ''));
+  ipcMain.handle('about:get-info', () => aboutSystemInfo());
+  ipcMain.handle('about:check-update', () => checkNexusUpdate());
   ipcMain.handle('settings:get', () => settings);
   ipcMain.handle('settings:save', (_event, next: AppSettings) => saveSettings(next ?? settings));
   ipcMain.handle('vpn:list', () => vpn.snapshot());

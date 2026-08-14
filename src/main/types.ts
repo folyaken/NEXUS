@@ -54,6 +54,23 @@ export interface UserProfile {
   deviceName: string;
 }
 
+export interface AboutSystemInfo {
+  nexusVersion: string;
+  xrayVersion: string | null;
+  singBoxVersion: string | null;
+  hwid: string;
+  computer: string;
+}
+
+export interface NexusUpdateCheck {
+  status: 'placeholder';
+  currentVersion: string;
+  latestVersion: null;
+  canInstall: false;
+  checkedAt: string;
+  message: string;
+}
+
 export interface VpnSplitApp {
   executable: string;
   path: string;

@@ -1,5 +1,5 @@
 import { contextBridge, ipcRenderer } from 'electron';
-import type { AppSettings, ModuleLog, ModuleManifest, UpdateInfo, UserProfile, VpnDiagnostics, VpnLatencySample, VpnProfile, VpnRuntime, VpnSplitApp } from './types';
+import type { AboutSystemInfo, AppSettings, ModuleLog, ModuleManifest, NexusUpdateCheck, UpdateInfo, UserProfile, VpnDiagnostics, VpnLatencySample, VpnProfile, VpnRuntime, VpnSplitApp } from './types';
 
 contextBridge.exposeInMainWorld('nexus', {
   getModules: (): Promise<ModuleManifest[]> => ipcRenderer.invoke('modules:list'),
@@ -12,6 +12,8 @@ contextBridge.exposeInMainWorld('nexus', {
   syncUpdates: (): Promise<UpdateInfo[]> => ipcRenderer.invoke('updates:sync'),
   getProfile: (): Promise<UserProfile> => ipcRenderer.invoke('profile:get'),
   saveProfile: (name: string): Promise<UserProfile> => ipcRenderer.invoke('profile:save', name),
+  getAboutInfo: (): Promise<AboutSystemInfo> => ipcRenderer.invoke('about:get-info'),
+  checkNexusUpdate: (): Promise<NexusUpdateCheck> => ipcRenderer.invoke('about:check-update'),
   getSettings: (): Promise<AppSettings> => ipcRenderer.invoke('settings:get'),
   saveSettings: (settings: AppSettings): Promise<AppSettings> => ipcRenderer.invoke('settings:save', settings),
   getLastScan: (): Promise<string | null> => ipcRenderer.invoke('runtime:last-scan'),

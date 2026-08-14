@@ -54,6 +54,15 @@ function pngDimensions(filePath) {
 
 assert.match(preload, /switchVpnMode: \(mode: 'proxy' \| 'tun'\)/);
 assert.match(env, /switchVpnMode\(mode: 'proxy' \| 'tun'\): Promise<VpnRuntime>/);
+assert.match(preload, /getAboutInfo: \(\): Promise<AboutSystemInfo> => ipcRenderer\.invoke\('about:get-info'\)/);
+assert.match(preload, /checkNexusUpdate: \(\): Promise<NexusUpdateCheck> => ipcRenderer\.invoke\('about:check-update'\)/);
+assert.match(env, /getAboutInfo\(\): Promise<AboutSystemInfo>/);
+assert.match(env, /checkNexusUpdate\(\): Promise<NexusUpdateCheck>/);
+assert.match(types, /export interface AboutSystemInfo/);
+assert.match(types, /xrayVersion: string \| null/);
+assert.match(types, /singBoxVersion: string \| null/);
+assert.match(types, /export interface NexusUpdateCheck/);
+assert.match(types, /status: 'placeholder'/);
 assert.match(types, /connectedAt: string \| null/);
 assert.match(types, /language: 'ru'/);
 assert.match(types, /theme: 'dark'/);
@@ -128,8 +137,24 @@ assert.match(styles, /\.appearance-graphite \.primary-button \{[^}]*#e2e5e9/);
 assert.match(styles, /\.app-shell\.is-sidebar-collapsed \.sidebar \{[^}]*flex-basis: 82px/);
 assert.match(styles, /\.profile-chevron \{[^}]*transition:/);
 assert.match(styles, /\.log-source-tabs \{[^}]*grid-template-columns: repeat\(6/);
-assert.match(styles, /\.appearance-graphite \.app-shell \{ filter: grayscale\(1\) saturate\(0\); \}/);
+assert.match(styles, /\.appearance-graphite \.happ-flag-svg \{ filter: saturate\(\.66\) brightness\(\.91\); \}/, 'Graphite flags must retain restrained colour');
+assert.match(styles, /\.appearance-graphite \.app-shell \{ filter: none; \}/);
+assert.doesNotMatch(styles, /\.appearance-graphite \.app-shell \{ filter: grayscale\(1\) saturate\(0\); \}/, 'Graphite must not globally desaturate flags and semantic states');
 assert.doesNotMatch(styles, /\.settings-tab\.active \{|\.tunnel-ping|\.power-session/);
+
+assert.match(main, /function coreVersion\(executable: string, product: 'xray' \| 'sing-box'\)/);
+assert.match(main, /execFile\(executable, \['version'\]/);
+assert.match(main, /timeout: 2_500/);
+assert.match(main, /maxBuffer: 64 \* 1024/);
+assert.match(main, /coreVersion\(vpn\.xrayPath\(\), 'xray'\)/);
+assert.match(main, /coreVersion\(vpn\.singboxPath\(\), 'sing-box'\)/);
+assert.match(main, /ipcMain\.handle\('about:get-info', \(\) => aboutSystemInfo\(\)\)/);
+assert.match(main, /ipcMain\.handle\('about:check-update', \(\) => checkNexusUpdate\(\)\)/);
+assert.match(app, /Версия Xray Core/);
+assert.match(app, /Версия sing-box/);
+assert.match(app, /Компьютер \/ ОС/);
+assert.match(app, /ВРЕМЕННЫЙ КАНАЛ/);
+assert.match(app, /className="about-install-button" disabled/);
 
 assert.match(main, /const TRAY_FRAME_FILES = \{[\s\S]*disconnected:[\s\S]*connecting:[\s\S]*connected:/, 'tray branding must expose three visual VPN states');
 assert.match(main, /function stopTrayAnimation\(\): void/);
@@ -162,4 +187,4 @@ assert.deepEqual(pngDimensions(path.join(root, 'assets', 'nexus-app.png')), { wi
 const icoHeader = fs.readFileSync(path.join(root, 'assets', 'nexus.ico')).subarray(0, 4).toString('hex');
 assert.equal(icoHeader, '00000100', 'the Windows build icon must remain a valid ICO container');
 
-console.log('Live VPN mode switching, session timer, pulse rings, separated settings and stateful tray branding regression checks passed.');
+console.log('Live VPN mode, About diagnostics/update placeholder, restrained Graphite colours and stateful tray regression checks passed.');

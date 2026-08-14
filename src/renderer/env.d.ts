@@ -1,4 +1,4 @@
-import type { AppSettings, ModuleLog, ModuleManifest, UpdateInfo, UserProfile, VpnDiagnostics, VpnLatencySample, VpnProfile, VpnRuntime, VpnSplitApp } from '../main/types';
+import type { AboutSystemInfo, AppSettings, ModuleLog, ModuleManifest, NexusUpdateCheck, UpdateInfo, UserProfile, VpnDiagnostics, VpnLatencySample, VpnProfile, VpnRuntime, VpnSplitApp } from '../main/types';
 
 declare global {
   interface Window {
@@ -13,6 +13,8 @@ declare global {
       syncUpdates(): Promise<UpdateInfo[]>;
       getProfile(): Promise<UserProfile>;
       saveProfile(name: string): Promise<UserProfile>;
+      getAboutInfo(): Promise<AboutSystemInfo>;
+      checkNexusUpdate(): Promise<NexusUpdateCheck>;
       getSettings(): Promise<AppSettings>;
       saveSettings(settings: AppSettings): Promise<AppSettings>;
       getLastScan(): Promise<string | null>;

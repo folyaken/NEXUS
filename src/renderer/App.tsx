@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { animated, config, useSpring } from '@react-spring/web';
-import type { AppSettings, ModuleLog, ModuleManifest, ModuleStatus, UpdateInfo, UserProfile } from '../main/types';
+import type { AboutSystemInfo, AppSettings, ModuleLog, ModuleManifest, ModuleStatus, NexusUpdateCheck, UpdateInfo, UserProfile } from '../main/types';
 import { DEFAULT_SETTINGS } from '../main/types';
 import { Jey2RayPage } from './Jey2RayPage';
 
@@ -272,18 +272,105 @@ function LogsPage({ logs, category, setCategory, onNotice }: { logs: ModuleLog[]
 }
 
 function AboutPage() {
+  const [info, setInfo] = useState<AboutSystemInfo>({
+    nexusVersion: '1.0.0',
+    xrayVersion: null,
+    singBoxVersion: null,
+    hwid: 'NX-LOCAL',
+    computer: typeof navigator === 'undefined' ? 'Локальное устройство' : `${navigator.platform || 'Desktop'} · локальное устройство`,
+  });
+  const [loadingInfo, setLoadingInfo] = useState(true);
+  const [checkingUpdate, setCheckingUpdate] = useState(false);
+  const [updateCheck, setUpdateCheck] = useState<NexusUpdateCheck | null>(null);
+  const [copied, setCopied] = useState(false);
+
+  useEffect(() => {
+    let alive = true;
+    if (!window.nexus) {
+      setLoadingInfo(false);
+      return () => { alive = false; };
+    }
+    void window.nexus.getAboutInfo()
+      .then((next) => { if (alive) setInfo(next); })
+      .catch(() => { /* keep safe fallback values */ })
+      .finally(() => { if (alive) setLoadingInfo(false); });
+    return () => { alive = false; };
+  }, []);
+
+  const checkUpdate = async () => {
+    setCheckingUpdate(true);
+    try {
+      const result = window.nexus
+        ? await window.nexus.checkNexusUpdate()
+        : {
+          status: 'placeholder' as const,
+          currentVersion: info.nexusVersion,
+          latestVersion: null,
+          canInstall: false as const,
+          checkedAt: new Date().toISOString(),
+          message: 'Канал автоматических обновлений пока не подключён. Установка станет доступна после публикации первого релиза NEXUS.',
+        };
+      setUpdateCheck(result);
+    } catch {
+      setUpdateCheck({
+        status: 'placeholder',
+        currentVersion: info.nexusVersion,
+        latestVersion: null,
+        canInstall: false,
+        checkedAt: new Date().toISOString(),
+        message: 'Не удалось обратиться к временному каналу обновлений. Автоматическая установка пока недоступна.',
+      });
+    } finally {
+      setCheckingUpdate(false);
+    }
+  };
+
+  const copyHwid = async () => {
+    try {
+      await navigator.clipboard.writeText(info.hwid);
+      setCopied(true);
+      window.setTimeout(() => setCopied(false), 1800);
+    } catch { /* clipboard permission is optional */ }
+  };
+
+  const coreValue = (value: string | null) => loadingInfo ? 'Определение…' : value || 'Не обнаружен';
+  const checkedAt = updateCheck ? new Intl.DateTimeFormat('ru-RU', { hour: '2-digit', minute: '2-digit' }).format(new Date(updateCheck.checkedAt)) : null;
+
   return <section className="page-section about-page">
-    <div className="page-heading"><div><span className="section-kicker">ABOUT NEXUS</span><h1>О программе</h1><p>Единый локальный центр управления сетевыми инструментами.</p></div><span className="about-version-pill">VERSION 1.0.0</span></div>
+    <div className="page-heading"><div><span className="section-kicker">ABOUT NEXUS</span><h1>О программе</h1><p>Версии компонентов, сведения об устройстве и обновление NEXUS.</p></div><span className="about-version-pill">VERSION {info.nexusVersion}</span></div>
     <div className="about-hero-card">
       <div className="about-mark"><NexusShowcaseMark /></div>
       <div className="about-hero-copy"><span>NETWORK CONTROL PLANE</span><h2>NEXUS</h2><p>Быстрое управление VPN, маршрутами и локальными сетевыми модулями в одном аккуратном интерфейсе.</p></div>
-      <div className="about-build"><span>STABLE CHANNEL</span><strong>1.0.0</strong><small>Desktop for Windows</small></div>
+      <div className="about-build"><span>STABLE CHANNEL</span><strong>{info.nexusVersion}</strong><small>Desktop for Windows</small></div>
     </div>
-    <div className="about-grid">
-      <article className="about-card"><div className="about-card-icon"><NavGlyph name="jey" /></div><span className="about-card-kicker">СЕТЕВОЕ ЯДРО</span><h3>Jey2Ray</h3><p>Управление профилями Xray-core, режимами TUN и системного Proxy.</p></article>
-      <article className="about-card"><div className="about-card-icon"><NavGlyph name="modules" /></div><span className="about-card-kicker">МОДУЛЬНАЯ СИСТЕМА</span><h3>Локальный контур</h3><p>Запуск и контроль сетевых инструментов без передачи настроек в облако.</p></article>
-      <article className="about-card"><div className="about-card-icon"><NavGlyph name="logs" /></div><span className="about-card-kicker">ДИАГНОСТИКА</span><h3>Живые логи</h3><p>Поток событий, раздельные источники и быстрый отчёт для диагностики.</p></article>
+
+    <div className="about-system-layout">
+      <article className="about-system-card">
+        <div className="about-panel-heading"><div className="about-panel-icon"><NavGlyph name="settings" /></div><div><span>СИСТЕМА</span><h3>Техническая информация</h3></div></div>
+        <div className="about-system-table">
+          <div className="about-system-row"><span>Версия NEXUS</span><strong>{info.nexusVersion}</strong></div>
+          <div className="about-system-row"><span>Версия Xray Core</span><strong className={!info.xrayVersion && !loadingInfo ? 'is-missing' : ''}>{coreValue(info.xrayVersion)}</strong></div>
+          <div className="about-system-row"><span>Версия sing-box</span><strong className={!info.singBoxVersion && !loadingInfo ? 'is-missing' : ''}>{coreValue(info.singBoxVersion)}</strong></div>
+          <div className="about-system-row"><span>HWID</span><div className="about-hwid"><strong>{info.hwid}</strong><button type="button" onClick={() => void copyHwid()} title="Скопировать HWID" aria-label="Скопировать HWID">{copied ? '✓' : '▣'}</button></div></div>
+          <div className="about-system-row about-computer-row"><span>Компьютер / ОС</span><strong>{loadingInfo ? 'Определение…' : info.computer}</strong></div>
+        </div>
+        <p className="about-local-note"><i /> Данные определяются локально и не отправляются в сеть.</p>
+      </article>
+
+      <article className="about-update-card">
+        <div className="about-update-badge"><i /> ВРЕМЕННЫЙ КАНАЛ</div>
+        <div className="about-update-visual" aria-hidden="true">
+          <svg viewBox="0 0 96 96"><rect x="20" y="22" width="56" height="42" rx="8" /><path d="M38 75h20M48 64v11" /><path className="about-update-arrow" d="M35 42a15 15 0 0 1 25-8l4 5m0-10v10H54M61 47a15 15 0 0 1-25 8l-4-5m0 10V50h10" /></svg>
+        </div>
+        <div className="about-update-copy"><span>ОБНОВЛЕНИЕ NEXUS</span><h3>{updateCheck ? 'Канал пока не подключён' : 'Проверить новую версию'}</h3><p>{updateCheck?.message || `Текущая версия ${info.nexusVersion}. Проверка доступна уже сейчас; автоматическая установка появится вместе с первым релизом.`}</p></div>
+        {checkedAt && <div className="about-update-checked"><i /> Проверено сегодня в {checkedAt}</div>}
+        <div className="about-update-actions">
+          <button type="button" className="about-check-button" disabled={checkingUpdate} onClick={() => void checkUpdate()}>{checkingUpdate ? 'Проверяем…' : updateCheck ? 'Проверить снова' : 'Проверить'}</button>
+          <button type="button" className="about-install-button" disabled title="Установка станет доступна после подключения канала релизов">Установить</button>
+        </div>
+      </article>
     </div>
+
     <div className="about-footer-card"><div><strong>NEXUS</strong><span>Разработано для безопасной локальной работы</span></div><div><span>ХРАНЕНИЕ</span><strong>Только на устройстве</strong></div><div><span>КАНАЛ</span><strong>Stable</strong></div></div>
   </section>;
 }
