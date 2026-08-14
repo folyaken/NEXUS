@@ -169,7 +169,8 @@ async function run() {
   assert.equal(privateLogs.join('\n').includes('device-secret'), false);
 
   assert.equal(SUBSCRIPTION_TRANSPORT_LIMITS.maxRedirects, 5);
-  assert.equal(SUBSCRIPTION_TRANSPORT_LIMITS.maxRequests, 8);
+  // URL подписки + одна ссылка со страницы + до двух повторов по User-Agent.
+  assert.equal(SUBSCRIPTION_TRANSPORT_LIMITS.maxRequests, 10);
   assert.equal(SUBSCRIPTION_TRANSPORT_LIMITS.maxResponseBytes, 8 * 1024 * 1024);
   assert.ok(SUBSCRIPTION_TRANSPORT_LIMITS.requestTimeoutMs > 0);
   assert.ok(SUBSCRIPTION_TRANSPORT_LIMITS.totalTimeoutMs >= SUBSCRIPTION_TRANSPORT_LIMITS.requestTimeoutMs);

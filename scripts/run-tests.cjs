@@ -13,6 +13,17 @@ const testsDir = path.join(root, 'tests');
 
 const only = process.argv.slice(2).filter((item) => !item.startsWith('--'));
 
+// Уровень патча печатается первым: по нему сразу видно, применился ли
+// распакованный архив. Если число меньше ожидаемого — файлы не заменились,
+// и «старая» ошибка в выводе относится к предыдущей версии кода.
+try {
+  const manifest = JSON.parse(fs.readFileSync(path.join(root, 'package.json'), 'utf8'));
+  console.log(`NEXUS ${manifest.version} · уровень патча ${manifest.patchLevel ?? 'не указан'}\n`);
+} catch {
+  /* манифест не обязателен для прогона */
+}
+
+
 const files = fs.readdirSync(testsDir)
   .filter((name) => name.endsWith('.test.cjs'))
   .filter((name) => (only.length ? only.some((needle) => name.includes(needle)) : true))

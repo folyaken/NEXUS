@@ -294,7 +294,7 @@ export class GithubUpdater extends EventEmitter {
     }
     const expectedDigest = digestMatch?.[1].toLowerCase();
 
-    let lastError: unknown = new Error('Не удалось скачать GitHub asset');
+    const failures: Error[] = [];
     for (const url of urls) {
       try {
         await this.downloadAsset(url, destination, target.repo);
@@ -307,10 +307,23 @@ export class GithubUpdater extends EventEmitter {
         }
         return;
       } catch (error) {
-        lastError = error;
+        failures.push(error instanceof Error ? error : new Error(String(error)));
       }
     }
-    throw lastError;
+
+    // Показывается самая содержательная причина, а не ошибка последнего зеркала.
+    // Раньше файл мог полностью скачаться с GitHub и не пройти проверку, после чего
+    // недоступные в РФ зеркала добавляли «fetch failed» — и пользователь видел
+    // «Проверьте подключение к интернету», хотя интернет работал, а настоящая
+    // причина была в первом источнике.
+    // Проблемы целостности важнее транспортных: если файл дошёл, но не сошлась
+    // контрольная сумма или сигнатура, пользователю нужно увидеть именно это.
+    const isIntegrityFailure = (message: string) => /Контрольная сумма|не является|скачан не полностью|слишком мал/i.test(message);
+    const isTransportFailure = (message: string) => /fetch failed|network error|socket hang up|ENOTFOUND|ECONNREFUSED|ETIMEDOUT|EAI_AGAIN|не отвечает|HTTP \d{3}/i.test(message);
+    throw failures.find((error) => isIntegrityFailure(error.message))
+      ?? failures.find((error) => !isTransportFailure(error.message))
+      ?? failures[0]
+      ?? new Error('Не удалось скачать GitHub asset');
   }
 
   private async downloadAsset(url: string, destination: string, repo: string): Promise<void> {
@@ -623,8 +636,11 @@ export class GithubUpdater extends EventEmitter {
     if (code === 'ENOSPC' || /\bENOSPC\b/i.test(message)) {
       return 'Недостаточно свободного места для обновления. Освободите место на системном диске и повторите попытку.';
     }
-    if (/fetch failed|network error|socket hang up/i.test(message)) {
-      return 'Не удалось связаться с сервером обновлений. Проверьте подключение к интернету и повторите попытку.';
+    if (/fetch failed|network error|socket hang up|ENOTFOUND|ECONNREFUSED|ETIMEDOUT|EAI_AGAIN/i.test(message)) {
+      return 'GitHub и запасные зеркала недоступны. Это бывает при блокировке GitHub провайдером — включите VPN в Jey2Ray и повторите попытку.';
+    }
+    if (/не отвечает \d+ с/i.test(message)) {
+      return 'Источник обновления перестал отдавать данные. Повторите попытку или включите VPN в Jey2Ray.';
     }
     return message;
   }

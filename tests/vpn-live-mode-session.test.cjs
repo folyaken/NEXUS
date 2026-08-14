@@ -88,7 +88,7 @@ assert.match(githubUpdater, /fs\.mkdtemp\(path\.join\(os\.tmpdir\(\), 'nexus-xra
 assert.doesNotMatch(githubUpdater, /path\.join\(this\.modulesDir, '\.cache'/, 'runtime downloads must not reuse the project cache directory');
 assert.match(githubUpdater, /Windows временно заблокировал файл обновления/);
 assert.match(githubUpdater, /Недостаточно свободного места для обновления/);
-assert.match(githubUpdater, /Не удалось связаться с сервером обновлений/);
+assert.match(githubUpdater, /GitHub и запасные зеркала недоступны/);
 for (const [name, bootstrapSource, prefix] of [
   ['Xray', ensureXray, 'nexus-xray-setup-'],
   ['sing-box', ensureSingbox, 'nexus-singbox-setup-'],
