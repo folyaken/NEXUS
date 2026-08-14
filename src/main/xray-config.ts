@@ -1,3 +1,4 @@
+import { inboundListenAddress } from './lan-share';
 import { xrayProcessSelectors } from './split-tunnel';
 import type { VpnAppRoutingMode, VpnLinkParams, VpnSplitApp } from './types';
 
@@ -150,18 +151,20 @@ export function buildXrayConfig(
   splitApps: VpnSplitApp[] = [],
   appRouting: VpnAppRoutingMode = 'include',
   fragmentation = true,
+  allowLan = false,
 ): Record<string, unknown> {
+  const listen = inboundListenAddress(allowLan);
   const inbounds: Record<string, unknown>[] = [{
     tag: 'socks-in',
     port: inboundPort,
-    listen: '127.0.0.1',
+    listen,
     protocol: 'socks',
     settings: { auth: 'noauth', udp: true },
     sniffing: { enabled: true, destOverride: ['http', 'tls', 'quic'] },
   }, {
     tag: 'http-in',
     port: inboundPort + 1,
-    listen: '127.0.0.1',
+    listen,
     protocol: 'http',
     settings: { allowTransparent: false },
   }];

@@ -22,6 +22,9 @@
     "test:vpn-latency": "npm run build:main && node tests/vpn-latency-sampling.test.cjs",
     "test:vpn-live-mode": "npm run build:main && node tests/vpn-live-mode-session.test.cjs",
     "test:modules": "npm run build:main && node tests/module-lifecycle-update.test.cjs",
+    "test:lan-share": "npm run build:main && node tests/lan-share.test.cjs",
+    "test": "npm run build:main && node scripts/run-tests.cjs",
+    "patch": "node scripts/pack-patch.cjs",
     "package": "npm run build && electron-builder",
     "preview": "vite preview --host 0.0.0.0"
   },

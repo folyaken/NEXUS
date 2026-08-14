@@ -1,3 +1,7 @@
+import type { LanEndpoint } from './lan-share';
+
+export type { LanEndpoint };
+
 export type ModuleStatus = 'running' | 'stopped' | 'error' | 'starting' | 'stopping';
 export type UpdateStatus = 'idle' | 'checking' | 'downloading' | 'installed' | 'up-to-date' | 'unsupported' | 'error';
 export type VpnProtocol = 'vless' | 'vmess' | 'trojan' | 'shadowsocks' | 'hysteria2';
@@ -97,6 +101,8 @@ export interface AppSettings {
   vpnFragmentation: boolean;
   lastVpnProfileId: string | null;
   vpnInboundPort: number;
+  /** Раздавать локальные SOCKS/HTTP-входы устройствам домашней сети. */
+  vpnAllowLan: boolean;
   vpnMode: 'proxy' | 'tun';
   vpnAppRouting: VpnAppRoutingMode;
   /** Legacy mirror retained while settings created by patch 09 are migrated. */
@@ -115,6 +121,7 @@ export const DEFAULT_SETTINGS: AppSettings = {
   vpnFragmentation: true,
   lastVpnProfileId: null,
   vpnInboundPort: 10808,
+  vpnAllowLan: false,
   vpnMode: 'proxy',
   vpnAppRouting: 'system',
   vpnSplitTunnel: false,
@@ -193,6 +200,10 @@ export interface VpnRuntime {
   xrayVersion: string | null;
   error?: string;
   subscriptions?: VpnSubscriptionInfo[];
+  /** Активна ли раздача входов в локальную сеть у текущего подключения. */
+  lanShared?: boolean;
+  /** Адреса «ip:порт», по которым доступен прокси с других устройств. */
+  lanEndpoints?: LanEndpoint[];
 }
 
 export interface VpnLatencySample {

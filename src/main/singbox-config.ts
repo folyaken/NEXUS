@@ -1,3 +1,4 @@
+import { inboundListenAddress } from './lan-share';
 import { singboxProcessNames, singboxProcessPaths } from './split-tunnel';
 import type { VpnAppRoutingMode, VpnLinkParams, VpnSplitApp } from './types';
 
@@ -7,10 +8,12 @@ export function buildSingboxConfig(
   mode: 'proxy' | 'tun' = 'proxy',
   splitApps: VpnSplitApp[] = [],
   appRouting: VpnAppRoutingMode = 'include',
+  allowLan = false,
 ): Record<string, unknown> {
+  const listen = inboundListenAddress(allowLan);
   const inbounds: Record<string, unknown>[] = [
-    { type: 'socks', tag: 'socks-in', listen: '127.0.0.1', listen_port: inboundPort },
-    { type: 'http', tag: 'http-in', listen: '127.0.0.1', listen_port: inboundPort + 1 },
+    { type: 'socks', tag: 'socks-in', listen, listen_port: inboundPort },
+    { type: 'http', tag: 'http-in', listen, listen_port: inboundPort + 1 },
   ];
   if (mode === 'tun') {
     inbounds.push({

@@ -635,6 +635,15 @@ kbd { padding: 3px 5px; border: 1px solid rgba(255,255,255,.1); border-radius: 5
 .auto-status.is-on > i { background: #71f4b8; box-shadow: 0 0 8px rgba(113,244,184,.5); }
 .fragmentation-settings-card { min-height: 178px; }
 .fragmentation-note { margin: 12px 2px 0; color: #6f7d91; font-size: 11px; line-height: 1.55; }
+
+/* Раздача локального прокси в домашнюю сеть */
+.lan-endpoint-list { display: flex; flex-direction: column; gap: 6px; margin-top: 12px; }
+.lan-endpoint-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 9px 12px; border-radius: 10px; background: rgba(113,244,184,.05); box-shadow: inset 0 0 0 1px rgba(113,244,184,.12); }
+.lan-endpoint-name { color: #86d8b9; font-size: 11px; font-weight: 600; }
+.lan-endpoint-values { color: #9fb0c6; font-family: var(--font-data); font-size: 11px; }
+.lan-endpoint-values b { margin-right: 5px; color: #6f7d91; font-weight: 600; }
+.lan-endpoint-values em { margin: 0 8px; color: #46506180; font-style: normal; }
+.lan-share-summary { margin-top: 6px; }
 .routing-settings-card { padding-bottom: 15px; }
 .routing-choice-list { display: grid; gap: 8px; margin-top: 15px; }
 .routing-choice { display: grid; grid-template-columns: 17px minmax(0,1fr) auto; align-items: center; gap: 12px; width: 100%; padding: 13px 14px; border: 1px solid rgba(255,255,255,.065); border-radius: 12px; background: rgba(255,255,255,.023); text-align: left; }

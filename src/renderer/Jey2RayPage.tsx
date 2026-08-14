@@ -20,6 +20,8 @@ const EMPTY_RUNTIME: VpnRuntime = {
   xrayReady: false,
   xrayVersion: null,
   subscriptions: [],
+  lanShared: false,
+  lanEndpoints: [],
 };
 
 function subscriptionKey(profile: VpnProfile): string {
@@ -174,6 +176,7 @@ export function Jey2RayPage({
   const appRouting: VpnAppRoutingMode = mode === 'tun' && splitApps.length ? storedAppRouting : 'system';
   const appRoutingActive = appRouting === 'include' || appRouting === 'exclude';
   const routeSettingsLocked = runtime.status === 'connecting' || runtime.status === 'connected';
+  const lanEndpoints = runtime.lanEndpoints ?? [];
 
   useEffect(() => {
     const api = window.nexus;
@@ -616,6 +619,37 @@ export function Jey2RayPage({
           <div className={`auto-status ${settings.vpnFragmentation ? 'is-on' : ''}`}><i />{settings.vpnFragmentation ? 'Включено по умолчанию' : 'Выключено'}</div>
           <p className="fragmentation-note">Работает для Xray-профилей с TCP/TLS, включая Reality. Hysteria2 использует QUIC и не поддерживает TCP-фрагментацию ClientHello.</p>
         </section>
+
+        <section className="app-settings-card lan-share-card">
+          <div className="app-settings-card-head compact">
+            <div><span className="settings-step">03</span><div><h3>Раздача в локальную сеть</h3><p>Открыть локальный SOCKS/HTTP для других устройств домашней сети: ТВ, консоли, телефона.</p></div></div>
+            <button
+              type="button"
+              className={`settings-toggle ${settings.vpnAllowLan ? 'is-on' : ''}`}
+              onClick={() => {
+                const enabled = !settings.vpnAllowLan;
+                onSettings({ ...settings, vpnAllowLan: enabled });
+                onToast(enabled
+                  ? `Раздача включена${runtime.status === 'connected' ? ' · подключение перезапускается' : ''}`
+                  : 'Раздача в локальную сеть выключена');
+              }}
+              aria-label={settings.vpnAllowLan ? 'Выключить раздачу в локальную сеть' : 'Включить раздачу в локальную сеть'}
+              aria-pressed={settings.vpnAllowLan}
+            ><i /></button>
+          </div>
+          <div className={`auto-status ${settings.vpnAllowLan ? 'is-on' : ''}`}><i />{settings.vpnAllowLan ? 'Включено' : 'Выключено'}</div>
+          {settings.vpnAllowLan && (lanEndpoints.length ? <div className="lan-endpoint-list">
+            {lanEndpoints.map((endpoint) => <div className="lan-endpoint-row" key={endpoint.address}>
+              <span className="lan-endpoint-name">{endpoint.interfaceName}</span>
+              <span className="lan-endpoint-values"><b>SOCKS</b> {endpoint.socks}<em>·</em><b>HTTP</b> {endpoint.http}</span>
+            </div>)}
+          </div> : <p className="fragmentation-note">
+            {runtime.status === 'connected'
+              ? 'Приватный IPv4-адрес не найден — проверьте подключение к домашней сети.'
+              : 'Адреса появятся здесь после подключения VPN.'}
+          </p>)}
+          <p className="fragmentation-note">Включайте только в доверенной сети: прокси станет доступен всем устройствам этого сегмента без пароля. Может потребоваться разрешение в брандмауэре Windows.</p>
+        </section>
       </> : <>
         {routeSettingsLocked && <div className="app-settings-lock">
           <span>i</span>
@@ -839,6 +873,7 @@ export function Jey2RayPage({
         <b>→</b>
       </button>
       <div className={`auto-connect-summary ${settings.autoConnectVpn ? 'is-on' : ''}`}><i /><span>Автоподключение {settings.autoConnectVpn ? 'включено' : 'выключено'}</span></div>
+      {runtime.lanShared && <div className="auto-connect-summary is-on lan-share-summary"><i /><span>Раздача в сеть{lanEndpoints.length ? ` · ${lanEndpoints[0].socks}` : ''}</span></div>}
       {!runtime.xrayReady && <div className="jey-note"><span>i</span><div><strong>Подготовка VPN-ядра</strong><p>{xrayUpdate?.error || 'Выполняется загрузка Xray / sing-box. Кнопка подключения станет доступна после установки.'}</p></div></div>}
     </aside>
   </section>;

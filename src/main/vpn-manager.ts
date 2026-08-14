@@ -12,6 +12,7 @@ import { profileConnectionKey, profileIdentityKey, profileSourceKey, stableProfi
 import { applyGeo } from './vpn-geo';
 import { buildXrayConfig } from './xray-config';
 import { buildSingboxConfig } from './singbox-config';
+import { inboundListenAddress, lanEndpoints } from './lan-share';
 import { clearSystemProxy, setSystemProxy } from './system-proxy';
 import { createVpnDiagnostics } from './vpn-diagnostics';
 import type { ModuleLog, VpnAppRoutingMode, VpnDiagnosticCheck, VpnDiagnostics, VpnLatencySample, VpnProfile, VpnRuntime, VpnSplitApp, VpnStatus, VpnSubscriptionInfo } from './types';
@@ -47,6 +48,7 @@ export class VpnManager extends EventEmitter {
   private hwid = 'NX-LOCAL';
   private subscriptions = new Map<string, VpnSubscriptionInfo>();
   private mode: 'proxy' | 'tun' = 'proxy';
+  private allowLan = false;
   private systemProxyConfigured = false;
   private diagnosticEvents: ModuleLog[] = [];
   private profileMutationQueue: Promise<void> = Promise.resolve();
@@ -106,6 +108,8 @@ export class VpnManager extends EventEmitter {
       xrayVersion: null,
       error: this.error,
       subscriptions: [...this.subscriptions.values()],
+      lanShared: this.allowLan && this.status === 'connected',
+      lanEndpoints: this.allowLan && this.status === 'connected' ? lanEndpoints(true, this.inboundPort) : [],
     };
   }
 
@@ -742,6 +746,7 @@ export class VpnManager extends EventEmitter {
     appRouting: VpnAppRoutingMode = 'include',
     continuedSessionAt: string | null = null,
     fragmentation = true,
+    allowLan = false,
   ): Promise<VpnRuntime> {
     const profile = this.profiles.get(id);
     if (!profile) throw new Error('Профиль не найден');
@@ -759,6 +764,7 @@ export class VpnManager extends EventEmitter {
     if (this.child) await this.disconnect();
 
     this.mode = mode;
+    this.allowLan = allowLan;
     this.systemProxyConfigured = false;
     this.setState('connecting', id, null);
     const port = await this.pickPort(preferredPort);
@@ -768,8 +774,8 @@ export class VpnManager extends EventEmitter {
       : 'system';
     const activeSplitApps = activeAppRouting === 'system' ? [] : splitApps;
     const config = useSingbox
-      ? buildSingboxConfig(profile.params, port, mode, activeSplitApps, activeAppRouting)
-      : buildXrayConfig(profile.params, port, mode, activeSplitApps, activeAppRouting, fragmentation);
+      ? buildSingboxConfig(profile.params, port, mode, activeSplitApps, activeAppRouting, allowLan)
+      : buildXrayConfig(profile.params, port, mode, activeSplitApps, activeAppRouting, fragmentation, allowLan);
     const configFile = useSingbox ? this.singboxConfigPath() : this.generatedPath();
     await fs.mkdir(this.configsDir(), { recursive: true });
     await fs.writeFile(configFile, `${JSON.stringify(config, null, 2)}\n`, 'utf8');
@@ -810,6 +816,7 @@ export class VpnManager extends EventEmitter {
       this.child = null;
       this.pid = null;
       this.systemProxyConfigured = false;
+      this.allowLan = false;
       void clearSystemProxy();
       void fs.rm(this.generatedPath(), { force: true });
       if (this.status === 'connecting' || this.status === 'connected') {
@@ -843,6 +850,15 @@ export class VpnManager extends EventEmitter {
         ? `TUN · напрямую ${activeSplitApps.length} прилож.`
         : mode.toUpperCase();
     this.emitLog('success', `Включено: ${profile.name} · ${routeMode} · HTTP 127.0.0.1:${port + 1}`);
+    if (allowLan) {
+      const endpoints = lanEndpoints(true, port);
+      this.emitLog(
+        endpoints.length ? 'info' : 'warn',
+        endpoints.length
+          ? `Раздача в локальную сеть включена · SOCKS ${endpoints.map((item) => item.socks).join(', ')}`
+          : 'Раздача включена, но приватный IPv4-адрес не найден. Проверьте подключение к домашней сети.',
+      );
+    }
     return this.runtime();
   }
 
@@ -941,6 +957,17 @@ export class VpnManager extends EventEmitter {
       });
     }
 
+    if (this.allowLan && this.status === 'connected') {
+      const endpoints = lanEndpoints(true, this.inboundPort);
+      checks.push({
+        id: 'lan-share',
+        title: 'Раздача в сеть',
+        tone: endpoints.length ? 'ok' : 'warning',
+        summary: endpoints.length ? `Доступно устройствам сети: ${endpoints.length} адрес(ов)` : 'Приватный IPv4-адрес не найден',
+        detail: endpoints.length ? endpoints.map((item) => item.socks).join(' · ') : 'Проверьте, что компьютер подключён к домашней сети',
+      });
+    }
+
     if (!profile) {
       checks.push({
         id: 'endpoint', title: 'Сервер', tone: 'info', summary: 'Нет сервера для проверки', detail: null,
@@ -1022,6 +1049,7 @@ export class VpnManager extends EventEmitter {
     if (!child?.pid) {
       await clearSystemProxy().catch(() => undefined);
       this.systemProxyConfigured = false;
+      this.allowLan = false;
       this.setState('disconnected', null, null);
       return this.runtime();
     }
@@ -1040,6 +1068,7 @@ export class VpnManager extends EventEmitter {
     this.systemProxyConfigured = false;
     await fs.rm(this.generatedPath(), { force: true });
     await fs.rm(this.singboxConfigPath(), { force: true });
+    this.allowLan = false;
     this.setState('disconnected', null, null);
     this.emitLog('info', 'VPN отключён');
     return this.runtime();
@@ -1075,10 +1104,13 @@ export class VpnManager extends EventEmitter {
   }
 
   private isFree(port: number): Promise<boolean> {
+    // При раздаче в LAN ядро занимает порт на всех интерфейсах, поэтому и проверять
+    // занятость нужно на 0.0.0.0 — иначе свободный 127.0.0.1 скроет чужой слушатель.
+    const host = inboundListenAddress(this.allowLan);
     return new Promise((resolve) => {
       const server = createServer();
       server.once('error', () => resolve(false));
-      server.listen(port, '127.0.0.1', () => {
+      server.listen(port, host, () => {
         server.close(() => resolve(true));
       });
     });

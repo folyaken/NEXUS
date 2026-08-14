@@ -60,6 +60,7 @@ function normalizeSettings(raw: Partial<AppSettings>): AppSettings {
     vpnFragmentation: raw.vpnFragmentation !== false,
     lastVpnProfileId: typeof raw.lastVpnProfileId === 'string' ? raw.lastVpnProfileId : null,
     vpnInboundPort: Number(raw.vpnInboundPort) > 0 ? Number(raw.vpnInboundPort) : 10808,
+    vpnAllowLan: Boolean(raw.vpnAllowLan),
     vpnMode,
     vpnAppRouting,
     vpnSplitTunnel: vpnAppRouting === 'include',
@@ -169,6 +170,7 @@ async function connectVpnProfile(
     settings.vpnAppRouting,
     continuedSessionAt,
     settings.vpnFragmentation,
+    settings.vpnAllowLan,
   );
   await saveSettings({ ...settings, lastVpnProfileId: profileId });
   return runtime;
@@ -207,6 +209,22 @@ async function setTrayVpnMode(mode: 'proxy' | 'tun'): Promise<void> {
     await connectVpnProfile(current.activeProfileId, mode, current.connectedAt);
   } else {
     refreshTrayMenu(current.status);
+  }
+}
+
+async function setTrayLanSharing(enabled: boolean): Promise<void> {
+  const current = vpn.runtime();
+  if (current.status === 'connecting') throw new Error('Дождитесь завершения текущего подключения');
+  await saveSettings({ ...settings, vpnAllowLan: enabled });
+  if (current.status === 'connected' && current.activeProfileId) {
+    await connectVpnProfile(current.activeProfileId, settings.vpnMode, current.connectedAt);
+    const endpoints = vpn.runtime().lanEndpoints ?? [];
+    notify('NEXUS', enabled
+      ? (endpoints.length ? `Раздача включена · ${endpoints[0].socks}` : 'Раздача включена')
+      : 'Раздача в локальную сеть выключена');
+  } else {
+    refreshTrayMenu(current.status);
+    notify('NEXUS', enabled ? 'Раздача включится при подключении' : 'Раздача в локальную сеть выключена');
   }
 }
 
@@ -281,6 +299,13 @@ function refreshTrayMenu(status: VpnStatus): void {
         { label: 'PROXY', type: 'radio', checked: settings.vpnMode === 'proxy', click: () => runTrayAction(() => setTrayVpnMode('proxy')) },
         { label: 'TUN', type: 'radio', checked: settings.vpnMode === 'tun', click: () => runTrayAction(() => setTrayVpnMode('tun')) },
       ],
+    },
+    {
+      label: 'Раздавать в локальную сеть',
+      type: 'checkbox',
+      checked: settings.vpnAllowLan,
+      enabled: canChangeConnection,
+      click: () => runTrayAction(() => setTrayLanSharing(!settings.vpnAllowLan)),
     },
     { label: 'Импортировать из буфера', click: () => runTrayAction(importVpnFromClipboard) },
     {
@@ -515,7 +540,17 @@ function wireIpc(): void {
   ipcMain.handle('about:get-info', () => aboutSystemInfo());
   ipcMain.handle('about:check-update', () => checkNexusUpdate());
   ipcMain.handle('settings:get', () => settings);
-  ipcMain.handle('settings:save', (_event, next: AppSettings) => saveSettings(next ?? settings));
+  ipcMain.handle('settings:save', async (_event, next: AppSettings) => {
+    const previousAllowLan = settings.vpnAllowLan;
+    const saved = await saveSettings(next ?? settings);
+    // Слушающий адрес входов задаётся при старте ядра, поэтому переключение
+    // раздачи применяется мгновенным перезапуском активной сессии.
+    const current = vpn?.runtime();
+    if (saved.vpnAllowLan !== previousAllowLan && current?.status === 'connected' && current.activeProfileId) {
+      await connectVpnProfile(current.activeProfileId, settings.vpnMode, current.connectedAt);
+    }
+    return saved;
+  });
   ipcMain.handle('vpn:list', () => vpn.snapshot());
   ipcMain.handle('vpn:diagnostics', (_event, profileId: unknown) => vpn.diagnostics(
     typeof profileId === 'string' ? profileId : null,
