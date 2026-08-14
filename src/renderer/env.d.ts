@@ -29,6 +29,7 @@ declare global {
       pickVpnApps(): Promise<VpnSplitApp[]>;
       connectVpn(id: string): Promise<VpnRuntime>;
       disconnectVpn(): Promise<VpnRuntime>;
+      switchVpnMode(mode: 'proxy' | 'tun'): Promise<VpnRuntime>;
       ensureVpnCore(): Promise<void>;
       pingVpn(): Promise<VpnProfile[]>;
       sampleVpnLatency(): Promise<VpnLatencySample | null>;

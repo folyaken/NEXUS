@@ -274,6 +274,28 @@ function wireIpc(): void {
     return runtime;
   });
   ipcMain.handle('vpn:disconnect', () => vpn.disconnect());
+  ipcMain.handle('vpn:switch-mode', async (_event, requestedMode: unknown) => {
+    if (requestedMode !== 'proxy' && requestedMode !== 'tun') throw new Error('Неизвестный режим VPN');
+    const current = vpn.runtime();
+    if (current.status === 'connecting') throw new Error('Дождитесь завершения текущего подключения');
+
+    await saveSettings({
+      ...settings,
+      vpnMode: requestedMode,
+      vpnSplitTunnel: requestedMode === 'tun' && settings.vpnAppRouting === 'include',
+    });
+    if (current.status !== 'connected' || !current.activeProfileId) return vpn.runtime();
+
+    const splitApps = settings.vpnAppRouting === 'system' ? [] : settings.vpnSplitApps;
+    return vpn.connect(
+      current.activeProfileId,
+      settings.vpnInboundPort,
+      requestedMode,
+      splitApps,
+      settings.vpnAppRouting,
+      current.connectedAt,
+    );
+  });
   ipcMain.handle('vpn:ensure-core', () => updater.ensure('jey2ray'));
   ipcMain.handle('vpn:ping', () => vpn.pingAll());
   ipcMain.handle('vpn:latency-sample', () => vpn.sampleLatency());

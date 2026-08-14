@@ -26,6 +26,7 @@ async function close(server) {
 
 void (async () => {
   let requests = 0;
+  let remoteRequests = 0;
   const proxy = net.createServer((socket) => {
     let request = '';
     let tunnelReady = false;
@@ -43,9 +44,17 @@ void (async () => {
         socket.write('HTTP/1.1 200 Connection established\r\n\r\n');
         return;
       }
-      assert.match(message, /^GET \/generate_204\?nexus=[a-z0-9]+ HTTP\/1\.1\r\n/m);
+      assert.match(message, /^GET \/generate_204\?nexus=[a-z0-9-]+ HTTP\/1\.1\r\n/m);
       assert.match(message, /\r\nHost: cp\.cloudflare\.com\r\n/i);
-      setTimeout(() => socket.end('HTTP/1.1 204 No Content\r\nServer: remote-test\r\nConnection: close\r\n\r\n'), 75);
+      remoteRequests += 1;
+      const warmup = remoteRequests === 1;
+      setTimeout(() => socket.write([
+        'HTTP/1.1 204 No Content',
+        'Server: remote-test',
+        `Connection: ${warmup ? 'keep-alive' : 'close'}`,
+        '',
+        '',
+      ].join('\r\n')), warmup ? 140 : 75);
     });
   });
   const httpPort = await listen(proxy);
@@ -58,10 +67,11 @@ void (async () => {
   manager.status = 'connected';
   manager.activeProfileId = 'safe-test-profile';
   const [first, deduplicated] = await Promise.all([manager.sampleLatency(), manager.sampleLatency()]);
-  assert.ok(first && first.pingMs >= 60 && first.pingMs < 1000, 'sample must wait for the delayed remote HTTP response');
+  assert.ok(first && first.pingMs >= 60 && first.pingMs < 130, 'sample must time the warm TLS tunnel round trip, not the slower setup request');
   assert.deepEqual(deduplicated, first, 'concurrent samples must share one safe probe');
   assert.match(first.measuredAt, /^\d{4}-\d{2}-\d{2}T/);
   assert.equal(requests, 1, 'concurrent IPC calls must not multiply tunnel traffic');
+  assert.equal(remoteRequests, 2, 'one verified warmup and one measured HTTPS response are required');
 
   manager.status = 'disconnected';
   manager.activeProfileId = null;
@@ -79,7 +89,8 @@ void (async () => {
   assert.match(method, /connectTls\(\{/);
   assert.match(method, /rejectUnauthorized: true/);
   assert.match(method, /GET \/generate_204\?nexus=/);
-  assert.match(method, /2\\d\\d\|3\\d\\d/, 'only a real successful remote HTTP response may complete the sample');
+  assert.match(method, /warmupComplete/);
+  assert.match(method, /HTTP\\\/1\\\.\[01\]\\s\+204/, 'only a real remote generate_204 response may complete the sample');
   assert.doesNotMatch(method, /CONNECT 1\.1\.1\.1:443/, 'the old loopback-only probe must not return');
   assert.doesNotMatch(method, /profile\.server|profile\.port/, 'connected sampling must not probe the VPN endpoint directly');
 
@@ -99,7 +110,9 @@ void (async () => {
   assert.match(page, /profile\.city/);
   assert.match(page, /Подключено/);
   assert.match(page, /setInterval\(\(\) => void sample\(\), 3000\)/);
-  assert.match(page, /<PingSparkline samples=\{latencySamples\} \/>/);
+  assert.match(page, /power-session/);
+  assert.match(page, /switchVpnMode\(next\)/);
+  assert.doesNotMatch(page, /PingSparkline|tunnel-ping|latencySamples/, 'the latency graph and its history must stay removed');
   assert.doesNotMatch(page, /fallback=\{activeProfile\?\.pingMs\}/, 'endpoint TCP latency must not appear as tunnel latency');
   assert.doesNotMatch(page, /Работает ·|127\.0\.0\.1|Системный Proxy/);
   assert.doesNotMatch(page, /routing-summary/, 'technical routing summary must stay off the main screen');
@@ -108,6 +121,8 @@ void (async () => {
   assert.match(styles, /font-family: "Inter Variable"/);
   assert.match(styles, /font-family: "JetBrains Mono Variable"/);
   assert.match(styles, /\.mode-switch button\.active \{ background: linear-gradient\(145deg, #776bea, #4f45bb\)/);
+  assert.match(styles, /\.power-session b .*font-family: var\(--font-data\)/);
+  assert.doesNotMatch(styles, /\.tunnel-ping/, 'latency graph styling must stay removed');
 
   console.log('VPN tunnel latency sampling regression checks passed.');
 })().catch((error) => {

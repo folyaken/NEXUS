@@ -151,6 +151,7 @@ export interface VpnRuntime {
   status: VpnStatus;
   activeProfileId: string | null;
   activeName: string | null;
+  connectedAt: string | null;
   pid: number | null;
   inboundPort: number;
   xrayReady: boolean;

@@ -14,6 +14,7 @@ const EMPTY_RUNTIME: VpnRuntime = {
   status: 'disconnected',
   activeProfileId: null,
   activeName: null,
+  connectedAt: null,
   pid: null,
   inboundPort: 10808,
   xrayReady: false,
@@ -48,6 +49,15 @@ function formatBytes(value?: number): string {
 function formatWhen(value?: string): string {
   if (!value) return '—';
   return new Intl.DateTimeFormat('ru-RU', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' }).format(new Date(value));
+}
+
+function formatSessionDuration(connectedAt: string | null, now: number): string {
+  const started = connectedAt ? Date.parse(connectedAt) : Number.NaN;
+  const elapsedSeconds = Number.isFinite(started) ? Math.max(0, Math.floor((now - started) / 1000)) : 0;
+  const hours = Math.floor(elapsedSeconds / 3600);
+  const minutes = Math.floor((elapsedSeconds % 3600) / 60);
+  const seconds = elapsedSeconds % 60;
+  return [hours, minutes, seconds].map((value) => String(value).padStart(2, '0')).join(':');
 }
 
 function formatExpire(value?: string): string {
@@ -104,42 +114,6 @@ function Signal({ ms }: { ms?: number | null }) {
   </span>;
 }
 
-function PingSparkline({ samples }: { samples: number[] }) {
-  const values = samples.filter((value) => Number.isFinite(value) && value > 0 && value < 10_000);
-  const displayValue = values.length ? Math.round(values[values.length - 1]) : null;
-  const plot = values.length === 1 ? [values[0], values[0]] : values;
-  const width = 244;
-  const height = 38;
-  const xInset = 4;
-  const yInset = 5;
-  const min = plot.length ? Math.min(...plot) : 0;
-  const max = plot.length ? Math.max(...plot) : 0;
-  const padding = Math.max(7, (max - min) * .25);
-  const floor = Math.max(0, min - padding);
-  const ceiling = Math.max(floor + 1, max + padding);
-  const points = plot.map((value, index) => {
-    const x = xInset + (index / Math.max(1, plot.length - 1)) * (width - xInset * 2);
-    const y = height - yInset - ((value - floor) / (ceiling - floor)) * (height - yInset * 2);
-    return { x, y };
-  });
-  const pointString = points.map(({ x, y }) => `${x.toFixed(1)},${y.toFixed(1)}`).join(' ');
-  const areaPath = points.length
-    ? `M ${points[0].x.toFixed(1)} ${height} L ${pointString.replaceAll(',', ' ')} L ${points[points.length - 1].x.toFixed(1)} ${height} Z`
-    : '';
-  const tone = displayValue == null ? 'idle' : displayValue < 120 ? 'good' : displayValue < 230 ? 'ok' : 'weak';
-  const lastPoint = points[points.length - 1];
-
-  return <div className={`tunnel-ping ${tone}`} aria-label={displayValue == null ? 'Задержка туннеля измеряется' : `Задержка туннеля ${displayValue} миллисекунд`}>
-    <svg viewBox={`0 0 ${width} ${height}`} role="img" aria-hidden>
-      <defs><linearGradient id="tunnel-ping-area" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stopColor="currentColor" stopOpacity=".24" /><stop offset="1" stopColor="currentColor" stopOpacity="0" /></linearGradient></defs>
-      <path className="tunnel-ping-grid" d={`M4 ${height - 5.5}H${width - 4}`} />
-      {areaPath && <path className="tunnel-ping-area" d={areaPath} />}
-      {pointString && <polyline className="tunnel-ping-line" points={pointString} />}
-      {lastPoint && <circle className="tunnel-ping-point" cx={lastPoint.x} cy={lastPoint.y} r="2.7" />}
-    </svg>
-  </div>;
-}
-
 function profileLocation(profile: VpnProfile | null): { country: string; detail: string } {
   if (!profile) return { country: 'Сервер не выбран', detail: 'Выбери сервер слева' };
   const shownName = displayName(profile).trim();
@@ -182,7 +156,9 @@ export function Jey2RayPage({
   const [subscriptionAction, setSubscriptionAction] = useState<SubscriptionAction | null>(null);
   const [tab, setTab] = useState('all');
   const [selectedId, setSelectedId] = useState<string | null>(settings.lastVpnProfileId);
-  const [latencySamples, setLatencySamples] = useState<number[]>([]);
+  const [latencyMs, setLatencyMs] = useState<number | null>(null);
+  const [modeSwitching, setModeSwitching] = useState<'proxy' | 'tun' | null>(null);
+  const [sessionNow, setSessionNow] = useState(Date.now());
   const autoPing = useRef(false);
   const desktop = Boolean(window.nexus);
   const xrayUpdate = updates.find((item) => item.id === 'jey2ray');
@@ -218,6 +194,13 @@ export function Jey2RayPage({
     }).catch((error: Error) => onToast(cleanError(error)));
   }, [desktop, runtime.xrayReady, onToast]);
 
+  useEffect(() => {
+    setSessionNow(Date.now());
+    if (runtime.status !== 'connected' || !runtime.connectedAt) return;
+    const timer = window.setInterval(() => setSessionNow(Date.now()), 1000);
+    return () => window.clearInterval(timer);
+  }, [runtime.status, runtime.connectedAt]);
+
   const nodes = useMemo(() => profiles.filter((item) => item.kind !== 'notice'), [profiles]);
   const tabs = useMemo(() => ['all', ...new Set(nodes.map(subscriptionKey))], [nodes]);
   const visible = useMemo(() => tab === 'all' ? nodes : nodes.filter((item) => subscriptionKey(item) === tab), [nodes, tab]);
@@ -235,7 +218,8 @@ export function Jey2RayPage({
   const otherLive = runtime.status === 'connected' && runtime.activeProfileId !== selected?.id;
   const panelProfile = runtime.status === 'connected' ? (activeProfile || selected) : selected;
   const panelLocation = profileLocation(panelProfile);
-  const latestLatency = latencySamples.length ? latencySamples[latencySamples.length - 1] : null;
+  const displayedMode = modeSwitching ?? mode;
+  const sessionDuration = formatSessionDuration(runtime.connectedAt, sessionNow);
   const used = (info?.upload ?? 0) + (info?.download ?? 0);
   const quota = info?.total ? formatBytes(info.total) : '∞';
   const title = tab === 'all' ? 'Все серверы' : tab === 'manual' ? 'Ручные профили' : telegramOf(info) || 'Подписка';
@@ -305,17 +289,37 @@ export function Jey2RayPage({
     });
   };
 
-  const selectConnectionMode = (next: 'proxy' | 'tun') => {
-    if (routeSettingsLocked) {
-      onToast('Сначала отключи VPN, затем измени режим подключения');
+  const selectConnectionMode = async (next: 'proxy' | 'tun') => {
+    if (next === mode || modeSwitching) return;
+    if (runtime.status === 'connecting' || busy) {
+      onToast('Дождитесь завершения текущего подключения');
       return;
     }
-    onSettings({
+    const nextSettings = {
       ...settings,
       vpnMode: next,
-      vpnAppRouting: next === 'proxy' ? 'system' : appRouting,
-      vpnSplitTunnel: next === 'tun' && appRouting === 'include',
-    });
+      vpnAppRouting: storedAppRouting,
+      vpnSplitTunnel: next === 'tun' && storedAppRouting === 'include',
+    };
+    if (!desktop || runtime.status !== 'connected') {
+      onSettings(nextSettings);
+      return;
+    }
+
+    try {
+      setBusy(true);
+      setModeSwitching(next);
+      await window.nexus?.switchVpnMode(next);
+      onSettings(nextSettings);
+      onToast(`Режим ${next.toUpperCase()} включён · VPN переподключён`);
+    } catch (error) {
+      const persisted = await window.nexus?.getSettings().catch(() => null);
+      if (persisted) onSettings(persisted);
+      onToast(cleanError(error) || 'Не удалось переключить режим VPN');
+    } finally {
+      setModeSwitching(null);
+      setBusy(false);
+    }
   };
 
   const removeSplitApp = (executable: string) => {
@@ -487,7 +491,7 @@ export function Jey2RayPage({
   }, [desktop, nodes.length]);
 
   useEffect(() => {
-    setLatencySamples([]);
+    setLatencyMs(null);
     if (!desktop || runtime.status !== 'connected' || !runtime.activeProfileId || settingsOpen || subscriptionsOpen || diagnosticsOpen) return;
     let cancelled = false;
     let pending = false;
@@ -497,10 +501,10 @@ export function Jey2RayPage({
       try {
         const next = await window.nexus?.sampleVpnLatency();
         if (!cancelled && next && Number.isFinite(next.pingMs) && next.pingMs > 0) {
-          setLatencySamples((current) => [...current, Math.round(next.pingMs)].slice(-18));
+          setLatencyMs(Math.round(next.pingMs));
         }
       } catch {
-        // A missed point should not interrupt a working VPN or distract the user.
+        // A missed sample should not interrupt a working VPN or distract the user.
       } finally {
         pending = false;
       }
@@ -554,7 +558,7 @@ export function Jey2RayPage({
     <div className="app-settings-scroll">
       {routeSettingsLocked && <div className="app-settings-lock">
         <span>i</span>
-        <div><strong>VPN сейчас работает</strong><p>Отключи подключение, чтобы изменить режим или список приложений.</p></div>
+        <div><strong>VPN сейчас работает</strong><p>Отключи подключение, чтобы изменить маршрутизацию или список приложений.</p></div>
       </div>}
 
       <section className="app-settings-card auto-settings-card">
@@ -739,25 +743,27 @@ export function Jey2RayPage({
         <strong>{panelLocation.country}</strong>
         {panelLocation.detail !== panelLocation.country && <small className="power-location">{panelLocation.detail}</small>}
         {runtime.status === 'connected'
-          ? <span className="power-connected"><i />Подключено {latestLatency == null ? '· замеряем…' : <>· <b>{latestLatency} мс</b></>}</span>
+          ? <>
+            <span className="power-connected"><i />Подключено {latencyMs == null ? '· замеряем…' : <>· <b>{latencyMs} мс</b></>}</span>
+            <span className="power-session"><small>Сессия</small><b>{sessionDuration}</b></span>
+          </>
           : <span className={`power-state ${runtime.status === 'error' ? 'is-error' : ''}`}>{powerState}</span>}
       </div>
-      {runtime.status === 'connected' && <PingSparkline samples={latencySamples} />}
       <div className="mode-switch" aria-label="Режим подключения">
         <div className="mode-switch-options">
           <button
             type="button"
-            className={mode === 'proxy' ? 'active' : ''}
-            aria-pressed={mode === 'proxy'}
-            disabled={routeSettingsLocked}
-            onClick={() => selectConnectionMode('proxy')}
+            className={displayedMode === 'proxy' ? 'active' : ''}
+            aria-pressed={displayedMode === 'proxy'}
+            disabled={busy || runtime.status === 'connecting'}
+            onClick={() => void selectConnectionMode('proxy')}
           >PROXY</button>
           <button
             type="button"
-            className={mode === 'tun' ? 'active' : ''}
-            aria-pressed={mode === 'tun'}
-            disabled={routeSettingsLocked}
-            onClick={() => selectConnectionMode('tun')}
+            className={displayedMode === 'tun' ? 'active' : ''}
+            aria-pressed={displayedMode === 'tun'}
+            disabled={busy || runtime.status === 'connecting'}
+            onClick={() => void selectConnectionMode('tun')}
           >TUN</button>
         </div>
       </div>

@@ -28,6 +28,7 @@ contextBridge.exposeInMainWorld('nexus', {
   pickVpnApps: (): Promise<VpnSplitApp[]> => ipcRenderer.invoke('vpn:pick-apps'),
   connectVpn: (id: string): Promise<VpnRuntime> => ipcRenderer.invoke('vpn:connect', id),
   disconnectVpn: (): Promise<VpnRuntime> => ipcRenderer.invoke('vpn:disconnect'),
+  switchVpnMode: (mode: 'proxy' | 'tun'): Promise<VpnRuntime> => ipcRenderer.invoke('vpn:switch-mode', mode),
   ensureVpnCore: (): Promise<void> => ipcRenderer.invoke('vpn:ensure-core'),
   pingVpn: (): Promise<VpnProfile[]> => ipcRenderer.invoke('vpn:ping'),
   sampleVpnLatency: (): Promise<VpnLatencySample | null> => ipcRenderer.invoke('vpn:latency-sample'),

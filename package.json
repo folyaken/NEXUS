@@ -20,6 +20,7 @@
     "test:subscription-management": "npm run build:main && node tests/subscription-management.test.cjs",
     "test:vpn-diagnostics": "npm run build:main && node tests/vpn-diagnostics.test.cjs",
     "test:vpn-latency": "npm run build:main && node tests/vpn-latency-sampling.test.cjs",
+    "test:vpn-live-mode": "npm run build:main && node tests/vpn-live-mode-session.test.cjs",
     "package": "npm run build && electron-builder",
     "preview": "vite preview --host 0.0.0.0"
   },

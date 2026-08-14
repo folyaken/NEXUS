@@ -40,6 +40,7 @@ export class VpnManager extends EventEmitter {
   private child: ChildProcess | null = null;
   private status: VpnStatus = 'disconnected';
   private activeProfileId: string | null = null;
+  private connectedAt: string | null = null;
   private pid: number | null = null;
   private error?: string;
   private inboundPort = 10808;
@@ -97,6 +98,7 @@ export class VpnManager extends EventEmitter {
       status: this.status,
       activeProfileId: this.activeProfileId,
       activeName: this.activeProfileId ? this.profiles.get(this.activeProfileId)?.name ?? null : null,
+      connectedAt: this.connectedAt,
       pid: this.pid,
       inboundPort: this.inboundPort,
       xrayReady: existsSync(this.xrayPath()),
@@ -449,10 +451,11 @@ export class VpnManager extends EventEmitter {
 
   private measureTunnelLatency(timeoutMs = 4500): Promise<VpnLatencySample | null> {
     return new Promise((resolve) => {
-      const started = Date.now();
       const socket = new Socket();
       let secureSocket: TLSSocket | null = null;
       let settled = false;
+      let warmupComplete = false;
+      let measuredStartedAt = 0;
       let proxyResponse = '';
       let remoteResponse = '';
       const timer = setTimeout(() => done(null), timeoutMs);
@@ -464,6 +467,20 @@ export class VpnManager extends EventEmitter {
         else socket.destroy();
         resolve(sample);
       };
+      const sendRemoteProbe = (closeAfterResponse: boolean) => {
+        const nonce = `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
+        secureSocket?.write([
+          `GET /generate_204?nexus=${nonce} HTTP/1.1`,
+          'Host: cp.cloudflare.com',
+          'Accept: */*',
+          'Cache-Control: no-cache, no-store',
+          'Pragma: no-cache',
+          `Connection: ${closeAfterResponse ? 'close' : 'keep-alive'}`,
+          'User-Agent: NEXUS-Latency/1.0',
+          '',
+          '',
+        ].join('\r\n'));
+      };
 
       const onRemoteData = (chunk: Buffer) => {
         remoteResponse += chunk.toString('latin1');
@@ -474,12 +491,21 @@ export class VpnManager extends EventEmitter {
         const end = remoteResponse.indexOf('\r\n\r\n');
         if (end < 0) return;
         const statusLine = remoteResponse.slice(0, remoteResponse.indexOf('\r\n'));
-        if (!/^HTTP\/1\.[01]\s+(?:2\d\d|3\d\d)\b/i.test(statusLine)) {
+        // generate_204 has no response body, so another request can safely reuse this verified TLS tunnel.
+        if (!/^HTTP\/1\.[01]\s+204\b/i.test(statusLine)) {
           done(null);
           return;
         }
+        remoteResponse = remoteResponse.slice(end + 4);
+        if (!warmupComplete) {
+          warmupComplete = true;
+          measuredStartedAt = Date.now();
+          sendRemoteProbe(true);
+          return;
+        }
         done({
-          pingMs: Math.max(1, Date.now() - started),
+          // Measure one application round trip after CONNECT/TLS setup, not several setup handshakes.
+          pingMs: Math.max(1, Date.now() - measuredStartedAt),
           measuredAt: new Date().toISOString(),
         });
       };
@@ -507,20 +533,7 @@ export class VpnManager extends EventEmitter {
           });
           secureSocket.once('error', () => done(null));
           secureSocket.on('data', onRemoteData);
-          secureSocket.once('secureConnect', () => {
-            const nonce = Date.now().toString(36);
-            secureSocket?.write([
-              `GET /generate_204?nexus=${nonce} HTTP/1.1`,
-              'Host: cp.cloudflare.com',
-              'Accept: */*',
-              'Cache-Control: no-cache, no-store',
-              'Pragma: no-cache',
-              'Connection: close',
-              'User-Agent: NEXUS-Latency/1.0',
-              '',
-              '',
-            ].join('\r\n'));
-          });
+          secureSocket.once('secureConnect', () => sendRemoteProbe(false));
         } catch {
           done(null);
         }
@@ -654,6 +667,7 @@ export class VpnManager extends EventEmitter {
     mode: 'proxy' | 'tun' = 'proxy',
     splitApps: VpnSplitApp[] = [],
     appRouting: VpnAppRoutingMode = 'include',
+    continuedSessionAt: string | null = null,
   ): Promise<VpnRuntime> {
     const profile = this.profiles.get(id);
     if (!profile) throw new Error('Профиль не найден');
@@ -745,7 +759,10 @@ export class VpnManager extends EventEmitter {
         this.emitLog('warn', `Не удалось выставить системный прокси: ${error instanceof Error ? error.message : 'ошибка'}`);
       }
     }
-    this.setState('connected', id, child.pid ?? null);
+    const validContinuedSessionAt = continuedSessionAt && Number.isFinite(Date.parse(continuedSessionAt))
+      ? continuedSessionAt
+      : null;
+    this.setState('connected', id, child.pid ?? null, undefined, validContinuedSessionAt);
     const routeMode = activeAppRouting === 'include'
       ? `TUN · через VPN только ${activeSplitApps.length} прилож.`
       : activeAppRouting === 'exclude'
@@ -995,8 +1012,19 @@ export class VpnManager extends EventEmitter {
     await fs.writeFile(path.join(this.configsDir(), `${profile.id}.json`), `${JSON.stringify(profile, null, 2)}\n`, 'utf8');
   }
 
-  private setState(status: VpnStatus, profileId: string | null, pid: number | null, error?: string): void {
+  private setState(
+    status: VpnStatus,
+    profileId: string | null,
+    pid: number | null,
+    error?: string,
+    continuedSessionAt: string | null = null,
+  ): void {
     if (status !== 'connected' || profileId !== this.activeProfileId) this.lastLatencySample = null;
+    if (status === 'connected') {
+      this.connectedAt = continuedSessionAt ?? this.connectedAt ?? new Date().toISOString();
+    } else if (status !== 'connecting') {
+      this.connectedAt = null;
+    }
     this.status = status;
     this.activeProfileId = profileId;
     this.pid = pid;
