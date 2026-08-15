@@ -47,7 +47,10 @@ function prepareChromiumCache(): void {
     }
 
     app.setPath('cache', cacheRoot);
-    app.setPath('sessionData', path.join(cacheRoot, 'session'));
+    // sessionData намеренно не переносится: по умолчанию он указывает на
+    // userData, и его смещение уводит localStorage, cookies и прочее состояние
+    // сессии в новое место — пользователь видит это как сброс настроек.
+    // Ошибки GPU-кеша идут из `cache`, поэтому достаточно перенести только его.
   } catch {
     // Кеш — это только ускорение отрисовки. Если подготовить его не удалось,
     // приложение обязано запуститься и работать без него.
@@ -106,19 +109,60 @@ function normalizeSettings(raw: Partial<AppSettings>): AppSettings {
   };
 }
 
-async function readSettings(): Promise<AppSettings> {
+/**
+ * Запись пользовательских данных без риска потерять их при сбое.
+ *
+ * Обычный `writeFile` сначала обнуляет файл и только потом пишет содержимое.
+ * Если в этот момент процесс убивают (выход из приложения, перезагрузка,
+ * антивирус), на диске остаётся пустой файл — и профиль с настройками пропадают.
+ * Данные пишутся во временный файл и переименовываются: замена атомарна.
+ */
+async function writeJsonSafely(filePath: string, data: unknown): Promise<void> {
+  await fs.mkdir(path.dirname(filePath), { recursive: true });
+  const temporary = `${filePath}.tmp-${process.pid}`;
+  const payload = `${JSON.stringify(data, null, 2)}\n`;
   try {
-    const raw = JSON.parse(await fs.readFile(settingsPath(), 'utf8')) as Partial<AppSettings>;
-    return normalizeSettings(raw);
-  } catch {
-    return { ...DEFAULT_SETTINGS, vpnSplitApps: [] };
+    await fs.writeFile(temporary, payload, 'utf8');
+    await fs.rename(temporary, filePath);
+  } catch (error) {
+    await fs.rm(temporary, { force: true }).catch(() => undefined);
+    throw error;
   }
+}
+
+/**
+ * Чтение JSON с восстановлением повреждённого файла.
+ *
+ * Файл, оборванный прошлым сбоем, читается как пустой. Он сохраняется рядом с
+ * пометкой `.broken`, чтобы данные можно было восстановить вручную, а не
+ * затирались молча при первой же записи.
+ */
+async function readJsonSafely<T>(filePath: string): Promise<Partial<T> | null> {
+  let raw: string;
+  try {
+    raw = await fs.readFile(filePath, 'utf8');
+  } catch {
+    return null;
+  }
+  if (!raw.trim()) return null;
+  try {
+    const parsed = JSON.parse(raw) as unknown;
+    return parsed && typeof parsed === 'object' ? parsed as Partial<T> : null;
+  } catch {
+    await fs.copyFile(filePath, `${filePath}.broken`).catch(() => undefined);
+    return null;
+  }
+}
+
+async function readSettings(): Promise<AppSettings> {
+  const raw = await readJsonSafely<AppSettings>(settingsPath());
+  if (!raw) return { ...DEFAULT_SETTINGS, vpnSplitApps: [] };
+  return normalizeSettings(raw);
 }
 
 async function saveSettings(next: AppSettings): Promise<AppSettings> {
   settings = normalizeSettings(next ?? settings);
-  await fs.mkdir(path.dirname(settingsPath()), { recursive: true });
-  await fs.writeFile(settingsPath(), `${JSON.stringify(settings, null, 2)}\n`, 'utf8');
+  await writeJsonSafely(settingsPath(), settings);
   if (tray && !tray.isDestroyed()) refreshTrayMenu(trayVpnStatus);
   return settings;
 }
@@ -484,24 +528,31 @@ function localDeviceId(): string {
   return `NX-${createHash('sha256').update(signature).digest('hex').slice(0, 12).toUpperCase()}`;
 }
 
+function profilePath(): string {
+  return path.join(app.getPath('userData'), 'profile.json');
+}
+
 async function readProfile(): Promise<UserProfile> {
-  const profilePath = path.join(app.getPath('userData'), 'profile.json');
-  try {
-    const profile = JSON.parse(await fs.readFile(profilePath, 'utf8')) as Partial<UserProfile>;
-    return { displayName: profile.displayName?.trim() || '', deviceId: profile.deviceId || localDeviceId(), deviceName: profile.deviceName || os.hostname() };
-  } catch {
-    const profile = { displayName: '', deviceId: localDeviceId(), deviceName: os.hostname() };
-    await fs.mkdir(path.dirname(profilePath), { recursive: true });
-    await fs.writeFile(profilePath, `${JSON.stringify(profile, null, 2)}\n`, 'utf8');
-    return profile;
+  const stored = await readJsonSafely<UserProfile>(profilePath());
+  if (stored) {
+    return {
+      displayName: stored.displayName?.trim() || '',
+      deviceId: stored.deviceId || localDeviceId(),
+      deviceName: stored.deviceName || os.hostname(),
+    };
   }
+  // Профиль создаётся только когда его действительно нет: раньше любая ошибка
+  // чтения (файл занят антивирусом, том ещё не готов) молча перезаписывала файл
+  // пустым, и введённое имя пропадало.
+  const profile = { displayName: '', deviceId: localDeviceId(), deviceName: os.hostname() };
+  if (!existsSync(profilePath())) await writeJsonSafely(profilePath(), profile).catch(() => undefined);
+  return profile;
 }
 
 async function saveProfile(displayName: string): Promise<UserProfile> {
   const current = await readProfile();
   const profile = { ...current, displayName: displayName.trim().slice(0, 32) };
-  const profilePath = path.join(app.getPath('userData'), 'profile.json');
-  await fs.writeFile(profilePath, `${JSON.stringify(profile, null, 2)}\n`, 'utf8');
+  await writeJsonSafely(profilePath(), profile);
   return profile;
 }
 

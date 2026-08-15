@@ -71,7 +71,9 @@ assert.equal(expandDpiHosts(['soundcloud.com'])[0], 'soundcloud.com');
 const main = fs.readFileSync(path.join(root, 'src', 'main', 'main.ts'), 'utf8');
 assert.match(main, /function prepareChromiumCache\(\)/, 'кеш должен готовиться до старта Chromium');
 assert.match(main, /app\.setPath\('cache', cacheRoot\)/);
-assert.match(main, /app\.setPath\('sessionData'/);
+// sessionData намеренно НЕ переносится: он указывает на userData, и его смещение
+// уводит состояние сессии в новое место — пользователь видит это как сброс профиля.
+assert.doesNotMatch(main, /app\.setPath\('sessionData'/, 'перенос sessionData сбрасывает данные пользователя');
 // Проверка записи и пересоздание — иначе каталог от админского запуска остаётся нечитаемым.
 assert.match(main, /writeFileSync\(probe, ''\)/, 'нужна проверка доступа на запись');
 assert.match(main, /rmSync\(cacheRoot, \{ recursive: true, force: true \}\)/, 'недоступный каталог пересоздаётся');
