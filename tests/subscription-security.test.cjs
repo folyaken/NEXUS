@@ -170,7 +170,7 @@ async function run() {
 
   assert.equal(SUBSCRIPTION_TRANSPORT_LIMITS.maxRedirects, 5);
   // URL подписки + одна ссылка со страницы + до двух повторов по User-Agent.
-  assert.equal(SUBSCRIPTION_TRANSPORT_LIMITS.maxRequests, 12);
+  assert.equal(SUBSCRIPTION_TRANSPORT_LIMITS.maxRequests, 24);
   assert.equal(SUBSCRIPTION_TRANSPORT_LIMITS.maxResponseBytes, 8 * 1024 * 1024);
   assert.ok(SUBSCRIPTION_TRANSPORT_LIMITS.requestTimeoutMs > 0);
   assert.ok(SUBSCRIPTION_TRANSPORT_LIMITS.totalTimeoutMs >= SUBSCRIPTION_TRANSPORT_LIMITS.requestTimeoutMs);

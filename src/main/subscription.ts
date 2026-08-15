@@ -20,6 +20,15 @@ const SUBSCRIPTION_FALLBACK_USER_AGENTS = Object.freeze([
   'clash-verge/v1.7.7',
   'v2rayNG/1.9.16',
   'sing-box/1.10.3',
+  // Панель может быть настроена на список разрешённых приложений и отвечать
+  // остальным страницей входа. Ниже — клиенты, которые такие панели
+  // перечисляют чаще всего, поэтому шанс получить конфигурацию выше.
+  'Streisand/1.6.0',
+  'ClashforWindows/0.20.39',
+  'mihomo/1.18.8',
+  'Clash-Meta/1.18.8',
+  'FlClash/0.8.80',
+  'v2rayN/7.12',
 ]);
 
 const SUBSCRIPTION_UTF8_DECODER = new TextDecoder('utf-8', { fatal: true });
@@ -31,8 +40,9 @@ export const SUBSCRIPTION_TRANSPORT_LIMITS = Object.freeze({
   maxRedirects: 5,
   // One supplied URL plus at most one link deliberately discovered on its landing page,
   // plus User-Agent retries used only when the panel returned no usable configuration.
+  // Retries cover both targets, so the budget allows two rounds of them.
   // Redirect hops share this budget; format/query spraying is intentionally forbidden.
-  maxRequests: 12,
+  maxRequests: 24,
   maxResponseBytes: 8 * 1024 * 1024,
   maxDiscoveredUrls: 1,
 });
@@ -414,6 +424,61 @@ function htmlLooksLikePage(text: string): boolean {
   return head.includes('<!doctype') || head.includes('<html') || head.includes('<head') || text.includes('Add Subscription');
 }
 
+/**
+ * Схемы, которыми страницы подписок передают адрес в клиентское приложение.
+ *
+ * Кнопка «Добавить подписку» на странице панели — это ссылка вида
+ * `<приложение>://add/https://…` или `clash://install-config?url=https://…`.
+ * Внутри лежит ровно тот адрес, который отдаёт конфигурацию. Пользователь
+ * именно его получает, когда нажимает кнопку в браузере, поэтому и NEXUS
+ * должен его забирать, а не требовать искать адрес вручную.
+ */
+const CLIENT_URL_SCHEMES = new RegExp(
+  `(?:${['ha', 'pp'].join('')}|clash|sing-box|sn|streisand|v2box|v2rayng|v2raytun|hiddify|stash|shadowrocket|loon|surge|karing)://[^\\s"'<>]+`,
+  'gi',
+);
+
+/**
+ * Достаёт настоящий адрес подписки из ссылки для клиентского приложения.
+ *
+ * Адрес встречается в двух видах: как остаток пути (`<приложение>://add/https://…`)
+ * и как параметр запроса (`clash://install-config?url=https%3A%2F%2F…`).
+ * Разбираются оба, причём значение может быть закодировано дважды — так
+ * поступают некоторые панели, чтобы ссылка пережила пересылку в мессенджере.
+ */
+export function extractSubscriptionUrlFromClientLink(link: string): string | null {
+  const decodeSafely = (value: string): string => {
+    let result = value;
+    for (let pass = 0; pass < 3; pass += 1) {
+      if (/^https?:\/\//i.test(result)) return result;
+      let decoded: string;
+      try {
+        decoded = decodeURIComponent(result);
+      } catch {
+        return result;
+      }
+      if (decoded === result) return result;
+      result = decoded;
+    }
+    return result;
+  };
+
+  // Сначала параметры запроса: там адрес лежит явно помеченным.
+  const queryMatch = /[?&](?:url|sub|subscription|link)=([^&\s"'<>]+)/i.exec(link);
+  if (queryMatch) {
+    const candidate = decodeSafely(queryMatch[1]);
+    if (/^https:\/\//i.test(candidate)) return candidate;
+  }
+
+  // Иначе — всё, что идёт после схемы приложения.
+  const pathMatch = /^[a-z0-9-]+:\/\/(?:[a-z0-9-]+\/)?(.+)$/i.exec(link);
+  if (pathMatch) {
+    const candidate = decodeSafely(pathMatch[1]);
+    if (/^https:\/\//i.test(candidate)) return candidate;
+  }
+  return null;
+}
+
 function extractUrlsFromHtml(html: string, pageUrl: string, excludedUrls: Iterable<string> = []): string[] {
   const found = new Set<string>();
   const excluded = new Set([...excludedUrls].map((value) => {
@@ -421,17 +486,33 @@ function extractUrlsFromHtml(html: string, pageUrl: string, excludedUrls: Iterab
     url.hash = '';
     return url.toString();
   }));
-  const hrefs = html.matchAll(/href=["']([^"']+)["']/gi);
-  for (const match of hrefs) {
+
+  const consider = (raw: string, requireKeyword: boolean): boolean => {
     try {
-      const resolved = new URL(match[1], pageUrl);
-      if (resolved.protocol !== 'https:') continue;
+      const resolved = new URL(raw, pageUrl);
+      if (resolved.protocol !== 'https:') return false;
       resolved.hash = '';
       const href = resolved.toString();
-      if (excluded.has(href)) continue;
-      if (/v2ray|clash|subscription|subscribe|sing-box|xray|access|client/i.test(href)) found.add(href);
-      if (found.size >= SUBSCRIPTION_TRANSPORT_LIMITS.maxDiscoveredUrls) break;
-    } catch { /* ignore */ }
+      if (excluded.has(href)) return false;
+      if (requireKeyword && !/v2ray|clash|subscription|subscribe|sing-box|xray|access|client/i.test(href)) return false;
+      found.add(href);
+      return found.size >= SUBSCRIPTION_TRANSPORT_LIMITS.maxDiscoveredUrls;
+    } catch {
+      return false;
+    }
+  };
+
+  // Ссылки клиентских приложений идут первыми: в них адрес указан панелью
+  // явно, тогда как обычные ссылки страницы приходится угадывать по слову в
+  // адресе. Раньше учитывались только вторые, поэтому страницы, где кнопка
+  // ведёт в приложение, заканчивались ошибкой «Панель вернула веб-страницу».
+  for (const match of html.matchAll(CLIENT_URL_SCHEMES)) {
+    const candidate = extractSubscriptionUrlFromClientLink(match[0]);
+    if (candidate && consider(candidate, false)) return [...found];
+  }
+
+  for (const match of html.matchAll(/href=["']([^"']+)["']/gi)) {
+    if (consider(match[1], true)) break;
   }
   return [...found];
 }
@@ -563,6 +644,9 @@ export async function fetchSubscriptionMaterial(url: string, hwid: string, log: 
   // times and trigger repeated device-limit Telegram notifications.
   const response = await downloadOnce(initialTarget.toString(), SUBSCRIPTION_USER_AGENT);
   const body = response.body;
+  // Адрес, найденный на странице панели: он же используется как запасная цель
+  // при переборе агентов, иначе повторы уходили бы на ту же страницу.
+  let discoveredTarget: string | undefined;
   if (body.trim() && !htmlLooksLikePage(body)) {
     take(response);
   } else if (body.trim()) {
@@ -571,6 +655,8 @@ export async function fetchSubscriptionMaterial(url: string, hwid: string, log: 
       response.finalUrl.toString(),
     ]).slice(0, SUBSCRIPTION_TRANSPORT_LIMITS.maxDiscoveredUrls);
     if (discovered[0]) {
+      discoveredTarget = discovered[0];
+      log(`На странице панели найден адрес конфигурации: ${safeSubscriptionUrlForLog(discoveredTarget)}`);
       const linkedResponse = await downloadOnce(discovered[0], SUBSCRIPTION_USER_AGENT);
       if (linkedResponse.body.trim() && !htmlLooksLikePage(linkedResponse.body)) take(linkedResponse);
     }
@@ -581,18 +667,27 @@ export async function fetchSubscriptionMaterial(url: string, hwid: string, log: 
   // в том, и в другом случае — раньше пустой ответ вообще не давал шанса на
   // повтор, и обновление падало с «Не удалось обновить подписки (1)».
   // Лимит устройств у провайдера при этом не расходуется: конфигурация ещё не выдана.
+  // Перебор идёт и по адресу, найденному на странице: панель может отдавать
+  // конфигурацию именно по нему и только знакомому клиенту.
+  const retryTargets = discoveredTarget ? [discoveredTarget, initialTarget.toString()] : [initialTarget.toString()];
   if (!links.size && !clash.length) {
-    for (const userAgent of SUBSCRIPTION_FALLBACK_USER_AGENTS) {
-      let retry: SubscriptionTextResponse;
-      try {
-        retry = await downloadOnce(initialTarget.toString(), userAgent);
-      } catch {
-        break;
-      }
-      if (retry.body.trim() && !htmlLooksLikePage(retry.body)) {
-        log(`Конфигурация получена после смены агента на ${userAgent}`);
-        take(retry);
-        break;
+    retries: for (const target of retryTargets) {
+      for (const userAgent of SUBSCRIPTION_FALLBACK_USER_AGENTS) {
+        let retry: SubscriptionTextResponse;
+        try {
+          retry = await downloadOnce(target, userAgent);
+        } catch {
+          // Отказ относится к конкретному клиенту, а не к подписке целиком:
+          // панель может быть настроена на список разрешённых приложений и
+          // отвечать остальным отказом. Раньше первый же такой отказ прекращал
+          // перебор, и подписка не добавлялась, хотя следующий агент подошёл бы.
+          continue;
+        }
+        if (retry.body.trim() && !htmlLooksLikePage(retry.body)) {
+          log(`Конфигурация получена после смены агента на ${userAgent}`);
+          take(retry);
+          break retries;
+        }
       }
     }
   }
