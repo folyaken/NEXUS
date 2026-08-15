@@ -1,4 +1,4 @@
-import { execFile } from 'node:child_process';
+import { execFile, execFileSync } from 'node:child_process';
 import { promisify } from 'node:util';
 
 const execFileAsync = promisify(execFile);
@@ -42,4 +42,33 @@ public class WinINetProxy {
 [WinINetProxy]::InternetSetOption([IntPtr]::Zero, 37, [IntPtr]::Zero, 0) | Out-Null
 `;
   await execFileAsync('powershell.exe', ['-NoProfile', '-ExecutionPolicy', 'Bypass', '-Command', script], { windowsHide: true, timeout: 8000 });
+}
+
+/**
+ * Синхронный сброс системного прокси для аварийного завершения.
+ *
+ * При падении процесса цикл событий уже не выполнит асинхронную работу, поэтому
+ * настройка снимается напрямую через реестр. Без этого Windows продолжит слать
+ * трафик на локальный порт, которого больше нет, и пользователь останется без
+ * интернета, не понимая причины.
+ */
+export function clearSystemProxySync(): void {
+  if (process.platform !== 'win32') return;
+  const registryPath = 'HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Internet Settings';
+  try {
+    // reg.exe запускается быстрее PowerShell — на аварийном пути это важно.
+    execFileSync('reg', ['add', registryPath, '/v', 'ProxyEnable', '/t', 'REG_DWORD', '/d', '0', '/f'], {
+      windowsHide: true,
+      timeout: 3000,
+      stdio: 'ignore',
+    });
+    // Уведомление системы: иначе прежние настройки продолжат действовать.
+    execFileSync('rundll32.exe', ['wininet.dll,InternetSetOption', '0', '39', '0', '0'], {
+      windowsHide: true,
+      timeout: 3000,
+      stdio: 'ignore',
+    });
+  } catch {
+    /* аварийный путь: помешать завершению нельзя */
+  }
 }

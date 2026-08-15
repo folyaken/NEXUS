@@ -8,6 +8,7 @@ import os from 'node:os';
 import { isElevated } from './elevation';
 import { companionCount } from './dpi-companions';
 import { addDpiHost, readDpiHostlist, removeDpiHost } from './dpi-hostlist';
+import { clearSystemProxySync } from './system-proxy';
 import { ModuleManager } from './module-manager';
 import { AppUpdater } from './app-updater';
 import { GithubUpdater } from './github-updater';
@@ -504,6 +505,44 @@ async function quitApp(): Promise<void> {
   app.quit();
 }
 
+/**
+ * Снимает системный прокси при аварийном завершении.
+ *
+ * В режиме PROXY приложение прописывает себя в настройки Windows. Штатный выход
+ * это откатывает, но при падении процесса или закрытии из диспетчера задач
+ * настройка остаётся: система продолжает слать трафик на локальный порт,
+ * которого уже нет, и пользователь теряет интернет без видимой причины.
+ *
+ * Обработчики намеренно синхронные — на этом этапе цикл событий уже может не
+ * успеть выполнить асинхронную работу.
+ */
+function registerEmergencyCleanup(): void {
+  let cleaned = false;
+  const cleanup = () => {
+    if (cleaned) return;
+    cleaned = true;
+    try {
+      clearSystemProxySync();
+    } catch {
+      /* аварийный путь: помешать выходу нельзя */
+    }
+  };
+
+  process.on('exit', cleanup);
+  for (const signal of ['SIGINT', 'SIGTERM', 'SIGHUP'] as const) {
+    process.on(signal, () => {
+      cleanup();
+      process.exit(0);
+    });
+  }
+  process.on('uncaughtException', (error) => {
+    cleanup();
+    // Ошибку нельзя проглатывать: без записи в журнал причина падения потеряется.
+    console.error('Необработанная ошибка:', error);
+    process.exit(1);
+  });
+}
+
 async function resolveModulesDir(): Promise<string> {
   const configured = process.env.NEXUS_MODULES_DIR;
   if (configured) return configured;
@@ -778,6 +817,7 @@ if (gotLock) {
       const runtime = vpn.runtime();
       return Boolean(runtime.pid) || runtime.status === 'connecting' || runtime.status === 'connected';
     });
+    registerEmergencyCleanup();
     appUpdater = new AppUpdater(app.getVersion(), app.isPackaged);
     const profile = await readProfile();
     vpn.setHwid(profile.deviceId);

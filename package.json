@@ -1,7 +1,7 @@
 {
   "name": "nexus-network-tools",
   "version": "1.1.1",
-  "patchLevel": 37,
+  "patchLevel": 38,
   "private": true,
   "description": "NEXUS — локальная Electron-обёртка для сетевых инструментов",
   "license": "SEE LICENSE IN LICENSE",
@@ -96,7 +96,9 @@
       "createStartMenuShortcut": true,
       "perMachine": true,
       "allowElevation": true,
-      "license": "LICENSE"
+      "license": "LICENSE",
+      "include": "build/installer.nsh",
+      "deleteAppDataOnUninstall": false
     },
     "linux": {
       "target": "AppImage",
