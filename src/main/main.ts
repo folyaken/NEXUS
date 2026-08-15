@@ -5,7 +5,7 @@ import { existsSync, mkdirSync, rmSync, writeFileSync } from 'node:fs';
 import { promises as fs } from 'node:fs';
 import { execFile } from 'node:child_process';
 import os from 'node:os';
-import { isElevated } from './elevation';
+import { isElevated, relaunchElevated } from './elevation';
 import { companionCount } from './dpi-companions';
 import { addDpiHost, readDpiHostlist, removeDpiHost } from './dpi-hostlist';
 import { clearSystemProxySync } from './system-proxy';
@@ -817,6 +817,22 @@ if (gotLock) {
       const runtime = vpn.runtime();
       return Boolean(runtime.pid) || runtime.status === 'connecting' || runtime.status === 'connected';
     });
+    // Zapret и TUN без прав администратора не работают. Манифест exe запрашивает
+    // их сам, но у portable-сборки он применяется не всегда, а ярлык мог быть
+    // создан вручную. Тогда приложение поднимает UAC самостоятельно, чтобы
+    // пользователю не приходилось каждый раз вызывать «Запуск от имени
+    // администратора» вручную.
+    if (app.isPackaged && process.platform === 'win32' && !(await isElevated())) {
+      if (relaunchElevated(process.execPath, process.argv.slice(1))) {
+        isQuitting = true;
+        app.quit();
+        return;
+      }
+      // Повышение не удалось (например, пользователь отказался). Приложение
+      // продолжает работу: VPN в режиме PROXY и часть функций доступны и так,
+      // а модули сообщат о нехватке прав понятным текстом.
+    }
+
     registerEmergencyCleanup();
     appUpdater = new AppUpdater(app.getVersion(), app.isPackaged);
     const profile = await readProfile();

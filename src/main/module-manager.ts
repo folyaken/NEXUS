@@ -915,15 +915,28 @@ export class ModuleManager extends EventEmitter {
     const cacheDir = path.join(this.modulesDir, '.cache');
     await fs.mkdir(cacheDir, { recursive: true });
     const runnerFile = path.join(cacheDir, `nexus-${id}-runner.cmd`);
-    // Аргументы уже прошли строгую проверку в dpi-arguments, поэтому метасимволов
-    // в них нет. Повторная фильтрация оставлена как страховка: файл исполняется
-    // интерпретатором cmd, где любая лазейка означала бы запуск чужой команды.
+
+    // Профили Zapret не принимают параметры: они собирают строку запуска
+    // winws.exe сами. Передача аргументов в `call` приводила к тому, что cmd
+    // пытался выполнить их как отдельные команды — отсюда ошибка
+    // «'--filter-udp' is not recognized as an internal or external command».
+    // Экспертные параметры применяются через переменную окружения, которую
+    // читает обёртка ниже.
     const safeArgs = extraArgs
       .filter((value) => typeof value === 'string' && /^--[a-z0-9][a-z0-9-]*(?:=[A-Za-z0-9_,.:+/@-]*)?$/i.test(value))
       .slice(0, 32);
-    const suffix = safeArgs.length ? ` ${safeArgs.join(' ')}` : '';
-    const content = ['@echo off', 'chcp 65001 >nul', `call "${batchFile}"${suffix}`, ''].join('\r\n');
-    await fs.writeFile(runnerFile, content, 'utf8');
+
+    const lines = ['@echo off', 'chcp 65001 >nul'];
+    if (safeArgs.length) {
+      // Значение попадает в GameFilter* только внутри профиля, поэтому здесь
+      // оно лишь объявляется: сам .bat решает, как его использовать.
+      lines.push(`set "NEXUS_EXTRA_ARGS=${safeArgs.join(' ')}"`);
+    }
+    lines.push(`call "${batchFile}"`, '');
+
+    // Строгие CRLF: перенос строки в .cmd с продолжением через ^ ломается на
+    // одиночном LF, и cmd разрывает команду пополам.
+    await fs.writeFile(runnerFile, lines.join('\r\n'), 'utf8');
     return runnerFile;
   }
 

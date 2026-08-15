@@ -1,4 +1,4 @@
-import { execFile } from 'node:child_process';
+import { execFile, spawn } from 'node:child_process';
 import { promisify } from 'node:util';
 
 const execFileAsync = promisify(execFile);
@@ -63,4 +63,44 @@ export function elevationMessage(moduleName: string): string {
 
 export function tunElevationMessage(): string {
   return 'Режим TUN требует прав администратора: создаётся виртуальный сетевой адаптер. Запустите NEXUS через ярлык на рабочем столе или переключитесь на режим PROXY.';
+}
+
+/**
+ * Перезапускает приложение с правами администратора.
+ *
+ * Права запрашиваются манифестом exe, но на это нельзя полагаться полностью:
+ * у portable-сборки манифест применяется не всегда, а ярлык может быть создан
+ * вручную в обход установщика. Тогда программа стартует без прав, и модули
+ * молча не работают — пользователю приходится каждый раз вызывать «Запуск от
+ * имени администратора» самому.
+ *
+ * Здесь приложение поднимает UAC само и закрывает текущий экземпляр.
+ * Возвращает true, если перезапуск запущен, — вызывающий код обязан завершиться.
+ */
+export function relaunchElevated(executablePath: string, args: readonly string[] = []): boolean {
+  if (process.platform !== 'win32') return false;
+
+  // Аргументы уходят в PowerShell, поэтому одинарные кавычки экранируются:
+  // иначе путь с апострофом позволил бы подставить произвольную команду.
+  const quote = (value: string) => `'${value.replace(/'/g, "''")}'`;
+  const argumentList = args.length ? `-ArgumentList ${args.map(quote).join(',')} ` : '';
+
+  try {
+    const child = spawn(
+      'powershell.exe',
+      [
+        '-NoProfile',
+        '-ExecutionPolicy', 'Bypass',
+        '-Command',
+        `Start-Process -FilePath ${quote(executablePath)} ${argumentList}-Verb RunAs`,
+      ],
+      // detached + unref: дочерний процесс должен пережить закрытие текущего.
+      { detached: true, stdio: 'ignore', windowsHide: true },
+    );
+    child.unref();
+    return true;
+  } catch {
+    // Пользователь мог отказаться от повышения прав — это не ошибка приложения.
+    return false;
+  }
 }

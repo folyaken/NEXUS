@@ -114,3 +114,36 @@ assert.equal(build.nsis.allowElevation, true);
 assert.match(managerSource, /moduleNeedsElevation\(id\) && !\(await isElevated\(\)\)/);
 
 console.log('Packaging and elevation checks passed.');
+
+// --- Запуск профилей Zapret --------------------------------------------------
+// Профили не принимают аргументы: строку запуска winws.exe они собирают сами.
+// Передача параметров в `call` заставляла cmd выполнять их как команды —
+// пользователь видел «'--filter-udp' is not recognized as an internal or
+// external command», и модуль падал с кодом 1.
+assert.doesNotMatch(managerSource, /call "\$\{batchFile\}"\$\{suffix\}/,
+  'аргументы нельзя дописывать в вызов профиля');
+assert.match(managerSource, /NEXUS_EXTRA_ARGS/,
+  'экспертные параметры передаются переменной окружения');
+
+// Профиль использует ^ для переноса строк: на одиночном LF команда рвётся.
+assert.match(managerSource, /lines\.join\('\\r\\n'\)/, 'runner обязан использовать CRLF');
+
+// --- Самостоятельное повышение прав ------------------------------------------
+// Манифест exe запрашивает права, но у portable-сборки он применяется не всегда,
+// а ярлык мог быть создан вручную. Без запасного пути пользователю приходилось
+// каждый раз вызывать «Запуск от имени администратора» самому.
+const elevationSource = fs.readFileSync(path.join(root, 'src', 'main', 'elevation.ts'), 'utf8');
+assert.match(elevationSource, /export function relaunchElevated/);
+assert.match(elevationSource, /-Verb RunAs/, 'повышение выполняется через UAC');
+assert.match(elevationSource, /detached: true/, 'новый процесс должен пережить закрытие текущего');
+assert.match(elevationSource, /child\.unref\(\)/);
+
+// Путь уходит в PowerShell: без экранирования апостроф позволил бы подставить
+// произвольную команду.
+assert.match(elevationSource, /replace\(\/'\/g, "''"\)/, 'аргументы обязаны экранироваться');
+
+// Перезапуск только для установленной версии: в разработке он мешал бы работе.
+assert.match(mainSource, /if \(app\.isPackaged && process\.platform === 'win32' && !\(await isElevated\(\)\)\)/);
+assert.match(mainSource, /relaunchElevated\(process\.execPath, process\.argv\.slice\(1\)\)/);
+// Отказ пользователя от повышения не должен закрывать приложение.
+assert.match(mainSource, /Повышение не удалось/);
