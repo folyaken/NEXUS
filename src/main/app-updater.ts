@@ -1,4 +1,6 @@
 import { EventEmitter } from 'node:events';
+import { existsSync, readFileSync } from 'node:fs';
+import { join } from 'node:path';
 import type { NexusUpdateCheck, NexusUpdateStatus } from './types';
 
 /**
@@ -53,16 +55,46 @@ function plainReleaseNotes(notes: UpdateInfoLike['releaseNotes']): string | null
     .slice(0, 600) || null;
 }
 
-/** Адрес публикации сборок. Задаётся при сборке, в исходниках его нет. */
-export function updateFeedUrl(env: NodeJS.ProcessEnv = process.env): string | null {
-  const raw = (env.NEXUS_UPDATE_URL ?? '').trim();
-  if (!raw) return null;
+/** Проверка адреса канала: принимается только шифрованное соединение. */
+function validateFeedUrl(raw: string): string | null {
+  const value = raw.trim();
+  if (!value) return null;
   try {
-    const parsed = new URL(raw);
+    const parsed = new URL(value);
     // Только HTTPS: по открытому HTTP канал обновления можно подменить и
     // подсунуть пользователю чужой установщик.
     if (parsed.protocol !== 'https:') return null;
     return parsed.toString();
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Адрес публикации сборок.
+ *
+ * Источника два, и это важно. Переменная окружения работает только там, где её
+ * задали — то есть на машине сборки. У пользователя её нет, поэтому установщик
+ * кладёт рядом с приложением файл `app-update.yml`, и адрес читается уже из
+ * него. Опора только на переменную означала бы, что обновление молча не
+ * работает у всех, кроме разработчика.
+ */
+export function updateFeedUrl(
+  env: NodeJS.ProcessEnv = process.env,
+  resourcesPath: string | null = null,
+): string | null {
+  const fromEnv = validateFeedUrl(env.NEXUS_UPDATE_URL ?? '');
+  if (fromEnv) return fromEnv;
+  if (!resourcesPath) return null;
+
+  // Файл создаётся electron-builder при сборке с настроенной публикацией.
+  try {
+    const configPath = join(resourcesPath, 'app-update.yml');
+    if (!existsSync(configPath)) return null;
+    const contents = readFileSync(configPath, 'utf8');
+    // Полноценный парсер YAML здесь избыточен: нужна одна строка `url:`.
+    const match = contents.match(/^\s*url:\s*["']?([^"'\r\n]+)["']?\s*$/m);
+    return match ? validateFeedUrl(match[1]) : null;
   } catch {
     return null;
   }
@@ -76,7 +108,10 @@ export class AppUpdater extends EventEmitter {
   constructor(
     private readonly currentVersion: string,
     private readonly isPackaged: boolean,
-    private readonly feedUrl: string | null = updateFeedUrl(),
+    private readonly feedUrl: string | null = updateFeedUrl(
+      process.env,
+      isPackaged ? process.resourcesPath : null,
+    ),
   ) {
     super();
     this.state = {

@@ -1,5 +1,6 @@
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
+const os = require('node:os');
 const path = require('node:path');
 
 const root = path.resolve(__dirname, '..');
@@ -13,10 +14,23 @@ const app = fs.readFileSync(path.join(root, 'src', 'renderer', 'App.tsx'), 'utf8
 // Для приватного репозитория провайдер github требует положить токен GitHub
 // внутрь установщика. Любой может распаковать asar и получить доступ ко всем
 // репозиториям аккаунта, поэтому используется generic-провайдер.
-assert.equal(manifest.build.publish[0].provider, 'generic', 'провайдер github раскрыл бы токен');
-assert.doesNotMatch(JSON.stringify(manifest.build.publish), /token|GH_TOKEN|ghp_/i, 'токенов в конфигурации быть не должно');
 assert.doesNotMatch(updaterSource, /provider: 'github'/, 'github-провайдер несовместим с приватным репозиторием');
 assert.doesNotMatch(updaterSource, /ghp_|GH_TOKEN/, 'токен не должен попадать в код');
+assert.match(updaterSource, /provider: 'generic'/);
+
+// Секции publish в манифесте быть не должно: electron-builder раскрывает
+// ${env.*} на этапе сборки и падает, если переменная не задана. Обычная
+// локальная сборка не обязана требовать настроенный сервер обновлений.
+assert.equal(manifest.build.publish, undefined,
+  'адрес канала задаётся при публикации релиза, а не в манифесте');
+
+// Конфигурация обязана проходить валидацию установленной версии сборщика.
+const scheme = require(path.join(root, 'node_modules', 'app-builder-lib', 'scheme.json'));
+const { validateConfiguration } = require(path.join(root, 'node_modules', 'app-builder-lib', 'out', 'util', 'config', 'config.js'));
+assert.doesNotThrow(
+  () => validateConfiguration(JSON.parse(JSON.stringify(manifest.build)), scheme, { warn() {} }),
+  'конфигурация сборки должна быть валидной',
+);
 
 // --- Адрес канала проверяется -----------------------------------------------
 // По открытому HTTP канал обновления можно подменить и подсунуть чужой установщик.
@@ -24,6 +38,25 @@ assert.equal(updateFeedUrl({ NEXUS_UPDATE_URL: 'https://updates.example.com/nexu
 assert.equal(updateFeedUrl({ NEXUS_UPDATE_URL: 'http://updates.example.com/' }), null, 'HTTP недопустим');
 assert.equal(updateFeedUrl({ NEXUS_UPDATE_URL: 'не ссылка' }), null);
 assert.equal(updateFeedUrl({}), null, 'без адреса канал считается ненастроенным');
+
+// У пользователя переменной окружения нет: адрес читается из app-update.yml,
+// который установщик кладёт рядом с приложением. Опора только на переменную
+// означала бы, что обновление работает исключительно на машине разработчика.
+const feedDir = fs.mkdtempSync(path.join(os.tmpdir(), 'nexus-feed-'));
+try {
+  fs.writeFileSync(path.join(feedDir, 'app-update.yml'),
+    'provider: generic\nurl: https://updates.example.com/nexus/\nchannel: latest\n');
+  assert.equal(updateFeedUrl({}, feedDir), 'https://updates.example.com/nexus/', 'адрес берётся из app-update.yml');
+  // Переменная окружения важнее: она нужна для проверки тестовых каналов.
+  assert.equal(updateFeedUrl({ NEXUS_UPDATE_URL: 'https://env.example.com/' }, feedDir), 'https://env.example.com/');
+
+  // Небезопасный адрес отклоняется независимо от источника.
+  fs.writeFileSync(path.join(feedDir, 'app-update.yml'), 'provider: generic\nurl: http://updates.example.com/\n');
+  assert.equal(updateFeedUrl({}, feedDir), null, 'HTTP в файле конфигурации недопустим');
+} finally {
+  fs.rmSync(feedDir, { recursive: true, force: true });
+}
+assert.equal(updateFeedUrl({}, path.join(os.tmpdir(), 'nexus-missing-feed')), null, 'отсутствие файла не должно ломать запуск');
 
 // --- Поведение без настроенного канала --------------------------------------
 void (async () => {

@@ -1,7 +1,7 @@
 {
   "name": "nexus-network-tools",
   "version": "1.1.1",
-  "patchLevel": 39,
+  "patchLevel": 40,
   "private": true,
   "description": "NEXUS — локальная Electron-обёртка для сетевых инструментов",
   "license": "SEE LICENSE IN LICENSE",
@@ -103,14 +103,7 @@
       "target": "AppImage",
       "category": "Network"
     },
-    "copyright": "Copyright (c) 2026 NEXUS",
-    "publish": [
-      {
-        "provider": "generic",
-        "url": "${env.NEXUS_UPDATE_URL}",
-        "channel": "latest"
-      }
-    ]
+    "copyright": "Copyright (c) 2026 NEXUS"
   },
   "dependencies": {
     "@react-spring/web": "^9.7.4",
