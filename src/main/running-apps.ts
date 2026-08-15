@@ -26,6 +26,20 @@ export interface RunningApp {
 }
 
 const LIST_TIMEOUT_MS = 15_000;
+
+/**
+ * Путь к PowerShell.
+ *
+ * Вызов по одному имени зависит от переменной PATH: если она изменена (а у
+ * установленной программы окружение чужое), список приложений молча оказался
+ * бы пустым. Поэтому сначала берётся системный каталог Windows, и лишь затем —
+ * поиск по PATH как запасной вариант.
+ */
+function powershellPath(): string {
+  const root = process.env.SystemRoot || process.env.windir;
+  if (!root) return 'powershell.exe';
+  return `${root}\\System32\\WindowsPowerShell\\v1.0\\powershell.exe`;
+}
 const MAX_APPS = 200;
 
 /**
@@ -128,17 +142,26 @@ function toRunningApp(raw: RawApp): RunningApp | null {
 export async function listRunningApps(): Promise<RunningApp[]> {
   if (process.platform !== 'win32') return [];
   let stdout = '';
-  try {
-    const result = await execFileAsync('powershell.exe', [
-      '-NoProfile',
-      '-NonInteractive',
-      '-ExecutionPolicy', 'Bypass',
-      '-Command', LIST_SCRIPT,
-    ], { windowsHide: true, timeout: LIST_TIMEOUT_MS, maxBuffer: 32 * 1024 * 1024 });
-    stdout = result.stdout;
-  } catch {
-    return [];
+  const interpreters = [...new Set([powershellPath(), 'powershell.exe'])];
+  let lastError: unknown = null;
+  for (const interpreter of interpreters) {
+    try {
+      const result = await execFileAsync(interpreter, [
+        '-NoProfile',
+        '-NonInteractive',
+        '-ExecutionPolicy', 'Bypass',
+        '-Command', LIST_SCRIPT,
+      ], { windowsHide: true, timeout: LIST_TIMEOUT_MS, maxBuffer: 32 * 1024 * 1024 });
+      stdout = result.stdout;
+      lastError = null;
+      break;
+    } catch (error) {
+      lastError = error;
+    }
   }
+  // Ни один способ не сработал: список останется пустым, а пользователю
+  // предложат выбрать программу файлом — этот путь работает всегда.
+  if (lastError) return [];
 
   const text = stdout.trim();
   if (!text) return [];
