@@ -459,6 +459,23 @@ function headers(ua: string, hwid: string): Record<string, string> {
   };
 }
 
+/**
+ * Короткое описание того, что вернул сервер.
+ *
+ * Нужно только для журнала: по нему видно, пришла ли конфигурация, страница
+ * или отказ. Само содержимое не показывается — там ключи доступа.
+ */
+export function describeSubscriptionBody(body: string): string {
+  const text = body.trim();
+  if (!text) return 'пустой ответ';
+  if (htmlLooksLikePage(text)) return 'веб-страница';
+  if (/^(?:vless|vmess|trojan|ss|hy2|hysteria2):\/\//im.test(text)) return 'ссылки на серверы';
+  if (/^\s*[[{]/.test(text)) return 'конфигурация JSON';
+  if (/^\s*(?:proxies|proxy-groups|outbounds|port|mixed-port):/im.test(text)) return 'конфигурация YAML';
+  if (/^[A-Za-z0-9+/=\s]+$/.test(text.slice(0, 256))) return 'данные в кодировке base64';
+  return 'неизвестный формат';
+}
+
 function htmlLooksLikePage(text: string): boolean {
   const head = text.slice(0, 400).toLowerCase();
   return head.includes('<!doctype') || head.includes('<html') || head.includes('<head') || text.includes('Add Subscription');
@@ -686,6 +703,9 @@ export async function fetchSubscriptionMaterial(url: string, hwid: string, log: 
   const downloadOnce = async (target: string, userAgent: string): Promise<SubscriptionTextResponse> => {
     try {
       const response = await downloadSubscriptionText(target, headers(userAgent, hwid), trustedOrigin, budget);
+      // Короткая сводка ответа: без неё невозможно понять, что именно вернула
+      // панель, и поиск причины превращается в гадание.
+      log(`Ответ панели: HTTP ${response.status || '—'} · ${response.body.length} симв. · ${describeSubscriptionBody(response.body)} · клиент ${userAgent}`);
       if (response.status < 200 || response.status >= 300) {
         throw new SubscriptionTransportError(`Сервер подписки отклонил запрос (HTTP ${response.status || 'без статуса'})`);
       }
@@ -700,14 +720,25 @@ export async function fetchSubscriptionMaterial(url: string, hwid: string, log: 
   // The supplied subscription URL is authoritative. Older builds tried many UA/query/path
   // combinations even after a rejection, so one click could reach a provider dozens of
   // times and trigger repeated device-limit Telegram notifications.
-  const response = await downloadOnce(initialTarget.toString(), SUBSCRIPTION_USER_AGENT);
-  const body = response.body;
+  // Первый запрос больше не решает судьбу всей загрузки. Раньше его сетевая
+  // ошибка (обрыв соединения, отказ сервера конкретному клиенту) выбрасывалась
+  // наружу сразу, и до перебора клиентов, форматов и чтения страницы дело не
+  // доходило вовсе — пользователь видел ошибку, хотя подписка рабочая.
+  let response: SubscriptionTextResponse | null = null;
+  let firstFailure: Error | null = null;
+  try {
+    response = await downloadOnce(initialTarget.toString(), SUBSCRIPTION_USER_AGENT);
+  } catch (error) {
+    firstFailure = error instanceof Error ? error : new Error('ошибка сети');
+  }
+
   // Адрес, найденный на странице панели: он же используется как запасная цель
   // при переборе агентов, иначе повторы уходили бы на ту же страницу.
   let discoveredTarget: string | undefined;
-  if (body.trim() && !htmlLooksLikePage(body)) {
+  const body = response?.body ?? '';
+  if (response && body.trim() && !htmlLooksLikePage(body)) {
     take(response);
-  } else if (body.trim()) {
+  } else if (response && body.trim()) {
     const discovered = extractUrlsFromHtml(body, response.finalUrl.toString(), [
       initialTarget.toString(),
       response.finalUrl.toString(),
@@ -715,8 +746,12 @@ export async function fetchSubscriptionMaterial(url: string, hwid: string, log: 
     if (discovered[0]) {
       discoveredTarget = discovered[0];
       log(`На странице панели найден адрес конфигурации: ${safeSubscriptionUrlForLog(discoveredTarget)}`);
-      const linkedResponse = await downloadOnce(discovered[0], SUBSCRIPTION_USER_AGENT);
-      if (linkedResponse.body.trim() && !htmlLooksLikePage(linkedResponse.body)) take(linkedResponse);
+      try {
+        const linkedResponse = await downloadOnce(discovered[0], SUBSCRIPTION_USER_AGENT);
+        if (linkedResponse.body.trim() && !htmlLooksLikePage(linkedResponse.body)) take(linkedResponse);
+      } catch {
+        // Найденный адрес мог оказаться нерабочим — остаются другие способы.
+      }
     }
   }
 
@@ -771,6 +806,12 @@ export async function fetchSubscriptionMaterial(url: string, hwid: string, log: 
       }
     }
   }
+
+  // Если не сработало вообще ничего, а самый первый запрос упал с сетевой
+  // ошибкой, показать нужно именно её: «панель не отдаёт конфигурацию» увело бы
+  // пользователя не туда, когда на деле сервер недоступен или отвергает
+  // соединение.
+  if (!links.size && !clash.length && firstFailure) throw firstFailure;
 
   log(`Подписка: ссылок ${links.size} · профилей clash ${clash.length}`);
   return { links: [...links], clash, info };

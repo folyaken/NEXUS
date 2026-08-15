@@ -186,7 +186,10 @@ async function run() {
   assert.equal(source.includes("const SUBSCRIPTION_USER_AGENT = 'v2rayN/6.60'"), true, 'the provider receives one stable supported client identity');
   assert.equal(source.includes('candidateUrls('), false, 'subscription URLs must not be sprayed through query/path variants');
   assert.equal(source.match(/const SUBSCRIPTION_USER_AGENT/g)?.length, 1, 'subscription import keeps one client identity and does not spray retries');
-  assert.match(source, /const response = await downloadOnce\(initialTarget\.toString\(\), SUBSCRIPTION_USER_AGENT\)/);
+  // Первый запрос по-прежнему идёт ровно по указанному адресу и с одним именем
+  // клиента. Обёртка в try добавлена лишь затем, чтобы сетевая ошибка не
+  // обрывала остальные способы получения конфигурации.
+  assert.match(source, /response = await downloadOnce\(initialTarget\.toString\(\), SUBSCRIPTION_USER_AGENT\)/);
   assert.match(source, /if \(response\.status < 200 \|\| response\.status >= 300\)[\s\S]*throw new SubscriptionTransportError/);
   assert.match(source, /const address = addresses\[0\]/, 'a failed URL is not retried against every DNS address');
   assert.doesNotMatch(source, /for \(const address of addresses\)/, 'one failed provider attempt must stay one attempt');
