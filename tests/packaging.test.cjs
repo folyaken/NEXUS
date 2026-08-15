@@ -83,12 +83,23 @@ assert.ok(!('signExecutable' in build.win),
 // В архиве лежат символические ссылки для macOS, и Windows без прав на их
 // создание выдаёт поток ошибок «Cannot create symbolic link … libcrypto.dylib»
 // на каждый .exe. Собственная функция подписи убирает загрузку пакета целиком.
-assert.equal(build.win.sign, 'build/no-sign.cjs', 'нужна заглушка подписи, пока нет сертификата');
+// Путь обязан начинаться с ./ — иначе require.resolve() принимает его за имя
+// пакета, не находит, и electron-builder молча идёт обычным путём: качает
+// winCodeSign и падает на символических ссылках macOS. Установщик при этом
+// не создаётся, а в release остаётся только win-unpacked.
+assert.match(build.win.sign, /^\.\//, 'путь к заглушке должен быть относительным (./)');
 assert.ok(fs.existsSync(path.join(root, 'build', 'no-sign.cjs')), 'файл заглушки должен существовать');
 assert.ok(build.files.includes('build/no-sign.cjs'), 'заглушка обязана попадать в сборку');
 
 const noSign = require(path.join(root, 'build', 'no-sign.cjs'));
 assert.equal(typeof noSign.default, 'function', 'electron-builder ожидает экспорт default');
+
+// Проверка тем же кодом, которым пользуется сборщик: если заглушка не
+// загрузится, подпись пойдёт через signtool со всеми последствиями.
+const { resolveFunction } = require(path.join(root, 'node_modules', 'app-builder-lib', 'out', 'util', 'resolve.js'));
+void resolveFunction('commonjs', build.win.sign, 'sign').then((resolved) => {
+  assert.equal(typeof resolved, 'function', 'electron-builder должен загрузить заглушку подписи');
+});
 
 // Ключевое: заглушка отключает только подпись. Правка ресурсов обязана
 // остаться — именно она записывает requestedExecutionLevel в манифест, без
