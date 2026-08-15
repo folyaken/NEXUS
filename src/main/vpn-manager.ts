@@ -16,6 +16,7 @@ import { inboundListenAddress, lanEndpoints } from './lan-share';
 import { clearSystemProxy, setSystemProxy } from './system-proxy';
 import { createVpnDiagnostics } from './vpn-diagnostics';
 import type { ModuleLog, VpnAppRoutingMode, VpnDiagnosticCheck, VpnDiagnostics, VpnLatencySample, VpnProfile, VpnRuntime, VpnSplitApp, VpnStatus, VpnSubscriptionInfo } from './types';
+import { describeVpnFailure, parseVpnLogLine, stripAnsi } from './vpn-log';
 import { waitForExit } from './process-watch';
 import { commitAtomicFileTransaction, recoverAtomicFileTransactions } from './atomic-files';
 
@@ -796,14 +797,28 @@ export class VpnManager extends EventEmitter {
     child.stdout?.on('data', (chunk: Buffer) => {
       const text = chunk.toString().trim();
       if (!text) return;
-      logStream.write(`[${new Date().toISOString()}] ${text}\n`);
+      // В файл журнала пишется исходная строка без раскраски: она нужна для
+      // разбора инцидентов, а ANSI-коды делают файл нечитаемым.
+      logStream.write(`[${new Date().toISOString()}] ${stripAnsi(text)}\n`);
     });
     child.stderr?.on('data', (chunk: Buffer) => {
       const text = chunk.toString().trim();
       if (!text) return;
-      lastErr = text.slice(-300);
-      logStream.write(`[${new Date().toISOString()}] ${text}\n`);
-      if (/failed|error|fatal|invalid/i.test(text)) this.emitLog('error', text.slice(0, 240));
+      logStream.write(`[${new Date().toISOString()}] ${stripAnsi(text)}\n`);
+
+      for (const rawLine of text.split(/\r?\n/)) {
+        const parsed = parseVpnLogLine(rawLine);
+        if (!parsed) continue;
+        // Причиной падения считается только настоящий отказ: обрыв соединения
+        // произошёл бы и при исправном туннеле.
+        if (parsed.fatal) lastErr = stripAnsi(rawLine).slice(-300);
+        // Обрывы отдельных соединений остаются в файле, но не всплывают в
+        // интерфейсе: при обычном сёрфинге их десятки в минуту.
+        if (parsed.noise) continue;
+        if (parsed.level === 'error' || parsed.level === 'warn') {
+          this.emitLog(parsed.level, parsed.message);
+        }
+      }
     });
     child.once('error', (error) => {
       logStream.end();
@@ -821,14 +836,19 @@ export class VpnManager extends EventEmitter {
       void fs.rm(this.generatedPath(), { force: true });
       if (this.status === 'connecting' || this.status === 'connected') {
         const failed = code !== 0 && code !== null;
-        this.setState(failed ? 'error' : 'disconnected', failed ? id : null, null, failed ? (lastErr || `Xray завершился с кодом ${code}`) : undefined);
+        const reason = failed ? (lastErr ? describeVpnFailure(lastErr, mode) : `VPN-ядро завершилось с кодом ${code}`) : undefined;
+        this.setState(failed ? 'error' : 'disconnected', failed ? id : null, null, reason);
       }
     });
 
     await new Promise((resolve) => setTimeout(resolve, 1200));
     if (!this.child) {
+      // Подсказка про администратора уже входит в describeVpnFailure, поэтому
+      // добавляется только когда конкретная причина неизвестна.
+      if (this.error) throw new Error(this.error);
+      if (lastErr) throw new Error(describeVpnFailure(lastErr, mode));
       const hint = mode === 'tun' ? ' Для TUN часто требуется запуск NEXUS от имени администратора. Попробуйте режим PROXY.' : '';
-      throw new Error((this.error || lastErr || 'Xray не запустился') + hint);
+      throw new Error('Не удалось запустить VPN-ядро.' + hint);
     }
     if (mode === 'proxy') {
       try {
