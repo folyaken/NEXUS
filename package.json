@@ -1,7 +1,7 @@
 {
   "name": "nexus-network-tools",
   "version": "1.1.1",
-  "patchLevel": 33,
+  "patchLevel": 34,
   "private": true,
   "description": "NEXUS — локальная Electron-обёртка для сетевых инструментов",
   "main": "dist-electron/main.js",
@@ -82,13 +82,16 @@
         }
       ],
       "icon": "assets/nexus.ico",
-      "signAndEditExecutable": false
+      "requestedExecutionLevel": "requireAdministrator",
+      "signExecutable": false
     },
     "nsis": {
       "oneClick": false,
       "allowToChangeInstallationDirectory": true,
       "createDesktopShortcut": true,
-      "createStartMenuShortcut": true
+      "createStartMenuShortcut": true,
+      "perMachine": true,
+      "allowElevation": true
     },
     "linux": {
       "target": "AppImage",

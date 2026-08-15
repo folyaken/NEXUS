@@ -53,7 +53,9 @@ assert.equal(moduleNeedsElevation('dns-guard'), false);
 
 // Сообщения обязаны объяснять действие, а не только факт отказа.
 assert.match(elevationMessage('Обход DPI'), /Обход DPI/);
-assert.match(elevationMessage('Обход DPI'), /от имени администратора/i);
+// Сообщение должно подсказывать действие, а не только называть проблему.
+assert.match(elevationMessage('Обход DPI'), /ярлык/i);
+assert.match(elevationMessage('Обход DPI'), /прав администратора/i);
 assert.match(tunElevationMessage(), /TUN/);
 assert.match(tunElevationMessage(), /PROXY/, 'у пользователя должен быть рабочий обходной путь');
 
@@ -61,8 +63,26 @@ assert.match(tunElevationMessage(), /PROXY/, 'у пользователя дол
 assert.match(managerSource, /if \(moduleNeedsElevation\(id\) && !\(await isElevated\(\)\)\)/);
 assert.match(vpnSource, /if \(mode === 'tun' && !\(await isElevated\(\)\)\)/);
 
-// Постоянное требование администратора ломает автозапуск и раздражает UAC.
-assert.notEqual(build.win.requestedExecutionLevel, 'requireAdministrator',
-  'приложение не должно требовать администратора при каждом запуске');
+// Zapret и TUN без администратора не работают вообще, поэтому приложение
+// запрашивает повышение через манифест exe: заставлять человека каждый раз
+// перезапускать программу вручную бессмысленно.
+assert.equal(build.win.requestedExecutionLevel, 'requireAdministrator',
+  'приложение должно запрашивать права само');
+
+// signAndEditExecutable: false отключает resedit целиком — вместе с ним
+// перестаёт применяться и requestedExecutionLevel. Запрос прав молча не попал
+// бы в манифест. Для пропуска только подписи существует signExecutable.
+assert.notEqual(build.win.signAndEditExecutable, false,
+  'этот флаг отключает правку манифеста и обнуляет запрос прав');
+assert.equal(build.win.signExecutable, false,
+  'подпись пропускается отдельным флагом, правка ресурсов сохраняется');
+
+// Установка для всех пользователей: программа и так ставится с повышением.
+assert.equal(build.nsis.perMachine, true);
+assert.equal(build.nsis.allowElevation, true);
+
+// Страховка на случай portable-сборки и запуска из среды разработки:
+// там манифест может не примениться, и причину отказа нужно объяснить.
+assert.match(managerSource, /moduleNeedsElevation\(id\) && !\(await isElevated\(\)\)/);
 
 console.log('Packaging and elevation checks passed.');
