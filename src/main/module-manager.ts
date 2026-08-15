@@ -7,6 +7,7 @@ import net from 'node:net';
 import os from 'node:os';
 import path from 'node:path';
 import type { ModuleHealthcheck, ModuleLog, ModuleManifest, ModuleStatus } from './types';
+import { buildDpiExtraArgs, normalizeDpiExpertOptions } from './dpi-arguments';
 import { readDpiHostlist, syncDpiHostlistInto } from './dpi-hostlist';
 import { tgWsProxyAssetCandidates } from './platform-assets';
 import { listPidsByImage, waitForExit } from './process-watch';
@@ -148,6 +149,35 @@ export class ModuleManager extends EventEmitter {
     return module;
   }
 
+  /**
+   * Сохраняет экспертные аргументы модуля и, если он работал, перезапускает его.
+   *
+   * Аргументы читаются только при старте процесса, поэтому без перезапуска
+   * изменения выглядели бы применёнными, но фактически не действовали.
+   */
+  async setExtraArgs(id: string, options: unknown): Promise<ModuleManifest> {
+    const module = this.modules.get(id);
+    if (!module) throw new Error('Модуль не найден');
+    if (this.isUpdating(id)) throw new Error('Дождитесь завершения обновления модуля');
+
+    const extraArgs = buildDpiExtraArgs(normalizeDpiExpertOptions(options));
+    const wasRunning = this.isRunning(id);
+    if (wasRunning) await this.stop(id, { persistEnabled: true });
+
+    module.extra_args = extraArgs;
+    await this.persistModule(module);
+    this.emit('changed', this.list());
+    this.emitLog(id, 'info', extraArgs.length
+      ? `Экспертные параметры сохранены: ${extraArgs.join(' ')}`
+      : 'Экспертные параметры очищены');
+
+    if (wasRunning) {
+      await this.start(id);
+      this.emitLog(id, 'info', 'Модуль перезапущен с новыми параметрами');
+    }
+    return this.modules.get(id) ?? module;
+  }
+
   async start(id: string): Promise<ModuleManifest> {
     const module = this.modules.get(id);
     if (!module) throw new Error('Модуль не найден');
@@ -198,7 +228,7 @@ export class ModuleManager extends EventEmitter {
         throw new Error(message);
       }
       if (id === 'zapret') await this.applyCustomDpiHosts(module, batchFile);
-      const runnerFile = await this.createBatchRunner(id, batchFile);
+      const runnerFile = await this.createBatchRunner(id, batchFile, module.extra_args);
       executable = process.env.ComSpec ?? 'cmd.exe';
       args = ['/d', '/c', 'call', runnerFile];
       cwd = module.working_dir ? this.resolvePath(module.working_dir) : path.dirname(batchFile);
@@ -566,6 +596,9 @@ export class ModuleManager extends EventEmitter {
       healthcheck,
       upstream_log_file: isTgWsProxy ? './bin/TgWsProxy_data/proxy.log' : parsed.upstream_log_file,
       installed_version: parsed.installed_version,
+      extra_args: Array.isArray(parsed.extra_args)
+        ? parsed.extra_args.filter((value): value is string => typeof value === 'string')
+        : undefined,
       development: Boolean(parsed.development ?? (parsed.id === 'dns-guard' || parsed.id === 'exitlag-sdk')),
     };
   }
@@ -631,6 +664,7 @@ export class ModuleManager extends EventEmitter {
           healthcheck: module.healthcheck,
           upstream_log_file: module.upstream_log_file,
           installed_version: module.installed_version,
+          extra_args: module.extra_args,
           development: module.development,
         };
         await fs.writeFile(filePath, `${JSON.stringify(persisted, null, 2)}\n`, 'utf8');
@@ -676,11 +710,18 @@ export class ModuleManager extends EventEmitter {
     }
   }
 
-  private async createBatchRunner(id: string, batchFile: string): Promise<string> {
+  private async createBatchRunner(id: string, batchFile: string, extraArgs: string[] = []): Promise<string> {
     const cacheDir = path.join(this.modulesDir, '.cache');
     await fs.mkdir(cacheDir, { recursive: true });
     const runnerFile = path.join(cacheDir, `nexus-${id}-runner.cmd`);
-    const content = ['@echo off', 'chcp 65001 >nul', `call "${batchFile}"`, ''].join('\r\n');
+    // Аргументы уже прошли строгую проверку в dpi-arguments, поэтому метасимволов
+    // в них нет. Повторная фильтрация оставлена как страховка: файл исполняется
+    // интерпретатором cmd, где любая лазейка означала бы запуск чужой команды.
+    const safeArgs = extraArgs
+      .filter((value) => typeof value === 'string' && /^--[a-z0-9][a-z0-9-]*(?:=[A-Za-z0-9_,.:+/@-]*)?$/i.test(value))
+      .slice(0, 32);
+    const suffix = safeArgs.length ? ` ${safeArgs.join(' ')}` : '';
+    const content = ['@echo off', 'chcp 65001 >nul', `call "${batchFile}"${suffix}`, ''].join('\r\n');
     await fs.writeFile(runnerFile, content, 'utf8');
     return runnerFile;
   }

@@ -37,7 +37,29 @@ export interface ModuleManifest {
   healthcheck?: ModuleHealthcheck;
   upstream_log_file?: string;
   installed_version?: string;
+  /** Дополнительные аргументы командной строки, заданные пользователем. */
+  extra_args?: string[];
 }
+
+/** Экспертные параметры Zapret, редактируемые в настройках модуля. */
+export interface DpiExpertOptions {
+  hostcase: boolean;
+  hostdot: boolean;
+  /** Размер фрагмента `--wssize`; null — параметр не передаётся. */
+  wssize: number | null;
+  /** Число повторов `--dpi-desync-repeats`; null — параметр не передаётся. */
+  desyncRepeats: number | null;
+  /** Произвольная строка аргументов, введённая вручную. */
+  custom: string;
+}
+
+export const DEFAULT_DPI_EXPERT_OPTIONS: DpiExpertOptions = {
+  hostcase: false,
+  hostdot: false,
+  wssize: null,
+  desyncRepeats: null,
+  custom: '',
+};
 
 export interface ModuleLog {
   id: string;

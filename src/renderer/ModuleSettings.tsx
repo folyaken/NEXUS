@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import type { ModuleManifest } from '../main/types';
+import { readDpiExpertOptions } from '../main/dpi-arguments';
+import type { DpiExpertOptions, ModuleManifest } from '../main/types';
 
 /**
  * Панель настроек одного модуля.
@@ -136,6 +137,145 @@ function DpiHostlistSection({ onToast }: { onToast: (message: string) => void })
   </section>;
 }
 
+/** Значение по умолчанию, если релиз содержит стандартный набор профилей. */
+const DEFAULT_STRATEGY = 'general (ALT10)';
+
+function DpiExpertSection({ module, onToast }: { module: ModuleManifest; onToast: (message: string) => void }) {
+  const saved = useMemo(() => readDpiExpertOptions(module.extra_args), [module.extra_args]);
+  const [open, setOpen] = useState(false);
+  const [options, setOptions] = useState<DpiExpertOptions>(saved);
+  const [busy, setBusy] = useState(false);
+
+  // Сохранённые значения — источник истины: после перезапуска модуля форма
+  // должна показывать то, что реально записано в манифест.
+  useEffect(() => setOptions(saved), [saved]);
+
+  const dirty = JSON.stringify(options) !== JSON.stringify(saved);
+  const isRunning = module.status === 'running' || module.status === 'starting';
+
+  const patch = (next: Partial<DpiExpertOptions>) => setOptions((current) => ({ ...current, ...next }));
+
+  const numberValue = (value: number | null) => (value === null ? '' : String(value));
+  const parseNumber = (raw: string): number | null => {
+    const trimmed = raw.trim();
+    if (!trimmed) return null;
+    const parsed = Number(trimmed);
+    return Number.isFinite(parsed) ? Math.trunc(parsed) : null;
+  };
+
+  const save = async () => {
+    if (busy) return;
+    setBusy(true);
+    try {
+      await window.nexus?.setModuleExtraArgs(module.id, options);
+      onToast(isRunning ? 'Параметры сохранены, модуль перезапущен' : 'Параметры сохранены');
+    } catch (error) {
+      onToast(cleanError(error));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const reset = () => setOptions(saved);
+
+  return <section className="module-settings-card expert-card">
+    <button
+      type="button"
+      className={`expert-toggle ${open ? 'is-open' : ''}`}
+      aria-expanded={open}
+      onClick={() => setOpen((value) => !value)}
+    >
+      <span className="expert-chevron" aria-hidden="true">
+        <svg viewBox="0 0 20 20"><path d="m7.5 5.5 5 4.5-5 4.5" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" /></svg>
+      </span>
+      <span className="expert-toggle-copy">
+        <strong>Экспертные параметры</strong>
+        <small>Тонкая настройка обхода для опытных пользователей</small>
+      </span>
+      {saved.hostcase || saved.hostdot || saved.wssize !== null || saved.desyncRepeats !== null || saved.custom
+        ? <span className="expert-active-badge">включены</span>
+        : null}
+    </button>
+
+    {open && <div className="expert-body">
+      <div className="expert-warning">
+        <span aria-hidden="true">!</span>
+        <p>Изменяйте только если уверены. Неправильные параметры могут нарушить работу.</p>
+      </div>
+
+      <label className="expert-check">
+        <input type="checkbox" checked={options.hostcase} onChange={(event) => patch({ hostcase: event.target.checked })} />
+        <span><strong>Включить hostcase</strong><small>--hostcase</small></span>
+      </label>
+
+      <label className="expert-check">
+        <input type="checkbox" checked={options.hostdot} onChange={(event) => patch({ hostdot: event.target.checked })} />
+        <span><strong>Включить hostdot</strong><small>--hostdot</small></span>
+      </label>
+
+      <label className="expert-check">
+        <input
+          type="checkbox"
+          checked={options.wssize !== null}
+          onChange={(event) => patch({ wssize: event.target.checked ? 4 : null })}
+        />
+        <span><strong>Размер фрагмента</strong><small>--wssize</small></span>
+        <input
+          type="number"
+          className="expert-number"
+          min={1}
+          max={65535}
+          disabled={options.wssize === null}
+          value={numberValue(options.wssize)}
+          aria-label="Размер фрагмента"
+          onChange={(event) => patch({ wssize: parseNumber(event.target.value) })}
+        />
+      </label>
+
+      <label className="expert-check">
+        <input
+          type="checkbox"
+          checked={options.desyncRepeats !== null}
+          onChange={(event) => patch({ desyncRepeats: event.target.checked ? 6 : null })}
+        />
+        <span><strong>Повторы</strong><small>--dpi-desync-repeats</small></span>
+        <input
+          type="number"
+          className="expert-number"
+          min={1}
+          max={50}
+          disabled={options.desyncRepeats === null}
+          value={numberValue(options.desyncRepeats)}
+          aria-label="Число повторов"
+          onChange={(event) => patch({ desyncRepeats: parseNumber(event.target.value) })}
+        />
+      </label>
+
+      <div className="expert-custom">
+        <label htmlFor="dpi-custom-args">Дополнительные аргументы</label>
+        <input
+          id="dpi-custom-args"
+          type="text"
+          spellCheck={false}
+          autoComplete="off"
+          placeholder="--hostcase --wssize=4"
+          value={options.custom}
+          onChange={(event) => patch({ custom: event.target.value })}
+        />
+        <p className="dpi-host-hint">Через пробел, каждый начинается с двух дефисов. Списки сайтов и порты NEXUS задаёт сам.</p>
+      </div>
+
+      <div className="expert-actions">
+        <button type="button" className="primary-button small" disabled={!dirty || busy} onClick={() => void save()}>
+          <b>{busy ? 'Сохранение…' : 'Сохранить'}</b>
+        </button>
+        <button type="button" className="quiet-button" disabled={!dirty || busy} onClick={reset}>Отменить</button>
+        {isRunning && <span className="expert-restart-note">Модуль перезапустится автоматически</span>}
+      </div>
+    </div>}
+  </section>;
+}
+
 export function ModuleSettings({ module, onClose, onToast, onStrategyChange }: {
   module: ModuleManifest;
   onClose: () => void;
@@ -144,6 +284,9 @@ export function ModuleSettings({ module, onClose, onToast, onStrategyChange }: {
 }) {
   const strategies = Object.keys(module.strategies ?? {});
   const isRunning = module.status === 'running' || module.status === 'starting';
+  const activeStrategy = module.strategy && strategies.includes(module.strategy)
+    ? module.strategy
+    : strategies.includes(DEFAULT_STRATEGY) ? DEFAULT_STRATEGY : strategies[0] ?? '';
 
   return <section className="page-section module-settings-page">
     <div className="page-heading">
@@ -166,24 +309,26 @@ export function ModuleSettings({ module, onClose, onToast, onStrategyChange }: {
       <div className="module-settings-card-head">
         <div>
           <h3>Профиль обхода</h3>
-          <p>Если какой-то сайт не открывается, попробуйте другой профиль.</p>
+          <p>Если какой-то сайт не открывается, попробуйте другой профиль. По умолчанию используется {DEFAULT_STRATEGY}.</p>
         </div>
+        <span className="module-settings-count">{strategies.length}</span>
       </div>
-      <div className="module-settings-strategies" role="radiogroup" aria-label="Профиль обхода">
-        {strategies.map((strategy) => <button
-          key={strategy}
-          type="button"
-          role="radio"
-          aria-checked={module.strategy === strategy}
-          className={`module-strategy-option ${module.strategy === strategy ? 'is-active' : ''}`}
+      <div className="strategy-select-row">
+        <select
+          aria-label="Профиль обхода"
+          value={activeStrategy}
           disabled={isRunning}
-          onClick={() => onStrategyChange(module, strategy)}
+          onChange={(event) => onStrategyChange(module, event.target.value)}
         >
-          <i className="settings-radio" />
-          <span>{strategy}</span>
-        </button>)}
+          {strategies.map((strategy) => <option key={strategy} value={strategy}>{strategy}</option>)}
+        </select>
       </div>
+      {isRunning
+        ? <p className="dpi-host-hint">Остановите модуль, чтобы сменить профиль.</p>
+        : <p className="dpi-host-hint">Профили загружаются из релиза Zapret — доступны все, что в нём есть.</p>}
     </section>}
+
+    {module.id === 'zapret' && <DpiExpertSection module={module} onToast={onToast} />}
 
     {module.id !== 'zapret' && !strategies.length && <div className="empty-state">
       <span>⚙</span>

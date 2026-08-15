@@ -576,13 +576,14 @@ export class GithubUpdater extends EventEmitter {
       await (await Open.file(assetPath)).extract({ path: stagingRoot });
       const stagedExecutable = await this.findFile(stagingRoot, 'winws.exe');
       if (!stagedExecutable) throw new Error('В GitHub ZIP не найден winws.exe');
+      // Берутся все профили релиза, а не три захардкоженных: Zapret регулярно
+      // добавляет стратегии под конкретные сервисы, и раньше они были недоступны.
       const stagedStrategies: Record<string, string> = {};
-      for (const strategy of ['general (ALT10)', 'general (ALT11)', 'general (ALT12)']) {
-        const strategyPath = await this.findFile(stagingRoot, `${strategy}.bat`);
-        if (strategyPath) stagedStrategies[strategy] = path.relative(stagingRoot, strategyPath);
+      for (const strategyPath of await this.findBatchProfiles(stagingRoot)) {
+        stagedStrategies[path.basename(strategyPath, '.bat')] = path.relative(stagingRoot, strategyPath);
       }
       if (!Object.keys(stagedStrategies).length) {
-        throw new Error('В GitHub ZIP не найдены general (ALT10/ALT11/ALT12).bat');
+        throw new Error('В GitHub ZIP не найдены профили запуска (.bat)');
       }
 
       await fs.rm(backupRoot, { recursive: true, force: true });
@@ -698,6 +699,38 @@ export class GithubUpdater extends EventEmitter {
     }
     const current = existsSync(manifestPath) ? JSON.parse(await fs.readFile(manifestPath, 'utf8')) as Record<string, unknown> : { id, name: id, enabled: false, args: [], status: 'stopped', pid: null, category: 'other', icon: '◈', log_file: `./logs/${id}.log` };
     await fs.writeFile(manifestPath, `${JSON.stringify({ ...current, ...patch }, null, 2)}\n`, 'utf8');
+  }
+
+  /**
+   * Профили запуска Zapret, найденные в распакованном релизе.
+   *
+   * Служебные скрипты (установка службы, диагностика, остановка) отбрасываются:
+   * в списке профилей должны быть только стратегии обхода.
+   */
+  private async findBatchProfiles(root: string): Promise<string[]> {
+    const found: string[] = [];
+    const skip = /^(?:service|check_?updates?|cleanup|diagnos|install|remove|uninstall|stop|kill|update|preset|blockcheck)/i;
+
+    const walk = async (directory: string, depth: number): Promise<void> => {
+      if (depth > 4 || found.length >= 64) return;
+      let entries;
+      try {
+        entries = await fs.readdir(directory, { withFileTypes: true });
+      } catch {
+        return;
+      }
+      for (const entry of entries.sort((left, right) => left.name.localeCompare(right.name, 'ru'))) {
+        const candidate = path.join(directory, entry.name);
+        if (entry.isDirectory()) {
+          await walk(candidate, depth + 1);
+        } else if (entry.isFile() && entry.name.toLowerCase().endsWith('.bat') && !skip.test(entry.name)) {
+          found.push(candidate);
+        }
+      }
+    };
+
+    await walk(root, 0);
+    return found;
   }
 
   private async findFile(root: string, filename: string): Promise<string | null> {
