@@ -216,6 +216,23 @@ export class ModuleManager extends EventEmitter {
     return this.modules.get(id) ?? module;
   }
 
+  /**
+   * Применяет изменённый список сайтов к работающему модулю.
+   *
+   * Zapret читает домены только при старте, поэтому без перезапуска добавленный
+   * сайт продолжал бы блокироваться, хотя в списке уже значился.
+   */
+  async reapplyDpiHosts(id: string): Promise<boolean> {
+    const module = this.modules.get(id);
+    if (!module || id !== 'zapret') return false;
+    if (this.isUpdating(id) || !this.isRunning(id)) return false;
+
+    await this.stop(id, { persistEnabled: true });
+    await this.start(id);
+    this.emitLog(id, 'info', 'Модуль перезапущен — новый список сайтов активен');
+    return true;
+  }
+
   /** Фактическое состояние модуля: процесс, PID и доступность порта. */
   async checkStatus(id: string): Promise<ModuleStatusReport> {
     const module = this.modules.get(id);
@@ -812,31 +829,65 @@ export class ModuleManager extends EventEmitter {
   /**
    * Подмешивает пользовательские домены в списки, которые читает выбранный профиль.
    *
-   * Имена файлов берутся из самого .bat: у разных стратегий они отличаются, а
-   * жёстко зашитый путь молча перестал бы работать после обновления Zapret.
+   * Пути внутри .bat записаны через переменные (`%LISTS%list-general.txt`,
+   * `%~dp0lists\...`). Раньше разворачивался только `%~dp0`, поэтому имя файла
+   * оставалось буквальным `%LISTS%list-general.txt`, не находилось на диске и
+   * список молча не применялся — добавленные сайты не работали.
    */
   private async applyCustomDpiHosts(module: ModuleManifest, batchFile: string): Promise<void> {
     try {
       const { hosts } = await readDpiHostlist(this.modulesDir);
-      if (!hosts.length) return;
-
-      const script = await fs.readFile(batchFile, 'utf8');
       const releaseRoot = module.working_dir ? this.resolvePath(module.working_dir) : path.dirname(batchFile);
-      const referenced = new Set<string>();
-      for (const match of script.matchAll(/--hostlist[=\s]+"?([^"\s]+\.txt)"?/gi)) {
-        referenced.add(match[1].replace(/%~dp0/gi, '').replace(/\\/g, '/'));
+      const script = await fs.readFile(batchFile, 'utf8');
+
+      // Значения переменных берутся из самого профиля: у разных стратегий
+      // каталоги могут отличаться.
+      const variables = new Map<string, string>([['bin', 'bin/'], ['lists', 'lists/']]);
+      for (const match of script.matchAll(/set\s+"?([A-Za-z_][A-Za-z0-9_]*)=([^"\r\n]*)"?/g)) {
+        const value = match[2].replace(/%~dp0/gi, '').replace(/\\/g, '/').trim();
+        if (value) variables.set(match[1].toLowerCase(), value);
       }
-      if (!referenced.size) referenced.add('lists/list-general.txt');
+
+      const expand = (raw: string): string | null => {
+        let value = raw.replace(/%~dp0/gi, '').replace(/\\/g, '/');
+        for (let pass = 0; pass < 4 && value.includes('%'); pass += 1) {
+          value = value.replace(/%([A-Za-z_][A-Za-z0-9_]*)%/g, (whole, name: string) => variables.get(name.toLowerCase()) ?? whole);
+        }
+        // Неразвёрнутые переменные означают путь, которого мы не понимаем.
+        return value.includes('%') ? null : value.replace(/^\.\//, '');
+      };
+
+      const referenced = new Set<string>();
+      for (const match of script.matchAll(/--hostlist(?:-auto)?[=\s]+"?([^"\s^]+\.txt)"?/gi)) {
+        const resolved = expand(match[1]);
+        if (resolved) referenced.add(resolved);
+      }
+
+      // Пользовательский список Zapret создаёт специально для таких доменов и не
+      // перезаписывает его при обновлении — он и есть приоритетная цель записи.
+      const userList = [...referenced].find((item) => /list-general-user\.txt$/i.test(item));
+      const targets = userList ? [userList] : [...referenced];
+      if (!targets.length) targets.push('lists/list-general-user.txt');
 
       let updated = 0;
-      for (const relative of referenced) {
+      const applied: string[] = [];
+      for (const relative of targets) {
         const target = path.resolve(releaseRoot, relative);
         // Защита от выхода за пределы установленного релиза.
         if (!target.startsWith(path.resolve(releaseRoot))) continue;
-        if (await syncDpiHostlistInto(target, hosts)) updated += 1;
+        // Файл может отсутствовать до первого запуска service.bat — создаём сами,
+        // иначе домены снова остались бы неприменёнными.
+        if (await syncDpiHostlistInto(target, hosts, { create: true })) {
+          updated += 1;
+          applied.push(path.basename(target));
+        }
       }
+
+      if (!hosts.length) return;
       if (updated) {
-        this.emitLog(module.id, 'info', `Свои сайты добавлены в обход DPI: ${hosts.length}`);
+        this.emitLog(module.id, 'success', `Свои сайты применены (${hosts.length}): ${applied.join(', ')}`);
+      } else {
+        this.emitLog(module.id, 'warn', 'Не удалось найти список доменов Zapret — свои сайты не применены');
       }
     } catch (error) {
       const reason = error instanceof Error ? error.message : 'неизвестная ошибка';

@@ -532,13 +532,17 @@ function wireIpc(): void {
   ipcMain.handle('modules:check-status', (_event, id: string) => manager.checkStatus(String(id ?? '')));
   ipcMain.handle('modules:refresh-strategies', (_event, id: string) => manager.refreshStrategies(String(id ?? '')));
   ipcMain.handle('dpi:list-hosts', async () => (await readDpiHostlist(manager.getModulesDir())).hosts);
+  // Список читается ядром только при старте, поэтому работающий модуль
+  // перезапускается сразу: иначе добавленный сайт остался бы заблокированным.
   ipcMain.handle('dpi:add-host', async (_event, host: unknown) => {
     const result = await addDpiHost(manager.getModulesDir(), String(host ?? ''));
-    return result.hosts;
+    const restarted = await manager.reapplyDpiHosts('zapret').catch(() => false);
+    return { hosts: result.hosts, restarted };
   });
   ipcMain.handle('dpi:remove-host', async (_event, host: unknown) => {
     const result = await removeDpiHost(manager.getModulesDir(), String(host ?? ''));
-    return result.hosts;
+    const restarted = await manager.reapplyDpiHosts('zapret').catch(() => false);
+    return { hosts: result.hosts, restarted };
   });
   ipcMain.handle('logs:list', (_event, id?: string) => {
     const moduleLogs = id === 'jey2ray' ? [] : manager.getLogs(id);

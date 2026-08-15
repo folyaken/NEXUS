@@ -1,5 +1,5 @@
 import { contextBridge, ipcRenderer } from 'electron';
-import type { AboutSystemInfo, AppSettings, DpiExpertOptions, ModuleStatusReport, TgProxyOptions, ModuleLog, ModuleManifest, NexusUpdateCheck, UpdateInfo, UserProfile, VpnDiagnostics, VpnLatencySample, VpnProfile, VpnRuntime, VpnSplitApp } from './types';
+import type { AboutSystemInfo, AppSettings, DpiExpertOptions, DpiHostlistResult, ModuleStatusReport, TgProxyOptions, ModuleLog, ModuleManifest, NexusUpdateCheck, UpdateInfo, UserProfile, VpnDiagnostics, VpnLatencySample, VpnProfile, VpnRuntime, VpnSplitApp } from './types';
 
 contextBridge.exposeInMainWorld('nexus', {
   getModules: (): Promise<ModuleManifest[]> => ipcRenderer.invoke('modules:list'),
@@ -12,8 +12,8 @@ contextBridge.exposeInMainWorld('nexus', {
   checkModuleStatus: (id: string): Promise<ModuleStatusReport> => ipcRenderer.invoke('modules:check-status', id),
   refreshModuleStrategies: (id: string): Promise<ModuleManifest> => ipcRenderer.invoke('modules:refresh-strategies', id),
   getDpiHosts: (): Promise<string[]> => ipcRenderer.invoke('dpi:list-hosts'),
-  addDpiHost: (host: string): Promise<string[]> => ipcRenderer.invoke('dpi:add-host', host),
-  removeDpiHost: (host: string): Promise<string[]> => ipcRenderer.invoke('dpi:remove-host', host),
+  addDpiHost: (host: string): Promise<DpiHostlistResult> => ipcRenderer.invoke('dpi:add-host', host),
+  removeDpiHost: (host: string): Promise<DpiHostlistResult> => ipcRenderer.invoke('dpi:remove-host', host),
   getLogs: (id?: string): Promise<ModuleLog[]> => ipcRenderer.invoke('logs:list', id),
   getUpdates: (): Promise<UpdateInfo[]> => ipcRenderer.invoke('updates:list'),
   syncUpdates: (): Promise<UpdateInfo[]> => ipcRenderer.invoke('updates:sync'),

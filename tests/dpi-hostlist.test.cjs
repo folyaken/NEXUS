@@ -103,3 +103,88 @@ void (async () => {
     await fsp.rm(temp, { recursive: true, force: true });
   }
 })();
+
+// --- Регрессия: домены не применялись к реальным профилям Zapret -------------
+// Пути в .bat записаны через переменные (%LISTS%list-general.txt). Раньше
+// разворачивался только %~dp0, имя файла оставалось буквальным «%LISTS%...»,
+// не находилось на диске — и добавленные сайты молча не работали.
+void (async () => {
+  const { ModuleManager } = require(path.join(root, 'dist-electron', 'module-manager.js'));
+  const temp = await fsp.mkdtemp(path.join(os.tmpdir(), 'nexus-dpi-real-bat-'));
+  try {
+    const release = path.join(temp, 'bin', 'zapret');
+    const lists = path.join(release, 'lists');
+    await fsp.mkdir(lists, { recursive: true });
+    await fsp.writeFile(path.join(lists, 'list-general.txt'), 'youtube.com\ndiscord.com\n', 'utf8');
+
+    // Профиль в формате настоящего релиза Flowseal.
+    const batch = path.join(release, 'general (ALT10).bat');
+    await fsp.writeFile(batch, [
+      '@echo off',
+      'chcp 65001 > nul',
+      'cd /d "%~dp0"',
+      'set "BIN=%~dp0bin\\"',
+      'set "LISTS=%~dp0lists\\"',
+      'start "zapret" /min "%BIN%winws.exe" --wf-tcp=80,443 ^',
+      '--filter-tcp=80,443 --hostlist="%LISTS%list-general.txt" --hostlist="%LISTS%list-general-user.txt" --hostlist-exclude="%LISTS%list-exclude.txt"',
+      '',
+    ].join('\r\n'), 'utf8');
+
+    await fsp.writeFile(path.join(temp, 'zapret.module.json'), JSON.stringify({
+      id: 'zapret',
+      name: 'Обход DPI',
+      description: 'Открывает YouTube, Discord и другие сайты без VPN.',
+      enabled: false,
+      executable: './bin/zapret/bin/winws.exe',
+      working_dir: './bin/zapret',
+      launch_mode: 'batch',
+      strategy: 'general (ALT10)',
+      strategies: { 'general (ALT10)': './bin/zapret/general (ALT10).bat' },
+      args: [],
+      status: 'stopped',
+      category: 'dpi',
+      icon: 'S',
+      pid: null,
+      log_file: './logs/zapret.log',
+    }, null, 2));
+
+    const manager = new ModuleManager(temp);
+    manager.setProcessScanner(async () => []);
+    await manager.init();
+
+    await addDpiHost(temp, 'twitter.com');
+    await addDpiHost(temp, 'soundcloud.com');
+
+    const { hosts } = await readDpiHostlist(temp);
+    await manager.applyCustomDpiHosts(manager.list().find((item) => item.id === 'zapret'), batch);
+
+    // Домены обязаны попасть в пользовательский список, который Zapret читает
+    // наравне с основным и не затирает при обновлении.
+    const userListPath = path.join(lists, 'list-general-user.txt');
+    assert.equal(fs.existsSync(userListPath), true, 'пользовательский список должен создаваться');
+    const userList = await fsp.readFile(userListPath, 'utf8');
+    assert.match(userList, /twitter\.com/);
+    assert.match(userList, /soundcloud\.com/);
+
+    // Штатный список релиза остаётся нетронутым.
+    const general = await fsp.readFile(path.join(lists, 'list-general.txt'), 'utf8');
+    assert.match(general, /youtube\.com/);
+    assert.doesNotMatch(general, /twitter\.com/, 'домены пишутся только в пользовательский файл');
+
+    // Ни один путь не должен остаться неразвёрнутым.
+    for (const name of await fsp.readdir(lists)) {
+      assert.doesNotMatch(name, /%/, `неразвёрнутая переменная в имени файла: ${name}`);
+    }
+    assert.equal(fs.existsSync(path.join(release, '%LISTS%list-general.txt')), false);
+
+    // Повторный запуск не плодит дубликаты.
+    await manager.applyCustomDpiHosts(manager.list().find((item) => item.id === 'zapret'), batch);
+    const twice = await fsp.readFile(userListPath, 'utf8');
+    assert.equal(twice.match(/twitter\.com/g).length, 1, 'домен не должен дублироваться при перезапуске');
+    assert.deepEqual(hosts, ['twitter.com', 'soundcloud.com']);
+
+    console.log('Zapret real-profile hostlist checks passed.');
+  } finally {
+    await fsp.rm(temp, { recursive: true, force: true });
+  }
+})();

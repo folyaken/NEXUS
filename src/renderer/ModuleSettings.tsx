@@ -55,10 +55,12 @@ function DpiHostlistSection({ onToast }: { onToast: (message: string) => void })
     setBusy(true);
     try {
       const next = await window.nexus?.addDpiHost(value);
-      if (next) setHosts(next);
+      if (next) setHosts(next.hosts);
       setDraft('');
       inputRef.current?.focus();
-      onToast(`${normalized} добавлен в обход DPI`);
+      onToast(next?.restarted
+        ? `${normalized} добавлен · модуль перезапущен, сайт уже работает`
+        : `${normalized} добавлен в обход DPI`);
     } catch (error) {
       onToast(cleanError(error));
     } finally {
@@ -71,8 +73,8 @@ function DpiHostlistSection({ onToast }: { onToast: (message: string) => void })
     setBusy(true);
     try {
       const next = await window.nexus?.removeDpiHost(host);
-      if (next) setHosts(next);
-      onToast(`${host} удалён из списка`);
+      if (next) setHosts(next.hosts);
+      onToast(next?.restarted ? `${host} удалён · модуль перезапущен` : `${host} удалён из списка`);
     } catch (error) {
       onToast(cleanError(error));
     } finally {
@@ -131,7 +133,7 @@ function DpiHostlistSection({ onToast }: { onToast: (message: string) => void })
           >×</button>
         </li>)}
       </ul>
-      <p className="dpi-host-note">Изменения применяются при следующем запуске модуля. Если он уже работает — выключите и включите его снова.</p>
+      <p className="dpi-host-note">Если модуль запущен, он перезапускается автоматически — сайт начинает работать сразу.</p>
     </> : <div className="dpi-host-empty">
       <strong>Список пуст</strong>
       <p>Добавьте первый сайт, например instagram.com.</p>

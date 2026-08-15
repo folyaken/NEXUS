@@ -136,12 +136,25 @@ const BLOCK_END = '# --- NEXUS: конец пользовательского с
  * Zapret затирает файл, но источник истины лежит в `configs/dpi`, поэтому блок
  * восстанавливается автоматически.
  */
-export async function syncDpiHostlistInto(targetFile: string, hosts: string[]): Promise<boolean> {
-  if (!existsSync(targetFile)) return false;
+export async function syncDpiHostlistInto(
+  targetFile: string,
+  hosts: string[],
+  options: { create?: boolean } = {},
+): Promise<boolean> {
+  // `list-general-user.txt` создаётся service.bat при первом запуске. Если файл
+  // ещё не существует, его нужно создать самим — иначе домены не применятся.
+  if (!existsSync(targetFile)) {
+    if (!options.create || !hosts.length) return false;
+    try {
+      await fs.mkdir(path.dirname(targetFile), { recursive: true });
+    } catch {
+      return false;
+    }
+  }
 
   let original: string;
   try {
-    original = await fs.readFile(targetFile, 'utf8');
+    original = existsSync(targetFile) ? await fs.readFile(targetFile, 'utf8') : '';
   } catch {
     return false;
   }

@@ -1,7 +1,7 @@
 {
   "name": "nexus-network-tools",
   "version": "1.1.1",
-  "patchLevel": 27,
+  "patchLevel": 28,
   "private": true,
   "description": "NEXUS — локальная Electron-обёртка для сетевых инструментов",
   "main": "dist-electron/main.js",

@@ -53,6 +53,13 @@ export interface DpiExpertOptions {
   custom: string;
 }
 
+/** Ответ на изменение списка сайтов обхода DPI. */
+export interface DpiHostlistResult {
+  hosts: string[];
+  /** Был ли перезапущен работающий модуль, чтобы список вступил в силу. */
+  restarted: boolean;
+}
+
 /** Режим работы TG WS Proxy. */
 export type TgProxyMode = 'telegram' | 'universal';
 
