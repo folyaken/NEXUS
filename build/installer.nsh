@@ -65,21 +65,23 @@
 ; переустановке пользователь ожидает найти их на месте. Удаление предлагается
 ; отдельным вопросом, а не выполняется молча.
 !macro customUnInstall
+  ; Метки NSIS глобальны на весь скрипт, а этот макрос подставляется в уже
+  ; сгенерированный installer.nsi — метки внутри условия ломают компиляцию, и
+  ; установщик не создаётся вовсе (в release остаётся только win-unpacked).
+  ; Поэтому используется LogicLib: ответ сохраняется в переменную, переходов нет.
   ${ifNot} ${isUpdated}
     MessageBox MB_YESNO|MB_ICONQUESTION \
       "Удалить настройки NEXUS, профили VPN и список сайтов?$\r$\n$\r$\nВыберите «Нет», если планируете установить программу заново." \
-      /SD IDNO IDYES deleteUserData IDNO keepUserData
+      /SD IDNO IDYES +2
+    StrCpy $0 "keep"
 
-    deleteUserData:
+    ${if} $0 != "keep"
       SetShellVarContext current
       RMDir /r "$APPDATA\nexus-network-tools"
       RMDir /r "$LOCALAPPDATA\nexus-network-tools-updater"
       DetailPrint "Пользовательские данные удалены."
-      Goto userDataDone
-
-    keepUserData:
+    ${else}
       DetailPrint "Настройки сохранены для будущей установки."
-
-    userDataDone:
+    ${endIf}
   ${endIf}
 !macroend

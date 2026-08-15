@@ -79,3 +79,33 @@ const syncBlock = proxySource.slice(proxySource.indexOf('export function clearSy
 assert.match(syncBlock, /catch \{/, 'ошибки на аварийном пути подавляются');
 
 console.log('Uninstall cleanup checks passed.');
+
+// --- Скрипт NSIS обязан компилироваться -------------------------------------
+// Метки NSIS глобальны на весь скрипт, а customUnInstall подставляется в уже
+// сгенерированный installer.nsi. Метка или Goto внутри ${if}...${endIf} ломает
+// компиляцию: electron-builder собирает win-unpacked, но установщик .exe не
+// создаётся вовсе — и внятной ошибки при этом не показывает.
+const withoutComments = installer
+  .split(/\r?\n/)
+  .filter((line) => !line.trim().startsWith(';'))
+  .join('\n');
+
+let depth = 0;
+for (const line of withoutComments.split('\n')) {
+  const text = line.trim();
+  if (/^\$\{(?:if|ifNot|unless)\}/.test(text)) depth += 1;
+  if (/^\$\{endIf\}/i.test(text)) depth -= 1;
+  if (depth > 0) {
+    assert.doesNotMatch(text, /^[A-Za-z_][A-Za-z0-9_]*:$/, `метка внутри условия ломает компиляцию: ${text}`);
+    assert.doesNotMatch(text, /\bGoto\s+\S/, `Goto внутри условия ломает компиляцию: ${text}`);
+  }
+}
+
+// Незакрытое условие оставляет скрипт синтаксически неполным.
+const opens = (withoutComments.match(/\$\{(?:if|ifNot|unless)\}/g) || []).length;
+const closes = (withoutComments.match(/\$\{endIf\}/gi) || []).length;
+assert.equal(opens, closes, 'каждое условие должно закрываться ${endIf}');
+
+const macroOpens = (withoutComments.match(/^!macro /gm) || []).length;
+const macroCloses = (withoutComments.match(/^!macroend/gm) || []).length;
+assert.equal(macroOpens, macroCloses, 'каждый !macro должен закрываться !macroend');
