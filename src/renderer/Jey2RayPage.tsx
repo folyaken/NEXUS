@@ -1,9 +1,10 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import type { AppSettings, UpdateInfo, VpnAppRoutingMode, VpnProfile, VpnRuntime, VpnSubscriptionInfo } from '../main/types';
+import type { AppSettings, UpdateInfo, VpnAppRoutingMode, VpnProfile, VpnRuntime, VpnSplitApp, VpnSubscriptionInfo } from '../main/types';
 import { canConnect, displayName } from '../main/vpn-classify';
 import { Flag } from './Flag';
 import { ConnectionDiagnostics } from './ConnectionDiagnostics';
 import { SubscriptionManager, type SubscriptionAction } from './SubscriptionManager';
+import AppPicker from './AppPicker';
 
 function cleanError(error: unknown): string {
   const raw = error instanceof Error ? error.message : String(error);
@@ -151,6 +152,8 @@ export function Jey2RayPage({
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [settingsTab, setSettingsTab] = useState<'general' | 'applications'>('general');
   const [subscriptionsOpen, setSubscriptionsOpen] = useState(false);
+  /** Открытый выбор приложений и режим, который к ним применится. */
+  const [pickerRouting, setPickerRouting] = useState<VpnAppRoutingMode | null>(null);
   const [diagnosticsOpen, setDiagnosticsOpen] = useState(false);
   const [profiles, setProfiles] = useState<VpnProfile[]>([]);
   const [runtime, setRuntime] = useState<VpnRuntime>(EMPTY_RUNTIME);
@@ -254,7 +257,37 @@ export function Jey2RayPage({
     }
   };
 
-  const addSplitApps = async (activate: VpnAppRoutingMode = appRouting) => {
+  /** Сохраняет выбранные программы, не теряя уже добавленные. */
+  const mergeSplitApps = (picked: VpnSplitApp[], activate: VpnAppRoutingMode) => {
+    if (!picked.length) return;
+    const merged = new Map(splitApps.map((app) => [app.executable.toLocaleLowerCase('en-US'), app]));
+    for (const app of picked) merged.set(app.executable.toLocaleLowerCase('en-US'), app);
+    onSettings({
+      ...settings,
+      vpnMode: activate === 'system' ? mode : 'tun',
+      vpnAppRouting: activate,
+      vpnSplitTunnel: activate === 'include',
+      vpnSplitApps: [...merged.values()],
+    });
+  };
+
+  /** Выбор файлом через проводник — для программ, которые сейчас закрыты. */
+  const browseForApps = async (activate: VpnAppRoutingMode = appRouting) => {
+    if (!desktop) {
+      onToast('Выбор .exe работает в окне Electron (npm start)');
+      return;
+    }
+    try {
+      const picked = await window.nexus?.pickVpnApps();
+      if (!picked?.length) return;
+      setPickerRouting(null);
+      mergeSplitApps(picked, activate);
+    } catch (error) {
+      onToast(cleanError(error) || 'Не удалось выбрать приложение');
+    }
+  };
+
+  const addSplitApps = (activate: VpnAppRoutingMode = appRouting) => {
     if (routeSettingsLocked) {
       onToast('Сначала отключите VPN, затем измените список приложений');
       return;
@@ -263,21 +296,9 @@ export function Jey2RayPage({
       onToast('Выбор .exe работает в окне Electron (npm start)');
       return;
     }
-    try {
-      const picked = await window.nexus?.pickVpnApps();
-      if (!picked?.length) return;
-      const merged = new Map(splitApps.map((app) => [app.executable.toLocaleLowerCase('en-US'), app]));
-      for (const app of picked) merged.set(app.executable.toLocaleLowerCase('en-US'), app);
-      onSettings({
-        ...settings,
-        vpnMode: activate === 'system' ? mode : 'tun',
-        vpnAppRouting: activate,
-        vpnSplitTunnel: activate === 'include',
-        vpnSplitApps: [...merged.values()],
-      });
-    } catch (error) {
-      onToast(cleanError(error) || 'Не удалось выбрать приложение');
-    }
+    // Сначала предлагается список открытых программ: так нужное находится
+    // взглядом, без поиска файла по папкам.
+    setPickerRouting(activate);
   };
 
   const selectAppRouting = (next: VpnAppRoutingMode) => {
@@ -286,7 +307,7 @@ export function Jey2RayPage({
       return;
     }
     if (next !== 'system' && !splitApps.length) {
-      void addSplitApps(next);
+      addSplitApps(next);
       return;
     }
     onSettings({
@@ -682,7 +703,7 @@ export function Jey2RayPage({
         <section className="app-settings-card selected-apps-card">
           <div className="app-settings-card-head selected-apps-head">
             <div><span className="settings-step">02</span><div><h3>Выбранные приложения</h3><p>{splitApps.length ? `Добавлено: ${splitApps.length}` : 'Добавьте приложения Windows, для которых будут действовать правила выше.'}</p></div></div>
-            <button type="button" className="app-add-button" disabled={routeSettingsLocked} onClick={() => void addSplitApps(appRouting)}>
+            <button type="button" className="app-add-button" disabled={routeSettingsLocked} onClick={() => addSplitApps(appRouting)}>
               <svg viewBox="0 0 16 16" aria-hidden><path d="M8 3v10M3 8h10" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" /></svg>
               Добавить приложение
             </button>
@@ -699,11 +720,21 @@ export function Jey2RayPage({
           </div> : <div className="selected-app-empty">
             <span><svg viewBox="0 0 32 32" aria-hidden><rect x="7" y="5" width="18" height="22" rx="4" fill="none" stroke="currentColor" strokeWidth="1.5" /><path d="M12 12h8M12 17h6" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" /></svg></span>
             <strong>Приложения ещё не выбраны</strong>
-            <p>Нажмите «Добавить приложение» и выберите один или несколько файлов .exe.</p>
+            <p>Нажмите «Добавить приложение» и отметьте нужные программы из списка открытых.</p>
           </div>}
         </section>
       </>}
     </div>
+
+    {pickerRouting && <AppPicker
+      selected={splitApps}
+      onClose={() => setPickerRouting(null)}
+      onBrowse={() => void browseForApps(pickerRouting)}
+      onConfirm={(picked) => {
+        setPickerRouting(null);
+        mergeSplitApps(picked, pickerRouting);
+      }}
+    />}
   </section>;
 
   if (subscriptionsOpen) return <SubscriptionManager

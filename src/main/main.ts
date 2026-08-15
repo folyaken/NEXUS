@@ -14,6 +14,7 @@ import { AppUpdater } from './app-updater';
 import { GithubUpdater } from './github-updater';
 import { VpnManager } from './vpn-manager';
 import { normalizeVpnSplitApps, resolveVpnAppRouting } from './split-tunnel';
+import { listRunningApps } from './running-apps';
 import { DEFAULT_SETTINGS, type AboutSystemInfo, type AppSettings, type ModuleLog, type NexusUpdateCheck, type UserProfile, type VpnSplitApp, type VpnStatus } from './types';
 
 declare const __dirname: string;
@@ -756,6 +757,7 @@ function wireIpc(): void {
   ipcMain.handle('vpn:remove', (_event, id: string) => vpn.remove(String(id ?? '')));
   ipcMain.handle('vpn:remove-subscription', (_event, url: string) => vpn.removeSubscription(String(url ?? '')));
   ipcMain.handle('vpn:pick-apps', () => pickVpnApplications());
+  ipcMain.handle('vpn:running-apps', () => listRunningApps());
   ipcMain.handle('vpn:connect', (_event, id: string) => connectVpnProfile(String(id ?? '')));
   ipcMain.handle('vpn:disconnect', () => vpn.disconnect());
   ipcMain.handle('vpn:switch-mode', async (_event, requestedMode: unknown) => {

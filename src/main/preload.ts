@@ -1,5 +1,6 @@
 import { contextBridge, ipcRenderer } from 'electron';
 import type { AboutSystemInfo, AppSettings, DpiExpertOptions, DpiHostlistResult, ModuleStatusReport, TgProxyOptions, ModuleLog, ModuleManifest, NexusUpdateCheck, UpdateInfo, UserProfile, VpnDiagnostics, VpnLatencySample, VpnProfile, VpnRuntime, VpnSplitApp } from './types';
+import type { RunningApp } from './running-apps';
 
 contextBridge.exposeInMainWorld('nexus', {
   getModules: (): Promise<ModuleManifest[]> => ipcRenderer.invoke('modules:list'),
@@ -44,6 +45,7 @@ contextBridge.exposeInMainWorld('nexus', {
   removeVpn: (id: string): Promise<void> => ipcRenderer.invoke('vpn:remove', id),
   removeVpnSubscription: (url: string): Promise<void> => ipcRenderer.invoke('vpn:remove-subscription', url),
   pickVpnApps: (): Promise<VpnSplitApp[]> => ipcRenderer.invoke('vpn:pick-apps'),
+  listRunningApps: (): Promise<RunningApp[]> => ipcRenderer.invoke('vpn:running-apps'),
   connectVpn: (id: string): Promise<VpnRuntime> => ipcRenderer.invoke('vpn:connect', id),
   disconnectVpn: (): Promise<VpnRuntime> => ipcRenderer.invoke('vpn:disconnect'),
   switchVpnMode: (mode: 'proxy' | 'tun'): Promise<VpnRuntime> => ipcRenderer.invoke('vpn:switch-mode', mode),

@@ -1424,3 +1424,81 @@ kbd { padding: 3px 5px; border: 1px solid rgba(255,255,255,.1); border-radius: 5
 .appearance-graphite .about-update-badge.status-error { border-color: rgba(214,214,214,.24); background: rgba(214,214,214,.08); color: #d6d6d6; }
 .appearance-graphite .about-update-progress-bar { background: linear-gradient(90deg, #bdbdbd, #ebebeb); }
 .appearance-graphite .about-install-button.is-ready { background: linear-gradient(130deg, #d6d6d6, #ebebeb); color: #121212; }
+
+/* --- Выбор приложений для правил маршрутизации ----------------------------
+ *
+ * Список открытых программ вместо поиска .exe по папкам. Фоны сплошные и без
+ * backdrop-filter: размытые слои пропадают при захвате экрана, а окно должно
+ * оставаться видимым в записи и на скриншотах.
+ */
+.app-picker-backdrop { position: fixed; z-index: 60; inset: 0; display: grid; place-items: center; padding: 32px; background: rgba(6, 9, 16, .72); animation: app-picker-fade .16s ease; }
+@keyframes app-picker-fade { from { opacity: 0; } to { opacity: 1; } }
+
+.app-picker { display: flex; flex-direction: column; width: min(680px, 100%); max-height: min(640px, 88vh); overflow: hidden; border: 1px solid rgba(124,242,213,.16); border-radius: 20px; background: #141c2a; box-shadow: 0 30px 70px rgba(0,0,0,.5), inset 0 1px rgba(255,255,255,.05); animation: app-picker-rise .18s ease; }
+@keyframes app-picker-rise { from { transform: translateY(8px); opacity: 0; } to { transform: none; opacity: 1; } }
+
+.app-picker-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; padding: 21px 22px 16px; border-bottom: 1px solid var(--line); }
+.app-picker-head h3 { color: #eaf1fc; font-size: 16px; font-weight: 700; letter-spacing: -.02em; }
+.app-picker-head p { margin-top: 5px; color: #8c9ab0; font-size: 11px; line-height: 1.55; }
+.app-picker-close { display: grid; flex: 0 0 auto; width: 30px; height: 30px; place-items: center; border: 1px solid rgba(255,255,255,.09); border-radius: 9px; background: rgba(255,255,255,.04); color: #9aa7ba; transition: color .16s ease, background .16s ease, border-color .16s ease; }
+.app-picker-close:hover { border-color: rgba(255,120,120,.32); background: rgba(255,120,120,.1); color: #ff9a9a; }
+.app-picker-close svg { width: 14px; height: 14px; }
+
+.app-picker-search { position: relative; display: flex; align-items: center; gap: 10px; margin: 16px 22px 0; padding: 0 13px; border: 1px solid rgba(255,255,255,.1); border-radius: 11px; background: rgba(0,0,0,.22); transition: border-color .16s ease; }
+.app-picker-search:focus-within { border-color: rgba(124,242,213,.45); }
+.app-picker-search > svg { flex: 0 0 auto; width: 15px; height: 15px; color: #6d7c93; }
+.app-picker-search input { flex: 1; padding: 11px 0; border: none; outline: none; background: none; color: #eef4fd; font-size: 13px; }
+.app-picker-search input::placeholder { color: #5d6b81; }
+.app-picker-search-clear { flex: 0 0 auto; padding: 0 2px; color: #6d7c93; font-size: 17px; line-height: 1; transition: color .16s ease; }
+.app-picker-search-clear:hover { color: #eef4fd; }
+
+.app-picker-body { flex: 1; min-height: 220px; overflow-y: auto; padding: 14px 22px 4px; }
+.app-picker-body::-webkit-scrollbar { width: 8px; }
+.app-picker-body::-webkit-scrollbar-track { background: transparent; }
+.app-picker-body::-webkit-scrollbar-thumb { border: 2px solid #141c2a; border-radius: 8px; background: rgba(255,255,255,.14); }
+.app-picker-body::-webkit-scrollbar-thumb:hover { background: rgba(124,242,213,.3); }
+
+.app-picker-list { display: flex; flex-direction: column; gap: 5px; }
+.app-picker-row { display: flex; align-items: center; gap: 13px; width: 100%; padding: 10px 12px; border: 1px solid transparent; border-radius: 12px; background: rgba(255,255,255,.02); text-align: left; transition: background .14s ease, border-color .14s ease; }
+.app-picker-row:hover:not(:disabled) { border-color: rgba(255,255,255,.1); background: rgba(255,255,255,.05); }
+.app-picker-row.is-picked { border-color: rgba(124,242,213,.4); background: rgba(124,242,213,.09); }
+.app-picker-row.is-added { opacity: .45; cursor: not-allowed; }
+.app-picker-icon { display: grid; flex: 0 0 auto; width: 32px; height: 32px; place-items: center; overflow: hidden; border-radius: 9px; background: rgba(255,255,255,.05); color: #7f8da3; }
+.app-picker-icon img { width: 22px; height: 22px; object-fit: contain; }
+.app-picker-icon svg { width: 17px; height: 17px; }
+.app-picker-copy { flex: 1; min-width: 0; }
+.app-picker-copy strong { display: block; overflow: hidden; color: #eaf1fc; font-size: 13px; font-weight: 600; text-overflow: ellipsis; white-space: nowrap; }
+.app-picker-copy small { display: block; margin-top: 2px; overflow: hidden; color: #6e7d93; font-family: var(--font-data); font-size: 10px; text-overflow: ellipsis; white-space: nowrap; direction: rtl; text-align: left; }
+.app-picker-check { display: grid; flex: 0 0 auto; width: 20px; height: 20px; place-items: center; border: 1px solid rgba(255,255,255,.14); border-radius: 6px; color: transparent; transition: background .14s ease, border-color .14s ease, color .14s ease; }
+.app-picker-row.is-picked .app-picker-check { border-color: transparent; background: var(--cyan); color: #101a16; }
+.app-picker-check svg { width: 12px; height: 12px; }
+.app-picker-added { flex: 0 0 auto; color: #6e7d93; font-family: var(--font-data); font-size: 9px; letter-spacing: .06em; text-transform: uppercase; }
+
+.app-picker-state { display: flex; flex-direction: column; align-items: center; gap: 9px; padding: 46px 20px; text-align: center; }
+.app-picker-state strong { color: #d5deed; font-size: 13px; }
+.app-picker-state p { max-width: 400px; color: #7d8b9f; font-size: 11px; line-height: 1.6; }
+.app-picker-state .app-picker-secondary { margin-top: 6px; }
+.app-picker-spinner { width: 22px; height: 22px; border: 2px solid rgba(124,242,213,.2); border-top-color: var(--cyan); border-radius: 50%; animation: app-picker-spin .8s linear infinite; }
+@keyframes app-picker-spin { to { transform: rotate(360deg); } }
+
+.app-picker-foot { display: flex; align-items: center; justify-content: space-between; gap: 14px; padding: 15px 22px 18px; border-top: 1px solid var(--line); }
+.app-picker-actions { display: flex; align-items: center; gap: 9px; }
+.app-picker-secondary { display: inline-flex; align-items: center; gap: 8px; padding: 9px 14px; border: 1px solid rgba(255,255,255,.11); border-radius: 10px; background: rgba(255,255,255,.04); color: #c3cede; font-size: 12px; font-weight: 600; transition: border-color .16s ease, background .16s ease, color .16s ease; }
+.app-picker-secondary:hover { border-color: rgba(124,242,213,.32); background: rgba(124,242,213,.09); color: var(--cyan); }
+.app-picker-secondary svg { width: 15px; height: 15px; }
+.app-picker-refresh { padding: 9px 12px; border-radius: 10px; color: #8c9ab0; font-size: 12px; transition: color .16s ease; }
+.app-picker-refresh:hover { color: var(--cyan); }
+.app-picker-cancel { padding: 9px 14px; border: 1px solid rgba(255,255,255,.11); border-radius: 10px; background: rgba(255,255,255,.04); color: #c3cede; font-size: 12px; font-weight: 600; transition: border-color .16s ease, color .16s ease; }
+.app-picker-cancel:hover { border-color: rgba(255,255,255,.2); color: #eef4fd; }
+.app-picker-confirm { padding: 9px 17px; border-radius: 10px; background: linear-gradient(130deg, #83efd1, #a993ff); color: #121827; font-size: 12px; font-weight: 800; transition: opacity .16s ease; }
+.app-picker-confirm:disabled { opacity: .4; cursor: not-allowed; }
+
+/* Graphite остаётся строго монохромным: цвет допускается только у флагов. */
+.appearance-graphite .app-picker { border-color: rgba(214,214,214,.16); }
+.appearance-graphite .app-picker-search:focus-within { border-color: rgba(214,214,214,.4); }
+.appearance-graphite .app-picker-row.is-picked { border-color: rgba(214,214,214,.36); background: rgba(214,214,214,.09); }
+.appearance-graphite .app-picker-row.is-picked .app-picker-check { background: #d6d6d6; color: #121212; }
+.appearance-graphite .app-picker-body::-webkit-scrollbar-thumb:hover { background: rgba(214,214,214,.3); }
+.appearance-graphite .app-picker-secondary:hover { border-color: rgba(214,214,214,.32); background: rgba(214,214,214,.09); color: #ebebeb; }
+.appearance-graphite .app-picker-refresh:hover { color: #ebebeb; }
+.appearance-graphite .app-picker-confirm { background: linear-gradient(130deg, #d6d6d6, #ebebeb); color: #121212; }
