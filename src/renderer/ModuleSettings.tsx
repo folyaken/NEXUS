@@ -519,6 +519,12 @@ export function ModuleSettings({ module, onClose, onToast, onStrategyChange }: {
   const strategies = Object.keys(module.strategies ?? {});
   const isRunning = module.status === 'running' || module.status === 'starting';
   const [scanning, setScanning] = useState(false);
+  // null — проверка ещё идёт: предупреждение не должно мелькать до ответа.
+  const [elevated, setElevated] = useState<boolean | null>(null);
+
+  useEffect(() => {
+    void window.nexus?.isElevated().then(setElevated).catch(() => setElevated(null));
+  }, []);
 
   // Профили сохраняются в манифест при установке. У пользователей, обновивших
   // NEXUS поверх старого релиза, список пуст — тогда его нужно пересобрать.
@@ -548,6 +554,14 @@ export function ModuleSettings({ module, onClose, onToast, onStrategyChange }: {
       </div>
       <button className="quiet-button" onClick={onClose}><span>←</span> К модулям</button>
     </div>
+
+    {module.id === 'zapret' && elevated === false && <div className="module-settings-notice is-elevation">
+      <span aria-hidden="true">!</span>
+      <div>
+        <strong>Нужны права администратора</strong>
+        <p>Модуль изменяет сетевые настройки Windows. Закройте NEXUS и запустите его правой кнопкой мыши → «Запуск от имени администратора».</p>
+      </div>
+    </div>}
 
     {isRunning && <div className="module-settings-notice">
       <span aria-hidden="true">i</span>

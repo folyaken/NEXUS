@@ -8,6 +8,7 @@ import os from 'node:os';
 import path from 'node:path';
 import type { ModuleHealthcheck, ModuleLog, ModuleManifest, ModuleStatus, ModuleStatusReport } from './types';
 import { buildDpiExtraArgs, normalizeDpiExpertOptions } from './dpi-arguments';
+import { elevationMessage, isElevated, moduleNeedsElevation } from './elevation';
 import { expandDpiHosts } from './dpi-companions';
 import { buildTgProxyArgs, normalizeTgProxyOptions, readTgProxyOptions } from './tg-proxy-options';
 import { readDpiHostlist, syncDpiHostlistInto } from './dpi-hostlist';
@@ -330,6 +331,13 @@ export class ModuleManager extends EventEmitter {
     if (id === 'jey2ray') throw new Error('Jey2Ray управляется во вкладке Jey2Ray: добавьте ссылку и нажмите «Подключить».');
     if (module.development) throw new Error(`${module.name}: интеграция ещё находится в разработке`);
     if (this.isUpdating(id)) throw new Error('Дождитесь завершения обновления модуля');
+    // Проверка до запуска: иначе процесс стартует и сразу падает с невнятной
+    // ошибкой драйвера, из которой пользователю неясно, чего не хватило.
+    if (moduleNeedsElevation(id) && !(await isElevated())) {
+      const message = elevationMessage(module.name);
+      this.failModule(module, message);
+      throw new Error(message);
+    }
     if (this.isRunning(id)) return module;
 
     const existingWorker = await this.discoverWorker(module);

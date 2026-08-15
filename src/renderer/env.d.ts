@@ -12,6 +12,7 @@ declare global {
       setTgProxyOptions(id: string, options: TgProxyOptions): Promise<ModuleManifest>;
       checkModuleStatus(id: string): Promise<ModuleStatusReport>;
       refreshModuleStrategies(id: string): Promise<ModuleManifest>;
+      isElevated(): Promise<boolean>;
       getDpiHosts(): Promise<string[]>;
       addDpiHost(host: string): Promise<DpiHostlistResult>;
       removeDpiHost(host: string): Promise<DpiHostlistResult>;

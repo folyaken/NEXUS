@@ -11,6 +11,7 @@ contextBridge.exposeInMainWorld('nexus', {
   setTgProxyOptions: (id: string, options: TgProxyOptions): Promise<ModuleManifest> => ipcRenderer.invoke('modules:set-tg-options', id, options),
   checkModuleStatus: (id: string): Promise<ModuleStatusReport> => ipcRenderer.invoke('modules:check-status', id),
   refreshModuleStrategies: (id: string): Promise<ModuleManifest> => ipcRenderer.invoke('modules:refresh-strategies', id),
+  isElevated: (): Promise<boolean> => ipcRenderer.invoke('runtime:is-elevated'),
   getDpiHosts: (): Promise<string[]> => ipcRenderer.invoke('dpi:list-hosts'),
   addDpiHost: (host: string): Promise<DpiHostlistResult> => ipcRenderer.invoke('dpi:add-host', host),
   removeDpiHost: (host: string): Promise<DpiHostlistResult> => ipcRenderer.invoke('dpi:remove-host', host),

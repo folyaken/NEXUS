@@ -5,6 +5,7 @@ import { existsSync, mkdirSync, rmSync, writeFileSync } from 'node:fs';
 import { promises as fs } from 'node:fs';
 import { execFile } from 'node:child_process';
 import os from 'node:os';
+import { isElevated } from './elevation';
 import { companionCount } from './dpi-companions';
 import { addDpiHost, readDpiHostlist, removeDpiHost } from './dpi-hostlist';
 import { ModuleManager } from './module-manager';
@@ -518,7 +519,38 @@ async function resolveModulesDir(): Promise<string> {
       if (!existsSync(destination)) await fs.copyFile(path.join(bundledModulesDir, entry.name), destination);
     }
   }
+
+  await adoptBundledBinaries(userModulesDir);
   return userModulesDir;
+}
+
+/**
+ * Переносит вложенные в установщик ядра в рабочий каталог модулей.
+ *
+ * Бинарники лежат в `resources/modules/bin` — вне asar, иначе операционная
+ * система не смогла бы их запустить. Но модули работают из `userData`, и без
+ * копирования приложение считало бы, что ядро не установлено, и качало бы его
+ * заново при первом же запуске — при том что файл уже есть на диске.
+ *
+ * Копируются только отсутствующие файлы: скачанное обновление новее вложенного
+ * в установщик и не должно откатываться при каждом старте.
+ */
+async function adoptBundledBinaries(userModulesDir: string): Promise<void> {
+  const bundledBinDir = path.join(process.resourcesPath, 'modules', 'bin');
+  if (!existsSync(bundledBinDir)) return;
+
+  const userBinDir = path.join(userModulesDir, 'bin');
+  try {
+    await fs.mkdir(userBinDir, { recursive: true });
+    await fs.cp(bundledBinDir, userBinDir, {
+      recursive: true,
+      force: false,          // существующие (обновлённые) файлы не трогаем
+      errorOnExist: false,
+    });
+  } catch {
+    // Ядро останется доступным по запасному пути в resources, а при неудаче
+    // будет скачано штатным механизмом обновления. Запуск блокировать нельзя.
+  }
 }
 
 function localDeviceId(): string {
@@ -615,6 +647,7 @@ function wireIpc(): void {
   ipcMain.handle('modules:start', (_event, id: string) => manager.start(id));
   ipcMain.handle('modules:stop', (_event, id: string) => manager.stop(id));
   ipcMain.handle('modules:set-strategy', (_event, id: string, strategy: string) => manager.setStrategy(id, strategy));
+  ipcMain.handle('runtime:is-elevated', () => isElevated());
   ipcMain.handle('modules:set-extra-args', (_event, id: string, options: unknown) => manager.setExtraArgs(String(id ?? ''), options));
   ipcMain.handle('modules:set-tg-options', (_event, id: string, options: unknown) => manager.setTgProxyOptions(String(id ?? ''), options));
   ipcMain.handle('modules:check-status', (_event, id: string) => manager.checkStatus(String(id ?? '')));

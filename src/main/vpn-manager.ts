@@ -16,6 +16,7 @@ import { inboundListenAddress, lanEndpoints } from './lan-share';
 import { clearSystemProxy, setSystemProxy } from './system-proxy';
 import { createVpnDiagnostics } from './vpn-diagnostics';
 import type { ModuleLog, VpnAppRoutingMode, VpnDiagnosticCheck, VpnDiagnostics, VpnLatencySample, VpnProfile, VpnRuntime, VpnSplitApp, VpnStatus, VpnSubscriptionInfo } from './types';
+import { isElevated, tunElevationMessage } from './elevation';
 import { describeVpnFailure, parseVpnLogLine, stripAnsi } from './vpn-log';
 import { waitForExit } from './process-watch';
 import { commitAtomicFileTransaction, recoverAtomicFileTransactions } from './atomic-files';
@@ -753,6 +754,13 @@ export class VpnManager extends EventEmitter {
     if (!profile) throw new Error('Профиль не найден');
     const blocked = canConnect(profile);
     if (blocked) throw new Error(blocked);
+    // TUN поднимает виртуальный адаптер. Без прав ядро стартует и тут же
+    // падает, поэтому причина объясняется заранее, до запуска процесса.
+    if (mode === 'tun' && !(await isElevated())) {
+      const message = tunElevationMessage();
+      this.setState('error', null, null, message);
+      throw new Error(message);
+    }
     const useSingbox = profile.protocol === 'hysteria2';
     const engine = useSingbox ? this.singboxPath() : this.xrayPath();
     if (!existsSync(engine)) {

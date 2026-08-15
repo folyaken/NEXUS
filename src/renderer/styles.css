@@ -1370,3 +1370,13 @@ kbd { padding: 3px 5px; border: 1px solid rgba(255,255,255,.1); border-radius: 5
   .nx-select-list { animation: none; }
   .nx-select-caret, .module-card-inner { transition-duration: .01ms; }
 }
+
+/* Предупреждение о нехватке прав администратора */
+.module-settings-notice.is-elevation { border-color: rgba(255,113,143,.24); background: rgba(255,113,143,.07); }
+.module-settings-notice.is-elevation > span { background: rgba(255,113,143,.18); color: var(--red); font-weight: 700; }
+.module-settings-notice.is-elevation strong { color: #f3c2cc; }
+.module-settings-notice.is-elevation p { color: #c8a2ab; }
+.appearance-graphite .module-settings-notice.is-elevation { border-color: rgba(214,214,214,.2); background: rgba(214,214,214,.06); }
+.appearance-graphite .module-settings-notice.is-elevation > span { background: rgba(214,214,214,.16); color: #d6d6d6; }
+.appearance-graphite .module-settings-notice.is-elevation strong { color: #ebebeb; }
+.appearance-graphite .module-settings-notice.is-elevation p { color: #a8a8a8; }
