@@ -22,8 +22,21 @@ const PROTOCOLS = new Map<string, VpnProtocol>([
   ['hy2', 'hysteria2'],
 ]);
 
+/**
+ * Приводит имя поля к единому виду.
+ *
+ * Панели пишут одно и то же поле по-разному: `server-name`, `server_name` и
+ * `serverName`. Слитная запись — родная для конфигураций Xray и sing-box,
+ * поэтому граница слов в ней тоже превращается в дефис. Без этого поля
+ * `streamSettings` и `realitySettings` не находились, и профиль терял
+ * шифрование Reality вместе с настройками транспорта.
+ */
 function normalizedKey(value: string): string {
-  return value.trim().toLowerCase().replace(/[\s_]+/g, '-');
+  return value
+    .trim()
+    .replace(/([a-z0-9])([A-Z])/g, '$1-$2')
+    .toLowerCase()
+    .replace(/[\s_]+/g, '-');
 }
 
 function asRecord(value: unknown): Record<string, unknown> | undefined {
@@ -83,6 +96,84 @@ function bool(value: unknown): boolean {
   return /^(?:1|true|yes|on|tls|reality)$/i.test(result || '');
 }
 
+/**
+ * Приводит запись Xray JSON к привычному виду.
+ *
+ * Панели Remnawave и подобные отдают конфигурацию в формате самого ядра Xray.
+ * Там сервер описан не одним объектом, а тремя вложенными: адрес и учётные
+ * данные лежат в `settings.vnext[]` (для VLESS и VMess) либо в
+ * `settings.servers[]` (Trojan и Shadowsocks), а транспорт и шифрование — в
+ * `streamSettings`. Разбор ожидал плоскую запись, не находил адрес рядом с
+ * протоколом и возвращал ноль профилей: подписка скачивалась, но серверов в
+ * ней «не было».
+ *
+ * Здесь такая запись раскладывается в плоский набор полей — по одному на
+ * каждый сервер. Возвращается пустой список, если запись устроена иначе:
+ * тогда работает прежний разбор.
+ */
+function expandXrayOutbound(source: Record<string, unknown>): Record<string, unknown>[] {
+  const record = normalizedRecord(source);
+  const protocol = String(scalar(field(record, 'protocol')) || '').toLowerCase();
+  if (!PROTOCOLS.has(protocol)) return [];
+
+  const settings = nestedRecord(record, 'settings');
+  const endpoints = field(settings, 'vnext', 'servers');
+  if (!Array.isArray(endpoints) || !endpoints.length) return [];
+
+  const stream = nestedRecord(record, 'stream-settings');
+  const network = text(field(stream, 'network'));
+  const security = text(field(stream, 'security'));
+  const tlsSettings = nestedRecord(stream, 'tls-settings');
+  const realitySettings = nestedRecord(stream, 'reality-settings');
+  const wsSettings = nestedRecord(stream, 'ws-settings');
+  const grpcSettings = nestedRecord(stream, 'grpc-settings');
+  const httpSettings = nestedRecord(stream, 'http-settings', 'xhttp-settings', 'splithttp-settings');
+  const wsHeaders = nestedRecord(wsSettings, 'headers');
+  // Настройки безопасности приходят либо для TLS, либо для Reality.
+  const secure = realitySettings.size ? realitySettings : tlsSettings;
+
+  const flat: Record<string, unknown>[] = [];
+  for (const endpoint of endpoints.slice(0, PROFILE_PARSER_LIMITS.maxProfiles)) {
+    const server = normalizedRecord(endpoint);
+    if (!server.size) continue;
+    // У VLESS и VMess учётные данные лежат в списке пользователей, у Trojan и
+    // Shadowsocks — прямо в описании сервера.
+    const users = field(server, 'users');
+    const user = normalizedRecord(Array.isArray(users) ? users[0] : undefined);
+
+    const entry: Record<string, unknown> = {
+      protocol,
+      address: scalar(field(server, 'address')),
+      port: scalar(field(server, 'port')),
+      name: scalar(field(server, 'remarks', 'email')) ?? scalar(field(user, 'email')) ?? scalar(field(record, 'tag')),
+      id: scalar(field(user, 'id')),
+      password: scalar(field(server, 'password')) ?? scalar(field(user, 'password')),
+      method: scalar(field(server, 'method')) ?? scalar(field(user, 'method')),
+      encryption: scalar(field(user, 'encryption')),
+      flow: scalar(field(user, 'flow')),
+      alterId: scalar(field(user, 'alter-id')),
+      network,
+      security,
+      sni: scalar(field(secure, 'server-name')),
+      fingerprint: scalar(field(secure, 'fingerprint')),
+      publicKey: scalar(field(realitySettings, 'public-key')),
+      shortId: scalar(field(realitySettings, 'short-id')),
+      spiderX: scalar(field(realitySettings, 'spider-x')),
+      alpn: field(secure, 'alpn'),
+      allowInsecure: scalar(field(secure, 'allow-insecure')),
+      host: scalar(field(wsHeaders, 'host')) ?? scalar(field(httpSettings, 'host')),
+      path: scalar(field(wsSettings, 'path')) ?? scalar(field(httpSettings, 'path')),
+      serviceName: scalar(field(grpcSettings, 'service-name')),
+    };
+    for (const key of Object.keys(entry)) {
+      if (entry[key] === undefined) delete entry[key];
+    }
+    if (entry.address === undefined) continue;
+    flat.push(entry);
+  }
+  return flat;
+}
+
 function collectProfileRecords(root: unknown): Record<string, unknown>[] {
   const records: Record<string, unknown>[] = [];
   const queue: Array<{ value: unknown; depth: number }> = [{ value: root, depth: 0 }];
@@ -116,6 +207,12 @@ function collectProfileRecords(root: unknown): Record<string, unknown>[] {
     if (PROTOCOLS.has(String(scalar(field(normalized, 'type', 'protocol')) || '').toLowerCase())
       && scalar(field(normalized, 'server', 'address', 'add')) !== undefined) {
       records.push(record);
+    } else {
+      // Формат самого ядра Xray: адрес лежит во вложенном списке серверов.
+      for (const expanded of expandXrayOutbound(record)) {
+        if (records.length >= PROFILE_PARSER_LIMITS.maxProfiles) break;
+        records.push(expanded);
+      }
     }
 
     for (const [key, child] of normalized) {
