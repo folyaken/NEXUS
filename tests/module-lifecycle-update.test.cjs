@@ -14,6 +14,7 @@ const {
   windowsAssetArchitecture,
   xrayAssetCandidates,
 } = require(path.join(root, 'dist-electron', 'platform-assets.js'));
+const { buildTgProxyArgs, readTgProxyOptions } = require(path.join(root, 'dist-electron', 'tg-proxy-options.js'));
 
 assert.equal(windowsAssetArchitecture({ PROCESSOR_ARCHITECTURE: 'AMD64' }, 'x64'), 'x64');
 assert.equal(windowsAssetArchitecture({ PROCESSOR_ARCHITECTURE: 'ARM64' }, 'x64'), 'arm64', 'native ARM64 wins over an emulated x64 runtime');
@@ -27,12 +28,20 @@ assert.deepEqual(tgWsProxyAssetCandidates('win32', 'ia32'), ['TgWsProxy_windows_
 assert.deepEqual(xrayAssetCandidates('win32', 'arm64'), ['Xray-windows-arm64-v8a.zip']);
 assert.deepEqual(xrayAssetCandidates('win32', 'ia32'), ['Xray-windows-32.zip']);
 
+// Манифест в modules/ — рабочий файл: приложение записывает в него выбранные
+// пользователем порт и режим. Проверять точное содержимое нельзя, иначе включённый
+// режим «Все прокси-запросы» ломает тест на машине пользователя. Проверяется
+// структура и согласованность, а конкретные значения — на временной копии ниже.
 const tgManifest = JSON.parse(fs.readFileSync(path.join(root, 'modules', 'tg-ws-proxy.module.json'), 'utf8'));
-// Порт прокси настраивается пользователем и передаётся через --listen.
-assert.deepEqual(tgManifest.args, ['--portable', '--listen=127.0.0.1:8080']);
+const tgOptions = readTgProxyOptions(tgManifest);
+assert.ok(tgManifest.args.includes('--portable'), 'переносимый профиль обязателен');
+assert.deepEqual(tgManifest.args, buildTgProxyArgs(tgOptions), 'аргументы должны соответствовать сохранённым настройкам');
+assert.ok(tgOptions.port >= 1024 && tgOptions.port <= 65535, 'порт должен быть в допустимом диапазоне');
 assert.equal(tgManifest.working_dir, './bin');
 assert.equal(tgManifest.healthcheck.host, '127.0.0.1');
-assert.equal(tgManifest.healthcheck.port, 8080);
+// Порт проверки готовности обязан совпадать с портом запуска: иначе NEXUS
+// стучится не туда и считает удачный запуск неудачным.
+assert.equal(tgManifest.healthcheck.port, tgOptions.port, 'healthcheck должен следовать за портом');
 assert.equal(tgManifest.upstream_log_file, './bin/TgWsProxy_data/proxy.log');
 // Проверка устаревшего манифеста: ссылка на несуществующий бинарник и порт
 // 8080 из ранних сборок, где он был жёстко зашит вместо настраиваемого.
