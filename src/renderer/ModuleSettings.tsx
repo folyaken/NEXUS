@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
+import type React from 'react';
 import { readDpiExpertOptions } from '../main/dpi-arguments';
 import { readTgProxyOptions } from '../main/tg-proxy-options';
 import type { DpiExpertOptions, ModuleManifest, ModuleStatusReport, TgProxyOptions } from '../main/types';
@@ -390,6 +391,121 @@ function TgProxySection({ module, onToast }: { module: ModuleManifest; onToast: 
   </section>;
 }
 
+/**
+ * Выпадающий список профилей в стиле NEXUS.
+ *
+ * Нативный список рисуется средствами Windows и не поддаётся оформлению —
+ * поэтому список собран вручную. Клавиатура и чтение с экрана сохранены:
+ * роль listbox, стрелки, Home/End, Enter и Escape работают как в обычном select.
+ */
+function StrategySelect({ options, value, disabled, onSelect }: {
+  options: string[];
+  value: string;
+  disabled?: boolean;
+  onSelect: (value: string) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const [activeIndex, setActiveIndex] = useState(() => Math.max(0, options.indexOf(value)));
+  const rootRef = useRef<HTMLDivElement>(null);
+  const listRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!open) return undefined;
+    const closeOnOutside = (event: PointerEvent) => {
+      const target = event.target;
+      if (target instanceof Node && rootRef.current?.contains(target)) return;
+      setOpen(false);
+    };
+    document.addEventListener('pointerdown', closeOnOutside, true);
+    return () => document.removeEventListener('pointerdown', closeOnOutside, true);
+  }, [open]);
+
+  useEffect(() => {
+    if (open) setActiveIndex(Math.max(0, options.indexOf(value)));
+  }, [open, options, value]);
+
+  // Выделенный пункт удерживается в зоне видимости при навигации с клавиатуры.
+  useEffect(() => {
+    if (!open) return;
+    listRef.current?.querySelector<HTMLElement>('[data-active="true"]')?.scrollIntoView({ block: 'nearest' });
+  }, [open, activeIndex]);
+
+  const choose = (index: number) => {
+    const next = options[index];
+    if (!next) return;
+    setOpen(false);
+    if (next !== value) onSelect(next);
+  };
+
+  const onKeyDown = (event: React.KeyboardEvent<HTMLDivElement>) => {
+    if (disabled) return;
+    if (event.key === 'Escape') {
+      setOpen(false);
+      return;
+    }
+    if (!open && (event.key === 'Enter' || event.key === ' ' || event.key === 'ArrowDown' || event.key === 'ArrowUp')) {
+      event.preventDefault();
+      setOpen(true);
+      return;
+    }
+    if (!open) return;
+
+    if (event.key === 'ArrowDown') {
+      event.preventDefault();
+      setActiveIndex((current) => Math.min(options.length - 1, current + 1));
+    } else if (event.key === 'ArrowUp') {
+      event.preventDefault();
+      setActiveIndex((current) => Math.max(0, current - 1));
+    } else if (event.key === 'Home') {
+      event.preventDefault();
+      setActiveIndex(0);
+    } else if (event.key === 'End') {
+      event.preventDefault();
+      setActiveIndex(options.length - 1);
+    } else if (event.key === 'Enter' || event.key === ' ') {
+      event.preventDefault();
+      choose(activeIndex);
+    }
+  };
+
+  return <div className={`nx-select ${open ? 'is-open' : ''} ${disabled ? 'is-disabled' : ''}`} ref={rootRef} onKeyDown={onKeyDown}>
+    <button
+      type="button"
+      className="nx-select-trigger"
+      aria-haspopup="listbox"
+      aria-expanded={open}
+      aria-label="Профиль обхода"
+      disabled={disabled}
+      onClick={() => setOpen((current) => !current)}
+    >
+      <span className="nx-select-value">{value || 'Профиль не выбран'}</span>
+      <span className="nx-select-caret" aria-hidden="true">
+        <svg viewBox="0 0 20 20"><path d="m5.5 8 4.5 4.5L14.5 8" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" /></svg>
+      </span>
+    </button>
+
+    {open && <div className="nx-select-list" role="listbox" aria-label="Профиль обхода" ref={listRef} tabIndex={-1}>
+      {options.map((option, index) => {
+        const selected = option === value;
+        return <button
+          key={option}
+          type="button"
+          role="option"
+          aria-selected={selected}
+          data-active={index === activeIndex}
+          className={`nx-select-option ${selected ? 'is-selected' : ''} ${index === activeIndex ? 'is-active' : ''}`}
+          onMouseEnter={() => setActiveIndex(index)}
+          onClick={() => choose(index)}
+        >
+          <span className="nx-select-mark" aria-hidden="true" />
+          <span className="nx-select-label">{option}</span>
+          {selected && <span className="nx-select-current">активен</span>}
+        </button>;
+      })}
+    </div>}
+  </div>;
+}
+
 export function ModuleSettings({ module, onClose, onToast, onStrategyChange }: {
   module: ModuleManifest;
   onClose: () => void;
@@ -460,14 +576,12 @@ export function ModuleSettings({ module, onClose, onToast, onStrategyChange }: {
         <span className="module-settings-count">{strategies.length}</span>
       </div>
       <div className="strategy-select-row">
-        <select
-          aria-label="Профиль обхода"
+        <StrategySelect
+          options={strategies}
           value={activeStrategy}
           disabled={isRunning}
-          onChange={(event) => onStrategyChange(module, event.target.value)}
-        >
-          {strategies.map((strategy) => <option key={strategy} value={strategy}>{strategy}</option>)}
-        </select>
+          onSelect={(strategy) => onStrategyChange(module, strategy)}
+        />
       </div>
       {isRunning
         ? <p className="dpi-host-hint">Остановите модуль, чтобы сменить профиль.</p>

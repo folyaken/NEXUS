@@ -1289,3 +1289,84 @@ kbd { padding: 3px 5px; border: 1px solid rgba(255,255,255,.1); border-radius: 5
 .appearance-graphite .tg-status-report.is-warning { border-color: rgba(214,214,214,.2); background: rgba(214,214,214,.06); }
 .appearance-graphite .tg-status-report.is-ok > strong,
 .appearance-graphite .tg-status-report.is-warning > strong { color: #d6d6d6; }
+
+/* ============================================================
+   Выпадающий список профилей (замена нативного <select>)
+   ============================================================ */
+.nx-select { position: relative; }
+
+.nx-select-trigger { display: flex; align-items: center; justify-content: space-between; gap: 12px; width: 100%; padding: 13px 15px; border: 1px solid rgba(255,255,255,.08); border-radius: 13px; background: linear-gradient(150deg, #1b2434, #151c29); box-shadow: 6px 8px 18px rgba(0,0,0,.28), -4px -4px 12px rgba(255,255,255,.022), inset 0 1px rgba(255,255,255,.06); color: #e6edf9; font-family: var(--font-data); font-size: 12px; text-align: left; transition: border-color .18s ease, box-shadow .18s ease, color .18s ease; }
+.nx-select-trigger:hover:not(:disabled) { border-color: rgba(124,242,213,.28); box-shadow: 6px 8px 20px rgba(0,0,0,.3), 0 0 0 1px rgba(124,242,213,.14), inset 0 1px rgba(255,255,255,.07); }
+.nx-select-trigger:focus-visible { outline: none; border-color: rgba(124,242,213,.5); }
+.nx-select.is-open .nx-select-trigger { border-color: rgba(124,242,213,.38); box-shadow: 6px 8px 22px rgba(0,0,0,.32), 0 0 0 1px rgba(124,242,213,.2), inset 0 1px rgba(255,255,255,.07); }
+.nx-select.is-disabled .nx-select-trigger { cursor: not-allowed; opacity: .5; }
+.nx-select-value { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+/* Стрелка разворачивается вверх, когда список открыт */
+.nx-select-caret { display: grid; flex: 0 0 auto; width: 20px; height: 20px; place-items: center; color: #8f9cb0; transition: transform .26s cubic-bezier(.22,.8,.25,1), color .18s ease; }
+.nx-select-caret svg { width: 16px; height: 16px; }
+.nx-select.is-open .nx-select-caret { color: var(--cyan); transform: rotate(180deg); }
+
+.nx-select-list { position: absolute; z-index: 40; top: calc(100% + 8px); right: 0; left: 0; max-height: 288px; padding: 7px; border: 1px solid rgba(124,242,213,.16); border-radius: 14px; background: #141c29; box-shadow: 0 24px 54px rgba(0,0,0,.5), inset 0 1px rgba(255,255,255,.05); overflow-y: auto; animation: nx-select-in .17s cubic-bezier(.22,.8,.25,1); }
+@keyframes nx-select-in { from { opacity: 0; transform: translateY(-6px); } to { opacity: 1; transform: translateY(0); } }
+
+.nx-select-option { display: flex; align-items: center; gap: 10px; width: 100%; padding: 10px 12px; border-radius: 10px; background: transparent; color: #b9c5d6; font-family: var(--font-data); font-size: 12px; text-align: left; transition: background .14s ease, color .14s ease; }
+.nx-select-option + .nx-select-option { margin-top: 2px; }
+.nx-select-option.is-active { background: rgba(255,255,255,.05); color: #eaf1fc; }
+.nx-select-mark { flex: 0 0 auto; width: 6px; height: 6px; border-radius: 50%; background: rgba(255,255,255,.14); transition: background .14s ease, box-shadow .14s ease; }
+.nx-select-label { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+/* Активный профиль подсвечивается зелёным */
+.nx-select-option.is-selected { background: rgba(113,244,184,.09); color: #b9ffe2; }
+.nx-select-option.is-selected.is-active { background: rgba(113,244,184,.14); }
+.nx-select-option.is-selected .nx-select-mark { background: var(--mint); box-shadow: 0 0 9px rgba(113,244,184,.6); }
+.nx-select-current { flex: 0 0 auto; padding: 3px 8px; border-radius: 6px; background: rgba(113,244,184,.14); color: var(--mint); font-size: 9px; letter-spacing: .04em; }
+
+/* Ползунок в стиле интерфейса */
+.nx-select-list::-webkit-scrollbar { width: 10px; }
+.nx-select-list::-webkit-scrollbar-track { margin: 6px 0; border-radius: 999px; background: rgba(255,255,255,.03); }
+.nx-select-list::-webkit-scrollbar-thumb { border: 3px solid transparent; border-radius: 999px; background: rgba(124,242,213,.28); background-clip: padding-box; }
+.nx-select-list::-webkit-scrollbar-thumb:hover { background: rgba(124,242,213,.45); background-clip: padding-box; }
+
+/* Монохромная тема: акценты становятся серыми, зелёный уходит */
+.appearance-graphite .nx-select-trigger { background: linear-gradient(150deg, #1b1b1b, #141414); }
+.appearance-graphite .nx-select-trigger:hover:not(:disabled),
+.appearance-graphite .nx-select.is-open .nx-select-trigger { border-color: rgba(214,214,214,.26); box-shadow: 6px 8px 20px rgba(0,0,0,.3), 0 0 0 1px rgba(214,214,214,.14), inset 0 1px rgba(255,255,255,.05); }
+.appearance-graphite .nx-select.is-open .nx-select-caret { color: #ebebeb; }
+.appearance-graphite .nx-select-list { border-color: rgba(214,214,214,.14); background: #151515; }
+.appearance-graphite .nx-select-option.is-selected { background: rgba(214,214,214,.1); color: #ebebeb; }
+.appearance-graphite .nx-select-option.is-selected.is-active { background: rgba(214,214,214,.16); }
+.appearance-graphite .nx-select-option.is-selected .nx-select-mark { background: #d6d6d6; box-shadow: 0 0 9px rgba(214,214,214,.45); }
+.appearance-graphite .nx-select-current { background: rgba(214,214,214,.14); color: #d6d6d6; }
+.appearance-graphite .nx-select-list::-webkit-scrollbar-thumb { background: rgba(214,214,214,.26); background-clip: padding-box; }
+.appearance-graphite .nx-select-list::-webkit-scrollbar-thumb:hover { background: rgba(214,214,214,.4); background-clip: padding-box; }
+
+/* ============================================================
+   Производительность: анимации отданы композитору
+   ============================================================ */
+/* Пульсация индикаторов раньше считалась пружинами в JavaScript для каждой
+   точки. Теперь это CSS-анимация: главный поток свободен, и наведение на
+   карточки остаётся плавным. */
+.status-dot { animation: nx-dot-pulse 2.2s ease-in-out infinite; will-change: transform, opacity; }
+.status-dot.green { box-shadow: 0 0 12px rgba(113,244,184,.45); }
+.status-dot.amber { box-shadow: 0 0 12px rgba(248,199,108,.45); }
+.status-dot.red { box-shadow: 0 0 12px rgba(255,113,143,.45); }
+.status-dot.muted { background: #78849d; animation: none; }
+@keyframes nx-dot-pulse { 0%, 100% { opacity: .68; transform: scale(.9); } 50% { opacity: 1; transform: scale(1.1); } }
+
+/* Наведение на карточку: transform вместо покадровой перерисовки box-shadow. */
+.module-card-inner { transition: transform .22s cubic-bezier(.22,.8,.25,1), box-shadow .22s ease; }
+.module-card:hover .module-card-inner { transform: translateY(-4px); box-shadow: 0 26px 56px rgba(0,0,0,.32), 0 0 0 1px rgba(124,242,213,.18), inset 0 1px rgba(255,255,255,.07); }
+.appearance-graphite .module-card:hover .module-card-inner { box-shadow: 0 26px 56px rgba(0,0,0,.34), 0 0 0 1px rgba(214,214,214,.16), inset 0 1px rgba(255,255,255,.05); }
+
+/* Орбиты на главной вращаются композитором, а не пружинами в JS. */
+.orbit-a { animation: nx-orbit-a 22s linear infinite; }
+.orbit-b { animation: nx-orbit-b 31s linear infinite; }
+@keyframes nx-orbit-a { from { transform: rotate(-18deg); } to { transform: rotate(342deg); } }
+@keyframes nx-orbit-b { from { transform: rotate(24deg); } to { transform: rotate(384deg); } }
+
+@media (prefers-reduced-motion: reduce) {
+  .status-dot, .orbit-a, .orbit-b { animation: none; }
+  .nx-select-list { animation: none; }
+  .nx-select-caret, .module-card-inner { transition-duration: .01ms; }
+}

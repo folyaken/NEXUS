@@ -123,10 +123,11 @@ function WindowBar({ maximized }: { maximized: boolean }) {
   </div>;
 }
 
+// Пульсация вынесена в CSS: раньше каждая точка крутила бесконечную пружину и
+// пересобирала строку box-shadow на каждом кадре, нагружая главный поток даже в
+// покое. Композитор справляется с этим сам, без участия JavaScript.
 function StatusDot({ tone }: { tone: Tone }) {
-  const pulse = useSpring({ from: { scale: 0.9, opacity: 0.65, glow: 0.1 }, to: { scale: 1.1, opacity: 1, glow: 0.42 }, loop: { reverse: true }, config: { duration: 1100 } });
-  const color = tone === 'green' ? '#71f4b8' : tone === 'amber' ? '#f8c76c' : tone === 'red' ? '#ff718f' : '#78849d';
-  return <animated.span className={`status-dot ${tone}`} style={{ opacity: pulse.opacity, transform: pulse.scale.to((value) => `scale(${value})`), boxShadow: pulse.glow.to((value) => `0 0 ${10 + value * 16}px rgba(${tone === 'green' ? '113,244,184' : tone === 'amber' ? '248,199,108' : tone === 'red' ? '255,113,143' : '120,132,157'}, ${value})`), background: color }} />;
+  return <span className={`status-dot ${tone}`} />;
 }
 
 function Toggle({ checked, onChange, busy = false, disabled = false }: { checked: boolean; onChange: () => void; busy?: boolean; disabled?: boolean }) {
@@ -135,18 +136,16 @@ function Toggle({ checked, onChange, busy = false, disabled = false }: { checked
 }
 
 function ModuleCard({ module, index, onToggle, onStrategyChange, onOpenSettings }: { module: ModuleManifest; index: number; onToggle: (module: ModuleManifest) => void; onStrategyChange: (module: ModuleManifest, strategy: string) => void; onOpenSettings?: (module: ModuleManifest) => void }) {
-  const [hovered, setHovered] = useState(false);
   const entry = useSpring({ opacity: 1, y: 0, config: { tension: 240, friction: 24 }, delay: Math.min(index * 65, 260) });
-  const hover = useSpring({ y: hovered ? -4 : 0, shadow: hovered ? '0 26px 56px rgba(0, 0, 0, .32), 0 0 0 1px rgba(124, 242, 214, .18)' : '0 18px 45px rgba(0, 0, 0, .20), 0 0 0 1px rgba(255,255,255,.055)', config: config.gentle });
   const isBusy = module.status === 'starting' || module.status === 'stopping';
   const isRunning = module.status === 'running';
   const isDevelopment = Boolean(module.development);
   const tone = moduleTone(module);
-  return <animated.article className="module-card" onMouseEnter={() => setHovered(true)} onMouseLeave={() => setHovered(false)} style={{ opacity: entry.opacity, transform: entry.y.to((y) => `translateY(${y}px)`) }}><animated.div className="module-card-inner" style={{ transform: hover.y.to((y) => `translateY(${y}px)`), boxShadow: hover.shadow }}>
+  return <animated.article className="module-card" style={{ opacity: entry.opacity, transform: entry.y.to((y) => `translateY(${y}px)`) }}><div className="module-card-inner">
     <div className="card-head"><div className={`module-icon ${module.category}`}><span>{module.icon}</span></div><div className="card-head-copy"><div className="eyebrow-row"><span className="category-chip">{categoryNames[module.category] ?? 'OTHER'}</span><StatusDot tone={tone} /><span className={`status-copy ${tone}`}>{moduleLabel(module)}</span></div><h3>{module.name}</h3></div><div className="card-head-controls">{onOpenSettings && !isDevelopment && <button type="button" className="module-settings-button" aria-label={`Настройки: ${module.name}`} title="Настройки модуля" onClick={() => onOpenSettings(module)}><GearIcon /></button>}<Toggle checked={isRunning} busy={isBusy} disabled={isDevelopment} onChange={() => onToggle(module)} /></div></div>
     {(module.id === 'zapret' || module.strategies) && <div className="strategy-summary"><span className="strategy-summary-label">Профиль</span><b>{module.strategy ?? Object.keys(module.strategies ?? {})[0] ?? DEFAULT_ZAPRET_STRATEGY}</b>{onOpenSettings && !isDevelopment && <button type="button" className="strategy-summary-link" onClick={() => onOpenSettings(module)}>Изменить</button>}</div>}
     <p className={`module-description ${module.status === 'error' ? 'error-copy' : ''} ${isDevelopment ? 'development-copy' : ''}`}>{isDevelopment ? 'Интеграция будет добавлена в следующей версии.' : module.status === 'error' && module.error ? module.error : module.description}</p><div className="card-divider" /><div className="card-foot"><span className="module-meta"><span className="meta-dot" />{isDevelopment ? 'Скоро' : module.pid ? `PID ${module.pid}` : 'Готов к запуску'}</span><button className={`module-action ${isDevelopment ? 'is-disabled' : ''}`} disabled={isDevelopment} onClick={() => onToggle(module)}>{isDevelopment ? 'В разработке' : isRunning ? 'Остановить' : isBusy ? 'Подождите' : 'Запустить'} <span>↗</span></button></div>
-  </animated.div></animated.article>;
+  </div></animated.article>;
 }
 
 function StatCard({ label, value, note, icon, tone, index }: { label: string; value: string; note: string; icon: string; tone: string; index: number }) {
@@ -160,14 +159,13 @@ function PulsePanel({ running, total, errors }: { running: number; total: number
   return <animated.aside className="pulse-panel" style={{ opacity: spring.opacity, transform: spring.x.to((x) => `translateX(${x}px)`) }}><div className="panel-topline"><span className="mini-label">SYSTEM PULSE</span><span className="live-badge"><StatusDot tone={errors ? 'red' : running ? 'green' : 'muted'} /> {errors ? 'ALERT' : 'LIVE'}</span></div><div className="pulse-title"><div><strong>{errors ? 'Есть ошибки' : running ? 'Контур активен' : 'Контур готов'}</strong><span>{running} из {total} модулей запущено</span></div><span className="pulse-score">{progress}%</span></div><div className="pulse-chart" aria-hidden="true"><svg viewBox="0 0 330 110" preserveAspectRatio="none"><defs><linearGradient id="pulseFill" x1="0" x2="0" y1="0" y2="1"><stop offset="0" stopColor="#71f4b8" stopOpacity=".34" /><stop offset="1" stopColor="#71f4b8" stopOpacity="0" /></linearGradient></defs><path className="chart-grid" d="M0 22H330 M0 54H330 M0 86H330" /><path className="chart-fill" d="M0 78 C20 76, 23 58, 42 66 S66 94, 87 63 S111 34, 133 55 S160 78, 180 48 S204 31, 225 53 S247 80, 270 39 S300 50, 330 23 L330 110 L0 110 Z" /><path className="chart-line" d="M0 78 C20 76, 23 58, 42 66 S66 94, 87 63 S111 34, 133 55 S160 78, 180 48 S204 31, 225 53 S247 80, 270 39 S300 50, 330 23" /></svg></div><div className="pulse-foot"><span><i className="legend-line mint" /> Запущено</span><span>{errors ? `${errors} ошиб. ` : ''}{running}/{total}</span></div></animated.aside>;
 }
 
+// Орбиты вращаются средствами CSS. Две бесконечные пружины держали JavaScript
+// занятым всё время, пока открыта главная, и конкурировали с отрисовкой hover.
 function HeroVisual() {
-  const linear = (value: number) => value;
-  const orbitA = useSpring({ from: { turn: -18 }, to: { turn: 342 }, loop: true, config: { duration: 22000, easing: linear } });
-  const orbitB = useSpring({ from: { turn: 24 }, to: { turn: 384 }, loop: true, config: { duration: 31000, easing: linear } });
   return <div className="hero-visual" aria-hidden="true">
     <div className="visual-grid" />
-    <animated.div className="orbit orbit-a" style={{ transform: orbitA.turn.to((turn) => `rotate(${turn}deg)`) }}><span className="planet planet-a" /><span className="orbit-node orbit-node-a" /></animated.div>
-    <animated.div className="orbit orbit-b" style={{ transform: orbitB.turn.to((turn) => `rotate(${turn}deg)`) }}><span className="planet planet-b" /><span className="orbit-node orbit-node-b" /></animated.div>
+    <div className="orbit orbit-a"><span className="planet planet-a" /><span className="orbit-node orbit-node-a" /></div>
+    <div className="orbit orbit-b"><span className="planet planet-b" /><span className="orbit-node orbit-node-b" /></div>
     <div className="core-glow"><span className="core-ring" /><span className="core-mark"><NexusMark /></span></div>
     <div className="visual-caption"><span className="visual-live"><i /> LIVE</span><span>LOCAL / ENCRYPTED</span></div>
   </div>;
@@ -488,8 +486,14 @@ function App() {
   const settingsModule = settingsModuleId ? modules.find((item) => item.id === settingsModuleId) ?? null : null;
 
   useEffect(() => {
-    if (page !== 'modules') setSettingsModuleId(null);
+    if (page !== 'modules' && page !== 'dashboard') setSettingsModuleId(null);
   }, [page]);
+
+  // Из «Быстрого доступа» настройки открываются без захода в раздел модулей.
+  const openModuleSettings = (module: ModuleManifest) => {
+    setSettingsModuleId(module.id);
+    setPage('modules');
+  };
 
   const handleStrategyChange = async (module: ModuleManifest, strategy: string) => {
     try {
@@ -568,7 +572,7 @@ function App() {
 
     <main className="main-content"><header className="topbar"><div className="breadcrumb"><span>CONTROL CENTER</span><b>/</b><strong>{page === 'about' ? 'О программе' : navItems.find((item) => item.id === page)?.label}</strong></div><div className="top-actions"><button className={`logs-shortcut ${page === 'logs' ? 'is-active' : ''}`} aria-label="Открыть логи" onClick={() => setPage('logs')}><span className="logs-shortcut-icon"><NavGlyph name="logs" /></span><span>Логи</span>{logs.some((log) => log.level === 'error') ? <i /> : null}</button><div className="profile-wrap" ref={profileWrapRef}><button className={`user-chip ${profileOpen ? 'is-open' : ''}`} aria-expanded={profileOpen} aria-haspopup="dialog" onClick={() => setProfileOpen((value) => !value)}><span className="user-avatar">{profileInitial}</span><span>{profileName}</span><span className="profile-chevron"><svg viewBox="0 0 20 20" aria-hidden="true"><path d="m5.5 7.5 4.5 4.5 4.5-4.5" /></svg></span></button><ProfilePopover open={profileOpen} profile={profile} draft={profileDraft} setDraft={setProfileDraft} onSave={handleSaveProfile} /></div></div></header>
 
-      {page === 'dashboard' && <><section className="hero"><div className="hero-copy"><div className="hero-kicker"><span className="spark-line">✦</span> LOCAL NETWORK ORCHESTRATOR <span className="hero-line" /></div><h1>Сеть, которая<br /><span>остаётся под контролем.</span></h1><p>Единый центр для спокойного управления сетевыми инструментами,<br />локальными прокси и профилями маршрутизации.</p><div className="hero-actions"><button className="primary-button" onClick={() => setPage('modules')}><span>Открыть модули</span><b>↗</b></button><button className="quiet-button" onClick={handleReload}><span>⟳</span> Сканировать заново</button></div></div><HeroVisual /></section><section className="stats-grid"><StatCard label="ВСЕГО МОДУЛЕЙ" value={String(modules.length).padStart(2, '0')} note="обнаружено локально" icon="◈" tone="cyan" index={0} /><StatCard label="АКТИВНЫЕ" value={String(running).padStart(2, '0')} note={running ? 'контур запущен' : 'готовы к запуску'} icon="ϟ" tone="violet" index={1} /><StatCard label="ЗДОРОВЬЕ" value={`${modules.length ? Math.round((healthy / modules.length) * 100) : 100}%`} note={errors ? `${errors} с ошибкой` : 'без критических ошибок'} icon="⌁" tone="mint" index={2} /><StatCard label="ПОСЛЕДНИЙ СКАН" value={lastScanLabel} note={settings.autoStart ? 'автозапуск включён' : 'автозапуск выключен'} icon="◷" tone="amber" index={3} /></section><section className="section-heading"><div><span className="section-kicker">YOUR TOOLKIT</span><h2>Быстрый доступ</h2></div><button className="text-button" onClick={() => setPage('modules')}>Все модули <span>→</span></button></section><div className="dashboard-grid"><div className="module-grid compact">{filteredModules.slice(0, 4).map((module, index) => <ModuleCard key={module.id} module={module} index={index} onToggle={handleToggle} onStrategyChange={handleStrategyChange} />)}</div><PulsePanel running={running} total={modules.length} errors={errors} /></div></>}
+      {page === 'dashboard' && <><section className="hero"><div className="hero-copy"><div className="hero-kicker"><span className="spark-line">✦</span> LOCAL NETWORK ORCHESTRATOR <span className="hero-line" /></div><h1>Сеть, которая<br /><span>остаётся под контролем.</span></h1><p>Единый центр для спокойного управления сетевыми инструментами,<br />локальными прокси и профилями маршрутизации.</p><div className="hero-actions"><button className="primary-button" onClick={() => setPage('modules')}><span>Открыть модули</span><b>↗</b></button><button className="quiet-button" onClick={handleReload}><span>⟳</span> Сканировать заново</button></div></div><HeroVisual /></section><section className="stats-grid"><StatCard label="ВСЕГО МОДУЛЕЙ" value={String(modules.length).padStart(2, '0')} note="обнаружено локально" icon="◈" tone="cyan" index={0} /><StatCard label="АКТИВНЫЕ" value={String(running).padStart(2, '0')} note={running ? 'контур запущен' : 'готовы к запуску'} icon="ϟ" tone="violet" index={1} /><StatCard label="ЗДОРОВЬЕ" value={`${modules.length ? Math.round((healthy / modules.length) * 100) : 100}%`} note={errors ? `${errors} с ошибкой` : 'без критических ошибок'} icon="⌁" tone="mint" index={2} /><StatCard label="ПОСЛЕДНИЙ СКАН" value={lastScanLabel} note={settings.autoStart ? 'автозапуск включён' : 'автозапуск выключен'} icon="◷" tone="amber" index={3} /></section><section className="section-heading"><div><span className="section-kicker">YOUR TOOLKIT</span><h2>Быстрый доступ</h2></div><button className="text-button" onClick={() => setPage('modules')}>Все модули <span>→</span></button></section><div className="dashboard-grid"><div className="module-grid compact">{filteredModules.slice(0, 4).map((module, index) => <ModuleCard key={module.id} module={module} index={index} onToggle={handleToggle} onStrategyChange={handleStrategyChange} onOpenSettings={openModuleSettings} />)}</div><PulsePanel running={running} total={modules.length} errors={errors} /></div></>}
 
       {page === 'modules' && settingsModule && <ModuleSettings
         module={settingsModule}
@@ -577,7 +581,7 @@ function App() {
         onStrategyChange={handleStrategyChange}
       />}
 
-      {page === 'modules' && !settingsModule && <section className="page-section"><div className="page-heading"><div><span className="section-kicker">MODULE REGISTRY</span><h1>Все модули</h1><p>Манифесты из <code>./modules</code> · {modules.length} подключено</p></div><button className="primary-button small" onClick={handleReload}><span>⟳</span><b>Сканировать</b></button></div><GithubUpdateStrip updates={updates} syncing={syncing} onSync={handleSyncUpdates} /><div className="filter-row"><span className="filter-label">ФИЛЬТР:</span><button className={`filter-chip ${moduleFilter === 'all' ? 'active' : ''}`} onClick={() => setModuleFilter('all')}>Все <b>{modules.length}</b></button><button className={`filter-chip ${moduleFilter === 'running' ? 'active' : ''}`} onClick={() => setModuleFilter('running')}>Активные <b>{running}</b></button><button className={`filter-chip ${moduleFilter === 'stopped' ? 'active' : ''}`} onClick={() => setModuleFilter('stopped')}>Остановлены <b>{modules.length - running}</b></button></div><div className="module-grid full">{filteredModules.map((module, index) => <ModuleCard key={module.id} module={module} index={index} onToggle={handleToggle} onStrategyChange={handleStrategyChange} onOpenSettings={(item) => setSettingsModuleId(item.id)} />)}</div>{filteredModules.length === 0 && <div className="empty-state"><span>⌕</span><h3>Ничего не найдено</h3><p>Смените фильтр или просканируйте modules ещё раз.</p></div>}</section>}
+      {page === 'modules' && !settingsModule && <section className="page-section"><div className="page-heading"><div><span className="section-kicker">MODULE REGISTRY</span><h1>Все модули</h1><p>Манифесты из <code>./modules</code> · {modules.length} подключено</p></div><button className="primary-button small" onClick={handleReload}><span>⟳</span><b>Сканировать</b></button></div><GithubUpdateStrip updates={updates} syncing={syncing} onSync={handleSyncUpdates} /><div className="filter-row"><span className="filter-label">ФИЛЬТР:</span><button className={`filter-chip ${moduleFilter === 'all' ? 'active' : ''}`} onClick={() => setModuleFilter('all')}>Все <b>{modules.length}</b></button><button className={`filter-chip ${moduleFilter === 'running' ? 'active' : ''}`} onClick={() => setModuleFilter('running')}>Активные <b>{running}</b></button><button className={`filter-chip ${moduleFilter === 'stopped' ? 'active' : ''}`} onClick={() => setModuleFilter('stopped')}>Остановлены <b>{modules.length - running}</b></button></div><div className="module-grid full">{filteredModules.map((module, index) => <ModuleCard key={module.id} module={module} index={index} onToggle={handleToggle} onStrategyChange={handleStrategyChange} onOpenSettings={openModuleSettings} />)}</div>{filteredModules.length === 0 && <div className="empty-state"><span>⌕</span><h3>Ничего не найдено</h3><p>Смените фильтр или просканируйте modules ещё раз.</p></div>}</section>}
 
       {page === 'jey2ray' && <Jey2RayPage settings={settings} updates={updates} syncing={syncing} onSync={handleSyncUpdates} onSettings={(next) => void persistSettings(next)} onToast={setToast} />}
 

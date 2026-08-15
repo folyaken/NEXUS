@@ -139,9 +139,12 @@ assert.doesNotMatch(app, /copyHwid|setCopied|Скопировать HWID/, 'HWID
 assert.match(app, /nexusVersion: '1\.1\.1'/);
 assert.match(app, /NEXUS v1\.1\.1/);
 const heroVisual = app.slice(app.indexOf('function HeroVisual()'), app.indexOf('function GithubUpdateStrip'));
-assert.match(heroVisual, /loop: true/);
-assert.match(heroVisual, /duration: 22000, easing: linear/);
-assert.match(heroVisual, /duration: 31000, easing: linear/);
+// Вращение перенесено в CSS: бесконечные пружины @react-spring занимали главный
+// поток всё время, пока открыта главная, и мешали плавности наведения.
+assert.doesNotMatch(heroVisual, /useSpring|loop: true/, 'hero orbits must animate on the compositor, not in JavaScript');
+assert.match(styles, /\.orbit-a \{ animation: nx-orbit-a 22s linear infinite; \}/);
+assert.match(styles, /\.orbit-b \{ animation: nx-orbit-b 31s linear infinite; \}/);
+assert.match(styles, /@keyframes nx-orbit-a \{ from \{ transform: rotate\(-18deg\); \} to \{ transform: rotate\(342deg\); \} \}/);
 assert.doesNotMatch(heroVisual, /reverse|turn %|planet-track/, 'hero orbits must move forward linearly without visible direction changes');
 assert.match(heroVisual, /<NexusMark \/>/, 'the hero must use the NEXUS mark instead of a generic sparkle');
 assert.match(app, /profileWrapRef = useRef<HTMLDivElement>\(null\)/);
