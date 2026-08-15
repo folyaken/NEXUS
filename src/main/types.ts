@@ -133,13 +133,35 @@ export interface AboutSystemInfo {
   computer: string;
 }
 
+/**
+ * Состояние обновления самого приложения.
+ *
+ * `disabled` — канал не настроен в этой сборке (например, запуск из исходников);
+ * `error` — проверку выполнить не удалось, текущая версия продолжает работать.
+ */
+export type NexusUpdateStatus =
+  | 'idle'
+  | 'checking'
+  | 'available'
+  | 'downloading'
+  | 'downloaded'
+  | 'up-to-date'
+  | 'disabled'
+  | 'error';
+
 export interface NexusUpdateCheck {
-  status: 'placeholder';
+  status: NexusUpdateStatus;
   currentVersion: string;
-  latestVersion: null;
-  canInstall: false;
+  latestVersion: string | null;
+  /** Обновление скачано и готово к установке при перезапуске. */
+  canInstall: boolean;
   checkedAt: string;
   message: string;
+  releaseNotes?: string | null;
+  releaseDate?: string | null;
+  downloadedBytes?: number;
+  totalBytes?: number;
+  percent?: number;
 }
 
 export interface VpnSplitApp {

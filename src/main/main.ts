@@ -9,6 +9,7 @@ import { isElevated } from './elevation';
 import { companionCount } from './dpi-companions';
 import { addDpiHost, readDpiHostlist, removeDpiHost } from './dpi-hostlist';
 import { ModuleManager } from './module-manager';
+import { AppUpdater } from './app-updater';
 import { GithubUpdater } from './github-updater';
 import { VpnManager } from './vpn-manager';
 import { normalizeVpnSplitApps, resolveVpnAppRouting } from './split-tunnel';
@@ -66,6 +67,7 @@ let isQuitting = false;
 let manager: ModuleManager;
 let updater: GithubUpdater;
 let vpn: VpnManager;
+let appUpdater: AppUpdater;
 let settings: AppSettings = { ...DEFAULT_SETTINGS };
 let trayHintShown = false;
 let trayVpnStatus: VpnStatus = 'disconnected';
@@ -630,15 +632,22 @@ async function aboutSystemInfo(): Promise<AboutSystemInfo> {
   };
 }
 
-function checkNexusUpdate(): NexusUpdateCheck {
-  return {
-    status: 'placeholder',
-    currentVersion: app.getVersion(),
-    latestVersion: null,
-    canInstall: false,
-    checkedAt: new Date().toISOString(),
-    message: 'Канал автоматических обновлений пока не подключён. Проверка выполнена, установка станет доступна после публикации первого релиза NEXUS.',
-  };
+/**
+ * Останавливает всё запущенное перед перезапуском на обновление.
+ *
+ * Без этого после установки в системе остались бы работающие модули и
+ * изменённый системный прокси — пользователь остался бы без интернета.
+ */
+async function prepareForUpdateRestart(): Promise<void> {
+  isQuitting = true;
+  try {
+    await vpn?.disconnect();
+    await manager?.stopAll({ persistEnabled: true });
+  } finally {
+    stopTrayAnimation();
+    tray?.destroy();
+    tray = null;
+  }
 }
 
 function wireIpc(): void {
@@ -680,7 +689,10 @@ function wireIpc(): void {
   ipcMain.handle('profile:get', () => readProfile());
   ipcMain.handle('profile:save', (_event, name: string) => saveProfile(typeof name === 'string' ? name : ''));
   ipcMain.handle('about:get-info', () => aboutSystemInfo());
-  ipcMain.handle('about:check-update', () => checkNexusUpdate());
+  ipcMain.handle('about:check-update', () => appUpdater.check());
+  ipcMain.handle('about:download-update', () => appUpdater.download());
+  ipcMain.handle('about:install-update', () => appUpdater.install(prepareForUpdateRestart));
+  ipcMain.handle('about:update-state', () => appUpdater.snapshot());
   ipcMain.handle('settings:get', () => settings);
   ipcMain.handle('settings:save', async (_event, next: AppSettings) => {
     const previousAllowLan = settings.vpnAllowLan;
@@ -748,6 +760,7 @@ function wireIpc(): void {
     setTrayVpnStatus(snapshot.runtime.status);
   });
   vpn.on('log', (log: ModuleLog) => mainWindow?.webContents.send('logs:append', log));
+  appUpdater.on('changed', (state: NexusUpdateCheck) => mainWindow?.webContents.send('about:update-changed', state));
 }
 
 if (gotLock) {
@@ -765,6 +778,7 @@ if (gotLock) {
       const runtime = vpn.runtime();
       return Boolean(runtime.pid) || runtime.status === 'connecting' || runtime.status === 'connected';
     });
+    appUpdater = new AppUpdater(app.getVersion(), app.isPackaged);
     const profile = await readProfile();
     vpn.setHwid(profile.deviceId);
     wireIpc();

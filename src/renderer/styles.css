@@ -1402,3 +1402,25 @@ kbd { padding: 3px 5px; border: 1px solid rgba(255,255,255,.1); border-radius: 5
 .appearance-graphite .about-license-card { background: #161616; }
 .appearance-graphite .about-license-row strong { color: #d6d6d6; }
 @media (max-width: 1240px) { .about-license-list { grid-template-columns: 1fr; } }
+
+/* Состояния канала обновления NEXUS */
+.about-update-badge.status-available,
+.about-update-badge.status-downloaded { border-color: rgba(113,244,184,.28); background: rgba(113,244,184,.09); color: var(--mint); }
+.about-update-badge.status-downloading,
+.about-update-badge.status-checking { border-color: rgba(124,242,213,.24); background: rgba(124,242,213,.07); color: var(--cyan); }
+.about-update-badge.status-error { border-color: rgba(255,113,143,.26); background: rgba(255,113,143,.08); color: var(--red); }
+.about-update-badge.status-disabled { color: #8c9ab0; }
+
+.about-update-progress { height: 6px; margin-top: 14px; border-radius: 999px; background: rgba(255,255,255,.06); overflow: hidden; }
+.about-update-progress-bar { height: 100%; border-radius: 999px; background: linear-gradient(90deg, #71f4b8, #7cf2d5); transition: width .25s ease; }
+.about-update-notes { margin-top: 12px; padding: 11px 13px; border-radius: 10px; background: rgba(255,255,255,.025); color: #9fb0c6; font-size: 11px; line-height: 1.6; }
+.about-install-button.is-ready { background: linear-gradient(130deg, #83efd1, #a993ff); color: #121827; cursor: pointer; opacity: 1; }
+.about-install-button.is-ready:hover { filter: brightness(1.06); }
+
+.appearance-graphite .about-update-badge.status-available,
+.appearance-graphite .about-update-badge.status-downloaded,
+.appearance-graphite .about-update-badge.status-downloading,
+.appearance-graphite .about-update-badge.status-checking,
+.appearance-graphite .about-update-badge.status-error { border-color: rgba(214,214,214,.24); background: rgba(214,214,214,.08); color: #d6d6d6; }
+.appearance-graphite .about-update-progress-bar { background: linear-gradient(90deg, #bdbdbd, #ebebeb); }
+.appearance-graphite .about-install-button.is-ready { background: linear-gradient(130deg, #d6d6d6, #ebebeb); color: #121212; }

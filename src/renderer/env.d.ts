@@ -26,6 +26,10 @@ declare global {
       saveProfile(name: string): Promise<UserProfile>;
       getAboutInfo(): Promise<AboutSystemInfo>;
       checkNexusUpdate(): Promise<NexusUpdateCheck>;
+      downloadNexusUpdate(): Promise<NexusUpdateCheck>;
+      installNexusUpdate(): Promise<NexusUpdateCheck>;
+      getNexusUpdateState(): Promise<NexusUpdateCheck>;
+      onNexusUpdateChanged(callback: (state: NexusUpdateCheck) => void): () => void;
       getSettings(): Promise<AppSettings>;
       saveSettings(settings: AppSettings): Promise<AppSettings>;
       getLastScan(): Promise<string | null>;

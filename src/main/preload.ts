@@ -22,6 +22,14 @@ contextBridge.exposeInMainWorld('nexus', {
   saveProfile: (name: string): Promise<UserProfile> => ipcRenderer.invoke('profile:save', name),
   getAboutInfo: (): Promise<AboutSystemInfo> => ipcRenderer.invoke('about:get-info'),
   checkNexusUpdate: (): Promise<NexusUpdateCheck> => ipcRenderer.invoke('about:check-update'),
+  downloadNexusUpdate: (): Promise<NexusUpdateCheck> => ipcRenderer.invoke('about:download-update'),
+  installNexusUpdate: (): Promise<NexusUpdateCheck> => ipcRenderer.invoke('about:install-update'),
+  getNexusUpdateState: (): Promise<NexusUpdateCheck> => ipcRenderer.invoke('about:update-state'),
+  onNexusUpdateChanged: (callback: (state: NexusUpdateCheck) => void) => {
+    const listener = (_event: Electron.IpcRendererEvent, state: NexusUpdateCheck) => callback(state);
+    ipcRenderer.on('about:update-changed', listener);
+    return () => ipcRenderer.removeListener('about:update-changed', listener);
+  },
   getSettings: (): Promise<AppSettings> => ipcRenderer.invoke('settings:get'),
   saveSettings: (settings: AppSettings): Promise<AppSettings> => ipcRenderer.invoke('settings:save', settings),
   getLastScan: (): Promise<string | null> => ipcRenderer.invoke('runtime:last-scan'),

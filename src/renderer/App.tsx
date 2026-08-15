@@ -323,28 +323,44 @@ function AboutPage() {
     return () => { alive = false; };
   }, []);
 
-  const checkUpdate = async () => {
-    setCheckingUpdate(true);
-    try {
-      const result = window.nexus
-        ? await window.nexus.checkNexusUpdate()
-        : {
-          status: 'placeholder' as const,
-          currentVersion: info.nexusVersion,
-          latestVersion: null,
-          canInstall: false as const,
-          checkedAt: new Date().toISOString(),
-          message: 'Канал автоматических обновлений пока не подключён. Установка станет доступна после публикации первого релиза NEXUS.',
-        };
-      setUpdateCheck(result);
-    } catch {
+  // Состояние приходит из main-процесса: прогресс загрузки обновляется событиями,
+  // поэтому локальную копию держать нельзя — она разойдётся с реальностью.
+  useEffect(() => {
+    const api = window.nexus;
+    if (!api?.getNexusUpdateState) return undefined;
+    void api.getNexusUpdateState().then(setUpdateCheck).catch(() => undefined);
+    return api.onNexusUpdateChanged(setUpdateCheck);
+  }, []);
+
+  const runUpdateAction = async (action: 'check' | 'download' | 'install') => {
+    const api = window.nexus;
+    if (!api) {
       setUpdateCheck({
-        status: 'placeholder',
+        status: 'disabled',
         currentVersion: info.nexusVersion,
         latestVersion: null,
         canInstall: false,
         checkedAt: new Date().toISOString(),
-        message: 'Не удалось обратиться к временному каналу обновлений. Автоматическая установка пока недоступна.',
+        message: 'Обновление доступно только в установленной версии приложения.',
+      });
+      return;
+    }
+    setCheckingUpdate(true);
+    try {
+      const result = action === 'check'
+        ? await api.checkNexusUpdate()
+        : action === 'download'
+          ? await api.downloadNexusUpdate()
+          : await api.installNexusUpdate();
+      setUpdateCheck(result);
+    } catch (error) {
+      setUpdateCheck({
+        status: 'error',
+        currentVersion: info.nexusVersion,
+        latestVersion: null,
+        canInstall: false,
+        checkedAt: new Date().toISOString(),
+        message: cleanError(error),
       });
     } finally {
       setCheckingUpdate(false);
@@ -352,6 +368,27 @@ function AboutPage() {
   };
 
   const coreValue = (value: string | null) => loadingInfo ? 'Определение…' : value || 'Не обнаружен';
+  const updateStatus = updateCheck?.status ?? 'idle';
+  const updateBadge = ({
+    idle: 'STABLE CHANNEL',
+    checking: 'ПРОВЕРКА',
+    available: 'ДОСТУПНО ОБНОВЛЕНИЕ',
+    downloading: 'ЗАГРУЗКА',
+    downloaded: 'ГОТОВО К УСТАНОВКЕ',
+    'up-to-date': 'АКТУАЛЬНАЯ ВЕРСИЯ',
+    disabled: 'КАНАЛ НЕДОСТУПЕН',
+    error: 'ОШИБКА ПРОВЕРКИ',
+  } as Record<string, string>)[updateStatus] ?? 'STABLE CHANNEL';
+  const updateHeadline = ({
+    idle: 'Проверить новую версию',
+    checking: 'Проверяем обновления…',
+    available: `Доступна версия ${updateCheck?.latestVersion ?? ''}`.trim(),
+    downloading: 'Загружаем обновление',
+    downloaded: 'Обновление готово',
+    'up-to-date': 'У вас последняя версия',
+    disabled: 'Обновление недоступно',
+    error: 'Не удалось проверить обновления',
+  } as Record<string, string>)[updateStatus] ?? 'Проверить новую версию';
   const checkedAt = updateCheck ? new Intl.DateTimeFormat('ru-RU', { hour: '2-digit', minute: '2-digit' }).format(new Date(updateCheck.checkedAt)) : null;
 
   return <section className="page-section about-page">
@@ -376,15 +413,19 @@ function AboutPage() {
       </article>
 
       <article className="about-update-card">
-        <div className="about-update-badge"><i /> ВРЕМЕННЫЙ КАНАЛ</div>
+        <div className={`about-update-badge status-${updateStatus}`}><i /> {updateBadge}</div>
         <div className="about-update-visual" aria-hidden="true">
           <svg viewBox="0 0 96 96"><rect x="20" y="22" width="56" height="42" rx="8" /><path d="M38 75h20M48 64v11" /><path className="about-update-arrow" d="M35 42a15 15 0 0 1 25-8l4 5m0-10v10H54M61 47a15 15 0 0 1-25 8l-4-5m0 10V50h10" /></svg>
         </div>
-        <div className="about-update-copy"><span>ОБНОВЛЕНИЕ NEXUS</span><h3>{updateCheck ? 'Канал пока не подключён' : 'Проверить новую версию'}</h3><p>{updateCheck?.message || `Текущая версия ${info.nexusVersion}. Проверка доступна уже сейчас; автоматическая установка появится вместе с первым релизом.`}</p></div>
-        {checkedAt && <div className="about-update-checked"><i /> Проверено сегодня в {checkedAt}</div>}
+        <div className="about-update-copy"><span>ОБНОВЛЕНИЕ NEXUS</span><h3>{updateHeadline}</h3><p>{updateCheck?.message || `Текущая версия ${info.nexusVersion}. Нажмите «Проверить», чтобы узнать о новой.`}</p></div>
+        {updateStatus === 'downloading' && <div className="about-update-progress"><div className="about-update-progress-bar" style={{ width: `${updateCheck?.percent ?? 0}%` }} /></div>}
+        {updateCheck?.releaseNotes && <p className="about-update-notes">{updateCheck.releaseNotes}</p>}
+        {checkedAt && <div className="about-update-checked"><i /> Проверено в {checkedAt}</div>}
         <div className="about-update-actions">
-          <button type="button" className="about-check-button" disabled={checkingUpdate} onClick={() => void checkUpdate()}>{checkingUpdate ? 'Проверяем…' : updateCheck ? 'Проверить снова' : 'Проверить'}</button>
-          <button type="button" className="about-install-button" disabled title="Установка станет доступна после подключения канала релизов">Установить</button>
+          <button type="button" className="about-check-button" disabled={checkingUpdate || updateStatus === 'downloading'} onClick={() => void runUpdateAction('check')}>{checkingUpdate && updateStatus !== 'downloading' ? 'Проверяем…' : updateCheck ? 'Проверить снова' : 'Проверить'}</button>
+          {updateStatus === 'available' && <button type="button" className="about-install-button is-ready" disabled={checkingUpdate} onClick={() => void runUpdateAction('download')}>Скачать</button>}
+          {updateStatus === 'downloaded' && <button type="button" className="about-install-button is-ready" onClick={() => void runUpdateAction('install')}>Перезапустить и установить</button>}
+          {updateStatus !== 'available' && updateStatus !== 'downloaded' && <button type="button" className="about-install-button" disabled title={updateStatus === 'disabled' ? 'Канал обновлений недоступен в этой сборке' : 'Сначала проверьте наличие обновления'}>Установить</button>}
         </div>
       </article>
     </div>

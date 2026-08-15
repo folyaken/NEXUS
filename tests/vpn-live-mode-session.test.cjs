@@ -68,7 +68,11 @@ assert.match(types, /export interface AboutSystemInfo/);
 assert.match(types, /xrayVersion: string \| null/);
 assert.match(types, /singBoxVersion: string \| null/);
 assert.match(types, /export interface NexusUpdateCheck/);
-assert.match(types, /status: 'placeholder'/);
+// Заглушка заменена рабочим каналом обновления: статус отражает реальный этап,
+// а не фиксированное «канал не подключён».
+assert.match(types, /export type NexusUpdateStatus/);
+assert.match(types, /canInstall: boolean;/);
+assert.doesNotMatch(types, /status: 'placeholder'/);
 assert.match(types, /connectedAt: string \| null/);
 assert.match(types, /language: 'ru'/);
 assert.match(types, /theme: 'dark'/);
@@ -253,7 +257,9 @@ assert.match(main, /maxBuffer: 64 \* 1024/);
 assert.match(main, /coreVersion\(vpn\.xrayPath\(\), 'xray'\)/);
 assert.match(main, /coreVersion\(vpn\.singboxPath\(\), 'sing-box'\)/);
 assert.match(main, /ipcMain\.handle\('about:get-info', \(\) => aboutSystemInfo\(\)\)/);
-assert.match(main, /ipcMain\.handle\('about:check-update', \(\) => checkNexusUpdate\(\)\)/);
+// Проверка выполняется реальным апдейтером, а не функцией-заглушкой.
+assert.match(main, /ipcMain\.handle\('about:check-update', \(\) => appUpdater\.check\(\)\)/);
+assert.match(main, /ipcMain\.handle\('about:install-update'/);
 assert.match(main, /fullscreenable: false/);
 assert.match(main, /ipcMain\.handle\('window:toggle-maximize'/);
 assert.match(main, /mainWindow\.isMaximized\(\)\) mainWindow\.unmaximize\(\)/);
@@ -268,8 +274,11 @@ for (const source of [main, preload, env, app]) assert.doesNotMatch(source, /tog
 assert.match(app, /Версия Xray Core/);
 assert.match(app, /Версия sing-box/);
 assert.match(app, /Компьютер \/ ОС/);
-assert.match(app, /ВРЕМЕННЫЙ КАНАЛ/);
-assert.match(app, /className="about-install-button" disabled/);
+// Канал обновления заработал: бейдж отражает текущий этап, а кнопка установки
+// становится активной, когда обновление действительно загружено.
+assert.match(app, /about-update-badge status-\$\{updateStatus\}/);
+assert.match(app, /'ГОТОВО К УСТАНОВКЕ'/);
+assert.match(app, /about-install-button is-ready/);
 
 assert.match(main, /const TRAY_FRAME_FILES = \{[\s\S]*disconnected:[\s\S]*connecting:[\s\S]*connected:/, 'tray branding must expose three visual VPN states');
 assert.match(main, /function stopTrayAnimation\(\): void/);
