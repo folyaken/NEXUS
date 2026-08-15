@@ -60,8 +60,39 @@ assert.doesNotMatch(buildFiles, /modules\/bin/, 'ядра не упаковыв�
 // Тексты лицензий обязаны попадать в установщик.
 assert.ok(manifest.build.files.includes('LICENSE'));
 assert.ok(manifest.build.files.includes('THIRD-PARTY-NOTICES.md'));
-// Установщик показывает условия отдельным шагом.
-assert.equal(manifest.build.nsis.license, 'LICENSE');
+// Установщик показывает условия отдельным шагом. Файл берётся подготовленный:
+// без метки порядка байтов Windows считает UTF-8 однобайтовой кодировкой, и
+// вместо русского текста в окне появляется «РЎРѕРіР»Р°С€РµРЅРёРµ».
+assert.equal(manifest.build.nsis.license, 'build/license.txt');
+
+const prepareLicense = path.join(root, 'scripts', 'prepare-license.cjs');
+assert.ok(fs.existsSync(prepareLicense), 'нужен скрипт подготовки текста лицензии');
+assert.match(
+  fs.readFileSync(path.join(root, 'package.json'), 'utf8'),
+  /prepare-license\.cjs && npm run build/,
+  'подготовка лицензии обязана выполняться перед сборкой установщика',
+);
+
+// Скрипт проверяется по результату, а не по тексту: важно, что файл получается
+// распознаваемым и совпадает с каноническим LICENSE.
+require('node:child_process').execFileSync(process.execPath, [prepareLicense], { cwd: root, stdio: 'ignore' });
+const licenseForInstaller = fs.readFileSync(path.join(root, 'build', 'license.txt'));
+assert.deepEqual(
+  [...licenseForInstaller.subarray(0, 3)],
+  [0xef, 0xbb, 0xbf],
+  'файл лицензии обязан начинаться с метки порядка байтов',
+);
+assert.equal(
+  licenseForInstaller.subarray(3).toString('utf8').replace(/\r\n/g, '\n'),
+  license.replace(/\r\n/g, '\n'),
+  'текст в установщике обязан совпадать с LICENSE',
+);
+assert.match(licenseForInstaller.subarray(3).toString('utf8'), /\r\n/, 'переносы строк в стиле Windows');
+
+// Интерфейс установщика на русском: язык выбирается явно, иначе NSIS покажет
+// английские надписи рядом с русским текстом лицензии.
+assert.equal(manifest.build.nsis.language, '1049');
+assert.equal(manifest.build.nsis.unicode, true);
 
 // --- Шрифты -----------------------------------------------------------------
 // OFL требует прикладывать текст лицензии рядом со шрифтами.

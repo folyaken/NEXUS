@@ -13,6 +13,7 @@ import { expandDpiHosts } from './dpi-companions';
 import { buildTgProxyArgs, normalizeTgProxyOptions, readTgProxyOptions } from './tg-proxy-options';
 import { readDpiHostlist, syncDpiHostlistInto } from './dpi-hostlist';
 import { tgWsProxyAssetCandidates } from './platform-assets';
+import { buildZapretLaunch, ensureZapretUserLists } from './zapret-profile';
 import { listPidsByImage, waitForExit } from './process-watch';
 import { sanitizeDiagnosticText } from './vpn-diagnostics';
 
@@ -363,6 +364,9 @@ export class ModuleManager extends EventEmitter {
     let executable: string;
     let args: string[] = [...module.args];
     let cwd: string;
+    // Ядро запускается напрямую, без командного файла-посредника: тогда
+    // созданный процесс и есть рабочий, а не лаунчер, который сразу завершится.
+    let directWorkerLaunch = false;
 
     if (module.launch_mode === 'batch') {
       const strategy = module.strategy ?? Object.keys(module.strategies ?? {})[0] ?? 'general (ALT10)';
@@ -381,12 +385,35 @@ export class ModuleManager extends EventEmitter {
         this.failModule(module, message);
         throw new Error(message);
       }
-      if (id === 'zapret') await this.applyCustomDpiHosts(module, batchFile);
-      const runnerFile = await this.createBatchRunner(id, batchFile, module.extra_args);
-      executable = process.env.ComSpec ?? 'cmd.exe';
-      args = ['/d', '/c', 'call', runnerFile];
-      cwd = module.working_dir ? this.resolvePath(module.working_dir) : path.dirname(batchFile);
-      this.emitLog(id, 'info', `Запуск стратегии ${strategy} через ${path.basename(batchFile)}`);
+      const releaseRoot = module.working_dir ? this.resolvePath(module.working_dir) : path.dirname(batchFile);
+      if (id === 'zapret') {
+        // Списки, которые обычно создаёт service.bat. Ядро запускается напрямую,
+        // поэтому позаботиться о них должно приложение.
+        await ensureZapretUserLists(releaseRoot);
+        await this.applyCustomDpiHosts(module, batchFile);
+      }
+
+      // Основной путь: строка запуска читается из профиля и передаётся ядру
+      // массивом аргументов. Командный интерпретатор в цепочке не участвует,
+      // поэтому перенос строки через `^` больше ничего сломать не может —
+      // именно он приводил к ошибке «'--filter-udp' is not recognized».
+      const direct = await buildZapretLaunch(batchFile, releaseRoot, module.extra_args ?? []);
+      if (direct) {
+        executable = direct.executable;
+        args = direct.args;
+        cwd = direct.cwd;
+        directWorkerLaunch = true;
+        this.emitLog(id, 'info', `Запуск стратегии ${strategy}: ${path.basename(direct.executable)} · параметров — ${direct.args.length}`);
+      } else {
+        // Запасной путь для профилей необычного вида: как раньше, через
+        // интерпретатор. Он менее надёжен, поэтому используется только когда
+        // разобрать профиль не удалось.
+        const runnerFile = await this.createBatchRunner(id, batchFile, module.extra_args);
+        executable = process.env.ComSpec ?? 'cmd.exe';
+        args = ['/d', '/c', 'call', runnerFile];
+        cwd = releaseRoot;
+        this.emitLog(id, 'warn', `Профиль ${path.basename(batchFile)} имеет нестандартный вид — запуск через командный файл`);
+      }
     } else {
       executable = this.resolvePath(module.executable);
       if (!existsSync(executable)) {
@@ -532,13 +559,22 @@ export class ModuleManager extends EventEmitter {
         throw new Error(message);
       }
     } else {
-      // A Zapret batch file is only a launcher. Never report it as active
-      // until the real winws.exe worker has appeared, whether cmd.exe stays
-      // open or exits immediately after spawning it.
+      // При прямом запуске созданный процесс и есть ядро: искать его в списке
+      // задач незачем, достаточно убедиться, что он не завершился сразу.
       let worker: number | null = null;
-      for (let attempt = 0; attempt < 15 && !worker && !batchStartup.error; attempt += 1) {
-        worker = await this.discoverWorker(module);
-        if (!worker) await delay(200);
+      if (directWorkerLaunch) {
+        for (let attempt = 0; attempt < 8 && !batchStartup.error; attempt += 1) {
+          await delay(200);
+          if (child.exitCode !== null) break;
+        }
+        if (child.exitCode === null && child.pid) worker = child.pid;
+      } else {
+        // Командный файл — лишь лаунчер: активным модуль считается только
+        // после появления настоящего winws.exe.
+        for (let attempt = 0; attempt < 15 && !worker && !batchStartup.error; attempt += 1) {
+          worker = await this.discoverWorker(module);
+          if (!worker) await delay(200);
+        }
       }
       if (!worker) {
         startupAborted = true;

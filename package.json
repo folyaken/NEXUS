@@ -1,7 +1,7 @@
 {
   "name": "nexus-network-tools",
   "version": "1.1.1",
-  "patchLevel": 45,
+  "patchLevel": 46,
   "private": true,
   "description": "NEXUS — локальная Electron-обёртка для сетевых инструментов",
   "license": "SEE LICENSE IN LICENSE",
@@ -11,7 +11,7 @@
     "dev": "node scripts/ensure-xray.cjs && node scripts/ensure-singbox.cjs && npm run build:main && concurrently -k \"vite --host 0.0.0.0\" \"wait-on http://localhost:5173 && electron .\"",
     "start": "npm run start:standalone",
     "start:standalone": "node scripts/ensure-xray.cjs && node scripts/ensure-singbox.cjs && npm run build && node scripts/launch-standalone.cjs",
-    "package:win": "node scripts/ensure-xray.cjs && node scripts/ensure-singbox.cjs && node scripts/prepare-wincodesign.cjs && npm run build && electron-builder --win --x64",
+    "package:win": "node scripts/ensure-xray.cjs && node scripts/ensure-singbox.cjs && node scripts/prepare-wincodesign.cjs && node scripts/prepare-license.cjs && npm run build && electron-builder --win --x64",
     "postinstall": "node scripts/ensure-xray.cjs && node scripts/ensure-singbox.cjs",
     "dev:web": "vite --host 0.0.0.0",
     "build": "npm run build:main && vite build",
@@ -63,7 +63,11 @@
         "filter": [
           "**/*",
           "!**/*.log",
-          "!**/logs/**"
+          "!**/logs/**",
+          "!**/TgWsProxy_data/**",
+          "!**/*-user.txt",
+          "!**/.cache/**",
+          "!**/*.enabled"
         ]
       }
     ],
@@ -98,7 +102,13 @@
       "createStartMenuShortcut": true,
       "perMachine": true,
       "allowElevation": true,
-      "license": "LICENSE",
+      "license": "build/license.txt",
+      "language": "1049",
+      "multiLanguageInstaller": false,
+      "installerLanguages": [
+        "ru_RU"
+      ],
+      "unicode": true,
       "include": "build/installer.nsh",
       "deleteAppDataOnUninstall": false
     },
