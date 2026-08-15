@@ -16,8 +16,12 @@ assert.match(firstRequest, /try \{[\s\S]{0,200}await downloadOnce\(initialTarget
 assert.match(firstRequest, /firstFailure = error/, 'ошибка первого запроса запоминается, а не выбрасывается');
 
 // Ошибка сети не должна подменяться рассказом про «панель не отдаёт
-// конфигурацию»: это увело бы пользователя не в ту сторону.
-assert.match(source, /if \(!links\.size && !clash\.length && firstFailure\) throw firstFailure;/);
+// конфигурацию»: это увело бы пользователя не в ту сторону. Но и выбрасывать
+// её здесь нельзя — сначала должна отработать последняя попытка, чтение
+// страницы браузерным движком. Поэтому причина возвращается наружу.
+const manager = fs.readFileSync(path.join(root, 'src', 'main', 'vpn-manager.ts'), 'utf8');
+assert.match(source, /firstFailure: firstFailure \?\? undefined/, 'причина отказа возвращается вызывающему коду');
+assert.match(manager, /throw material\.firstFailure;/, 'настоящая причина показывается пользователю');
 
 // Адрес, найденный на странице, тоже может оказаться нерабочим — и это не
 // повод прекращать попытки.

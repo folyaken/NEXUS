@@ -296,6 +296,13 @@ export class VpnManager extends EventEmitter {
         material = await fetchSubscriptionMaterial(pageUrl, this.hwid, logProgress);
       }
     }
+
+    // Сетевой отказ показывается только теперь, когда испробованы все способы,
+    // включая чтение страницы. Так пользователь видит настоящую причину
+    // («сервер отклонил запрос»), а не общий рассказ про формат подписки.
+    if (!material.links.length && !material.clash.length && material.firstFailure) {
+      throw material.firstFailure;
+    }
     const candidates: VpnProfile[] = [];
     let notices = 0;
 

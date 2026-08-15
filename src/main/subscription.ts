@@ -82,7 +82,7 @@ export const SUBSCRIPTION_TRANSPORT_LIMITS = Object.freeze({
   // plus User-Agent retries used only when the panel returned no usable configuration.
   // Retries cover both targets, and known format suffixes are tried only after
   // every client name failed. Redirect hops share this budget.
-  maxRequests: 64,
+  maxRequests: 96,
   maxResponseBytes: 8 * 1024 * 1024,
   maxDiscoveredUrls: 1,
 });
@@ -445,12 +445,27 @@ async function downloadSubscriptionText(
   throw new SubscriptionTransportError('Превышен лимит перенаправлений подписки');
 }
 
-function headers(ua: string, hwid: string): Record<string, string> {
-  const safeHwid = hwid.replace(/[^\x21-\x7e]/g, '').slice(0, 256);
-  return {
+/**
+ * Заголовки запроса подписки.
+ *
+ * Сведения об устройстве (HWID) отправляются не всегда. Панели с привязкой к
+ * устройству отвечают отказом, когда видят незнакомый идентификатор: у
+ * пользователя исчерпан лимит устройств или привязка сделана к другому
+ * приложению. Браузер таких заголовков не шлёт и страницу получает, поэтому
+ * запрос без них — обязательная попытка, иначе подписку не добавить вовсе.
+ */
+function headers(ua: string, hwid: string, includeDevice = true): Record<string, string> {
+  const base: Record<string, string> = {
     'User-Agent': ua,
-    Accept: 'text/plain, application/json, application/yaml, */*',
+    Accept: 'text/plain, application/json, application/yaml, text/html, */*',
     'Accept-Encoding': 'identity',
+  };
+  if (!includeDevice) return base;
+
+  const safeHwid = hwid.replace(/[^\x21-\x7e]/g, '').slice(0, 256);
+  if (!safeHwid) return base;
+  return {
+    ...base,
     hwid: safeHwid,
     'x-hwid': safeHwid,
     'x-device-os': process.platform === 'win32' ? 'windows' : process.platform,
@@ -666,7 +681,21 @@ export function parseSubscriptionUserInfo(responseHeaders: IncomingHttpHeaders, 
   };
 }
 
-export async function fetchSubscriptionMaterial(url: string, hwid: string, log: (message: string) => void): Promise<{ links: string[]; clash: VpnProfile[]; info?: VpnSubscriptionInfo }> {
+export interface SubscriptionMaterial {
+  links: string[];
+  clash: VpnProfile[];
+  info?: VpnSubscriptionInfo;
+  /**
+   * Ошибка самого первого обращения к панели, если оно не удалось.
+   *
+   * Возвращается, а не выбрасывается: у вызывающего кода остаётся ещё одна
+   * попытка — открыть страницу так же, как её видит браузер. Показать эту
+   * ошибку пользователю нужно только если не помогло и это.
+   */
+  firstFailure?: Error;
+}
+
+export async function fetchSubscriptionMaterial(url: string, hwid: string, log: (message: string) => void): Promise<SubscriptionMaterial> {
   const initialTarget = validateSubscriptionUrl(url);
   await resolveSafeSubscriptionTarget(initialTarget);
 
@@ -700,12 +729,22 @@ export async function fetchSubscriptionMaterial(url: string, hwid: string, log: 
     if (!info || (nextInfo.expireAt && !info.expireAt)) info = nextInfo;
   };
 
-  const downloadOnce = async (target: string, userAgent: string): Promise<SubscriptionTextResponse> => {
+  const downloadOnce = async (
+    target: string,
+    userAgent: string,
+    includeDevice = true,
+  ): Promise<SubscriptionTextResponse> => {
     try {
-      const response = await downloadSubscriptionText(target, headers(userAgent, hwid), trustedOrigin, budget);
+      const response = await downloadSubscriptionText(
+        target,
+        headers(userAgent, hwid, includeDevice),
+        trustedOrigin,
+        budget,
+      );
       // Короткая сводка ответа: без неё невозможно понять, что именно вернула
       // панель, и поиск причины превращается в гадание.
-      log(`Ответ панели: HTTP ${response.status || '—'} · ${response.body.length} симв. · ${describeSubscriptionBody(response.body)} · клиент ${userAgent}`);
+      const device = includeDevice ? '' : ' · без сведений об устройстве';
+      log(`Ответ панели: HTTP ${response.status || '—'} · ${response.body.length} симв. · ${describeSubscriptionBody(response.body)} · клиент ${userAgent}${device}`);
       if (response.status < 200 || response.status >= 300) {
         throw new SubscriptionTransportError(`Сервер подписки отклонил запрос (HTTP ${response.status || 'без статуса'})`);
       }
@@ -807,12 +846,33 @@ export async function fetchSubscriptionMaterial(url: string, hwid: string, log: 
     }
   }
 
-  // Если не сработало вообще ничего, а самый первый запрос упал с сетевой
-  // ошибкой, показать нужно именно её: «панель не отдаёт конфигурацию» увело бы
-  // пользователя не туда, когда на деле сервер недоступен или отвергает
-  // соединение.
-  if (!links.size && !clash.length && firstFailure) throw firstFailure;
+  // Попытка без сведений об устройстве. Панели с привязкой к устройству
+  // отвечают отказом на незнакомый идентификатор — так бывает, когда лимит
+  // устройств исчерпан или подписка привязана к другому приложению. Браузер
+  // этих заголовков не шлёт и конфигурацию получает.
+  if (!links.size && !clash.length) {
+    const anonymousTargets = discoveredTarget ? [initialTarget.toString(), discoveredTarget] : [initialTarget.toString()];
+    anonymous: for (const target of anonymousTargets) {
+      for (const userAgent of [SUBSCRIPTION_USER_AGENT, ...SUBSCRIPTION_FALLBACK_USER_AGENTS]) {
+        let plain: SubscriptionTextResponse;
+        try {
+          plain = await downloadOnce(target, userAgent, false);
+        } catch {
+          continue;
+        }
+        if (plain.body.trim() && !htmlLooksLikePage(plain.body)) {
+          log('Конфигурация получена без передачи сведений об устройстве.');
+          take(plain);
+          break anonymous;
+        }
+      }
+    }
+  }
 
   log(`Подписка: ссылок ${links.size} · профилей clash ${clash.length}`);
-  return { links: [...links], clash, info };
+  // Причина первого отказа возвращается вызывающему коду, а не выбрасывается
+  // здесь: сначала должна отработать последняя попытка — чтение страницы теми
+  // же средствами, какими её видит браузер. Раньше ошибка выбрасывалась сразу,
+  // и до чтения страницы дело не доходило.
+  return { links: [...links], clash, info, firstFailure: firstFailure ?? undefined };
 }
