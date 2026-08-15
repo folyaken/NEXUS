@@ -1,7 +1,7 @@
 {
   "name": "nexus-network-tools",
   "version": "1.1.1",
-  "patchLevel": 38,
+  "patchLevel": 39,
   "private": true,
   "description": "NEXUS — локальная Electron-обёртка для сетевых инструментов",
   "license": "SEE LICENSE IN LICENSE",
@@ -86,8 +86,7 @@
         }
       ],
       "icon": "assets/nexus.ico",
-      "requestedExecutionLevel": "requireAdministrator",
-      "signExecutable": false
+      "requestedExecutionLevel": "requireAdministrator"
     },
     "nsis": {
       "oneClick": false,

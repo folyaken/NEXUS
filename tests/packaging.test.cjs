@@ -69,13 +69,24 @@ assert.match(vpnSource, /if \(mode === 'tun' && !\(await isElevated\(\)\)\)/);
 assert.equal(build.win.requestedExecutionLevel, 'requireAdministrator',
   'приложение должно запрашивать права само');
 
-// signAndEditExecutable: false отключает resedit целиком — вместе с ним
-// перестаёт применяться и requestedExecutionLevel. Запрос прав молча не попал
-// бы в манифест. Для пропуска только подписи существует signExecutable.
+// signAndEditExecutable: false отключил бы resedit целиком — вместе с ним
+// перестал бы применяться и requestedExecutionLevel, то есть запрос прав молча
+// не попал бы в манифест. По умолчанию флаг true, поэтому его просто нет.
 assert.notEqual(build.win.signAndEditExecutable, false,
   'этот флаг отключает правку манифеста и обнуляет запрос прав');
-assert.equal(build.win.signExecutable, false,
-  'подпись пропускается отдельным флагом, правка ресурсов сохраняется');
+// signExecutable появился только в electron-builder 26+: на версии 25.1.8 он
+// валит сборку с «unknown property». Подпись и так не выполняется без сертификата.
+assert.ok(!('signExecutable' in build.win),
+  'signExecutable не поддерживается установленной версией electron-builder');
+
+// Конфигурация проверяется настоящей схемой electron-builder, а не на глаз:
+// неизвестное свойство обнаруживается здесь, а не при сборке установщика.
+const scheme = require(path.join(root, 'node_modules', 'app-builder-lib', 'scheme.json'));
+const { validateConfiguration } = require(path.join(root, 'node_modules', 'app-builder-lib', 'out', 'util', 'config', 'config.js'));
+assert.doesNotThrow(
+  () => validateConfiguration(JSON.parse(JSON.stringify(build)), scheme, { warn() {} }),
+  'конфигурация сборки должна соответствовать схеме установленной версии',
+);
 
 // Установка для всех пользователей: программа и так ставится с повышением.
 assert.equal(build.nsis.perMachine, true);
