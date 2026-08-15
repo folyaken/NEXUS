@@ -10,6 +10,7 @@ import { Open } from 'unzipper';
 import type { ModuleManifest, UpdateInfo, UpdateStatus } from './types';
 import { ModuleManager } from './module-manager';
 import { tgWsProxyAssetCandidates, xrayAssetCandidates } from './platform-assets';
+import { buildTgProxyArgs, readTgProxyOptions } from './tg-proxy-options';
 
 type GithubRelease = {
   tag_name: string;
@@ -547,13 +548,16 @@ export class GithubUpdater extends EventEmitter {
     const destination = path.join(this.modulesDir, 'bin', filename);
     await fs.mkdir(path.dirname(destination), { recursive: true });
     await this.atomicReplaceFile(assetPath, destination, process.platform === 'win32' ? undefined : 0o755);
+    // Порт и режим выбирает пользователь, поэтому обновление ядра их сохраняет:
+    // иначе каждая новая версия сбрасывала бы настройки на значения по умолчанию.
+    const tgOptions = readTgProxyOptions(this.manager.list().find((item) => item.id === 'tg-ws-proxy'));
     await this.updateManifest('tg-ws-proxy', {
       executable: `./bin/${filename}`,
-      args: ['--portable'],
+      args: buildTgProxyArgs(tgOptions),
       working_dir: './bin',
       launch_mode: 'executable',
       worker_name: filename,
-      healthcheck: { type: 'tcp', host: '127.0.0.1', port: 1443, timeout_ms: 15000 },
+      healthcheck: { type: 'tcp', host: '127.0.0.1', port: tgOptions.port, timeout_ms: 15000 },
       upstream_log_file: './bin/TgWsProxy_data/proxy.log',
       installed_version: version,
       development: false,

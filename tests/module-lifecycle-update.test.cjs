@@ -28,12 +28,16 @@ assert.deepEqual(xrayAssetCandidates('win32', 'arm64'), ['Xray-windows-arm64-v8a
 assert.deepEqual(xrayAssetCandidates('win32', 'ia32'), ['Xray-windows-32.zip']);
 
 const tgManifest = JSON.parse(fs.readFileSync(path.join(root, 'modules', 'tg-ws-proxy.module.json'), 'utf8'));
-assert.deepEqual(tgManifest.args, ['--portable']);
+// Порт прокси настраивается пользователем и передаётся через --listen.
+assert.deepEqual(tgManifest.args, ['--portable', '--listen=127.0.0.1:8080']);
 assert.equal(tgManifest.working_dir, './bin');
 assert.equal(tgManifest.healthcheck.host, '127.0.0.1');
-assert.equal(tgManifest.healthcheck.port, 1443);
+assert.equal(tgManifest.healthcheck.port, 8080);
 assert.equal(tgManifest.upstream_log_file, './bin/TgWsProxy_data/proxy.log');
-assert.doesNotMatch(JSON.stringify(tgManifest), /--listen|127\.0\.0\.1:8080|bin\/tg-ws-proxy\.exe/i);
+// Проверка устаревшего манифеста: ссылка на несуществующий бинарник и порт
+// 8080 из ранних сборок, где он был жёстко зашит вместо настраиваемого.
+assert.doesNotMatch(JSON.stringify(tgManifest), /bin\/tg-ws-proxy\.exe/i);
+assert.equal(tgManifest.args.filter((arg) => arg.startsWith('--listen')).length, 1, 'порт задаётся ровно одним --listen');
 
 // Фикстуры обязаны следовать за платформой прогона: валидатор ждёт MZ на
 // Windows и ELF на остальных ОС. Зашитая в код одна сигнатура означает, что
@@ -162,7 +166,7 @@ async function runTgPortableRuntimeTest() {
       '#!/usr/bin/env node',
       "const net = require('node:net');",
       "const server = net.createServer((socket) => socket.end());",
-      "server.listen(1443, '127.0.0.1');",
+      "server.listen(8080, '127.0.0.1');",
       "const stop = () => server.close(() => process.exit(0));",
       "process.on('SIGTERM', stop);",
       "process.on('SIGINT', stop);",
@@ -194,7 +198,7 @@ async function runTgPortableRuntimeTest() {
       const configPath = path.join(temp, 'bin', 'TgWsProxy_data', 'config.json');
       const config = JSON.parse(await fsp.readFile(configPath, 'utf8'));
       assert.equal(config.host, '127.0.0.1');
-      assert.equal(config.port, 1443);
+      assert.equal(config.port, 8080, 'конфигурация прокси следует за настроенным портом');
       assert.equal(config.check_updates, false, 'the upstream self-updater must be disabled under NEXUS');
       assert.match(config.secret, /^[a-f0-9]{32}$/i);
       assert.equal((await fsp.stat(configPath)).mode & 0o777, 0o600);
@@ -269,8 +273,8 @@ async function runMockGithubUpdateTest() {
     const installedManifest = JSON.parse(await fsp.readFile(path.join(temp, 'tg-ws-proxy.module.json'), 'utf8'));
     assert.equal(installedManifest.installed_version, 'v-test');
     assert.equal(installedManifest.executable, `./bin/${assetName}`);
-    assert.deepEqual(installedManifest.args, ['--portable']);
-    assert.deepEqual(installedManifest.healthcheck, { type: 'tcp', host: '127.0.0.1', port: 1443, timeout_ms: 15_000 });
+    assert.deepEqual(installedManifest.args, ['--portable', '--listen=127.0.0.1:8080']);
+    assert.deepEqual(installedManifest.healthcheck, { type: 'tcp', host: '127.0.0.1', port: 8080, timeout_ms: 15_000 });
     assert.equal(updater.list().find((item) => item.id === 'tg-ws-proxy')?.status, 'installed');
     const expectedRequests = [
       'https://api.github.com/repos/Flowseal/tg-ws-proxy/releases/latest',

@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { readDpiExpertOptions } from '../main/dpi-arguments';
-import type { DpiExpertOptions, ModuleManifest } from '../main/types';
+import { readTgProxyOptions } from '../main/tg-proxy-options';
+import type { DpiExpertOptions, ModuleManifest, ModuleStatusReport, TgProxyOptions } from '../main/types';
 
 /**
  * Панель настроек одного модуля.
@@ -276,6 +277,119 @@ function DpiExpertSection({ module, onToast }: { module: ModuleManifest; onToast
   </section>;
 }
 
+function TgProxySection({ module, onToast }: { module: ModuleManifest; onToast: (message: string) => void }) {
+  const saved = useMemo(() => readTgProxyOptions(module), [module.args, module.healthcheck]);
+  const [options, setOptions] = useState<TgProxyOptions>(saved);
+  const [busy, setBusy] = useState(false);
+  const [status, setStatus] = useState<ModuleStatusReport | null>(null);
+  const [checking, setChecking] = useState(false);
+
+  // Манифест — источник истины: после перезапуска форма показывает то, что
+  // действительно сохранено, а не последнее введённое значение.
+  useEffect(() => setOptions(saved), [saved]);
+
+  const isRunning = module.status === 'running' || module.status === 'starting';
+  const dirty = options.port !== saved.port || options.mode !== saved.mode;
+
+  const save = async () => {
+    if (busy) return;
+    setBusy(true);
+    try {
+      await window.nexus?.setTgProxyOptions(module.id, options);
+      setStatus(null);
+      onToast(isRunning ? 'Параметры сохранены, модуль перезапущен' : 'Параметры сохранены');
+    } catch (error) {
+      onToast(cleanError(error));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const checkStatus = async () => {
+    if (checking) return;
+    setChecking(true);
+    try {
+      const report = await window.nexus?.checkModuleStatus(module.id);
+      if (report) setStatus(report);
+    } catch (error) {
+      onToast(cleanError(error));
+    } finally {
+      setChecking(false);
+    }
+  };
+
+  return <section className="module-settings-card">
+    <div className="module-settings-card-head">
+      <div>
+        <h3>Основные параметры</h3>
+        <p>Порт, на котором работает прокси, и набор обслуживаемых запросов.</p>
+      </div>
+    </div>
+
+    <div className="tg-option-row">
+      <label htmlFor="tg-proxy-port">
+        <strong>Порт прокси</strong>
+        <small>Локальный порт, который слушает модуль</small>
+      </label>
+      <input
+        id="tg-proxy-port"
+        type="number"
+        className="expert-number"
+        min={1024}
+        max={65535}
+        value={options.port}
+        onChange={(event) => setOptions((current) => ({ ...current, port: Number(event.target.value) }))}
+      />
+    </div>
+
+    <div className="tg-mode-list" role="radiogroup" aria-label="Режим работы">
+      <button
+        type="button"
+        role="radio"
+        aria-checked={options.mode === 'telegram'}
+        className={`module-strategy-option ${options.mode === 'telegram' ? 'is-active' : ''}`}
+        onClick={() => setOptions((current) => ({ ...current, mode: 'telegram' }))}
+      >
+        <i className="settings-radio" />
+        <span><strong>Только Telegram</strong><small>Стандартный режим. Через прокси идёт только Telegram.</small></span>
+      </button>
+      <button
+        type="button"
+        role="radio"
+        aria-checked={options.mode === 'universal'}
+        className={`module-strategy-option ${options.mode === 'universal' ? 'is-active' : ''}`}
+        onClick={() => setOptions((current) => ({ ...current, mode: 'universal' }))}
+      >
+        <i className="settings-radio" />
+        <span><strong>Все прокси-запросы</strong><small>Универсальный прокси: подойдёт для браузера и других программ.</small></span>
+      </button>
+    </div>
+
+    <div className="expert-actions">
+      <button type="button" className="primary-button small" disabled={!dirty || busy} onClick={() => void save()}>
+        <b>{busy ? 'Сохранение…' : 'Сохранить'}</b>
+      </button>
+      <button type="button" className="quiet-button" disabled={!dirty || busy} onClick={() => setOptions(saved)}>Отменить</button>
+      {dirty && isRunning && <span className="expert-restart-note">Модуль перезапустится автоматически</span>}
+    </div>
+
+    <div className="tg-status-block">
+      <button type="button" className="quiet-button" disabled={checking} onClick={() => void checkStatus()}>
+        {checking ? 'Проверяем…' : 'Проверить статус'}
+      </button>
+
+      {status && <div className={`tg-status-report ${status.running && status.portListening ? 'is-ok' : status.running ? 'is-warning' : ''}`}>
+        <strong>{status.summary}</strong>
+        <ul>
+          <li><span>Процесс</span><b>{status.running ? 'активен' : 'не запущен'}</b></li>
+          <li><span>PID</span><b>{status.pid ?? '—'}</b></li>
+          <li><span>Порт {status.host}:{status.port}</span><b>{status.portListening ? 'прослушивается' : 'не отвечает'}</b></li>
+        </ul>
+      </div>}
+    </div>
+  </section>;
+}
+
 export function ModuleSettings({ module, onClose, onToast, onStrategyChange }: {
   module: ModuleManifest;
   onClose: () => void;
@@ -284,6 +398,23 @@ export function ModuleSettings({ module, onClose, onToast, onStrategyChange }: {
 }) {
   const strategies = Object.keys(module.strategies ?? {});
   const isRunning = module.status === 'running' || module.status === 'starting';
+  const [scanning, setScanning] = useState(false);
+
+  // Профили сохраняются в манифест при установке. У пользователей, обновивших
+  // NEXUS поверх старого релиза, список пуст — тогда его нужно пересобрать.
+  const scanStrategies = async () => {
+    if (scanning) return;
+    setScanning(true);
+    try {
+      const next = await window.nexus?.refreshModuleStrategies(module.id);
+      onToast(next ? `Найдено профилей: ${Object.keys(next.strategies ?? {}).length}` : 'Профили не найдены');
+    } catch (error) {
+      onToast(cleanError(error));
+    } finally {
+      setScanning(false);
+    }
+  };
+
   const activeStrategy = module.strategy && strategies.includes(module.strategy)
     ? module.strategy
     : strategies.includes(DEFAULT_STRATEGY) ? DEFAULT_STRATEGY : strategies[0] ?? '';
@@ -304,6 +435,21 @@ export function ModuleSettings({ module, onClose, onToast, onStrategyChange }: {
     </div>}
 
     {module.id === 'zapret' && <DpiHostlistSection onToast={onToast} />}
+
+    {module.id === 'zapret' && strategies.length === 0 && <section className="module-settings-card">
+      <div className="module-settings-card-head">
+        <div>
+          <h3>Профиль обхода</h3>
+          <p>Профили ещё не загружены из релиза Zapret. Нажмите кнопку ниже — NEXUS найдёт их в установленном модуле.</p>
+        </div>
+      </div>
+      <div className="expert-actions">
+        <button type="button" className="primary-button small" disabled={scanning} onClick={() => void scanStrategies()}>
+          <b>{scanning ? 'Поиск…' : 'Найти профили'}</b>
+        </button>
+      </div>
+      <p className="dpi-host-hint">Если профили не найдены, откройте «Модули» и нажмите «Проверить обновления».</p>
+    </section>}
 
     {strategies.length > 0 && <section className="module-settings-card">
       <div className="module-settings-card-head">
@@ -326,7 +472,14 @@ export function ModuleSettings({ module, onClose, onToast, onStrategyChange }: {
       {isRunning
         ? <p className="dpi-host-hint">Остановите модуль, чтобы сменить профиль.</p>
         : <p className="dpi-host-hint">Профили загружаются из релиза Zapret — доступны все, что в нём есть.</p>}
+      <div className="expert-actions">
+        <button type="button" className="quiet-button" disabled={scanning || isRunning} onClick={() => void scanStrategies()}>
+          {scanning ? 'Поиск…' : 'Обновить список профилей'}
+        </button>
+      </div>
     </section>}
+
+    {module.id === 'tg-ws-proxy' && <TgProxySection module={module} onToast={onToast} />}
 
     {module.id === 'zapret' && <DpiExpertSection module={module} onToast={onToast} />}
 

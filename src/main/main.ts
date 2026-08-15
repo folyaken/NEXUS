@@ -528,6 +528,9 @@ function wireIpc(): void {
   ipcMain.handle('modules:stop', (_event, id: string) => manager.stop(id));
   ipcMain.handle('modules:set-strategy', (_event, id: string, strategy: string) => manager.setStrategy(id, strategy));
   ipcMain.handle('modules:set-extra-args', (_event, id: string, options: unknown) => manager.setExtraArgs(String(id ?? ''), options));
+  ipcMain.handle('modules:set-tg-options', (_event, id: string, options: unknown) => manager.setTgProxyOptions(String(id ?? ''), options));
+  ipcMain.handle('modules:check-status', (_event, id: string) => manager.checkStatus(String(id ?? '')));
+  ipcMain.handle('modules:refresh-strategies', (_event, id: string) => manager.refreshStrategies(String(id ?? '')));
   ipcMain.handle('dpi:list-hosts', async () => (await readDpiHostlist(manager.getModulesDir())).hosts);
   ipcMain.handle('dpi:add-host', async (_event, host: unknown) => {
     const result = await addDpiHost(manager.getModulesDir(), String(host ?? ''));

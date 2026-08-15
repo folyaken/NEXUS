@@ -53,6 +53,32 @@ export interface DpiExpertOptions {
   custom: string;
 }
 
+/** Режим работы TG WS Proxy. */
+export type TgProxyMode = 'telegram' | 'universal';
+
+/** Основные параметры TG WS Proxy, редактируемые в настройках модуля. */
+export interface TgProxyOptions {
+  port: number;
+  mode: TgProxyMode;
+}
+
+export const DEFAULT_TG_PROXY_OPTIONS: TgProxyOptions = {
+  port: 8080,
+  mode: 'telegram',
+};
+
+/** Результат проверки состояния модуля по кнопке «Проверить статус». */
+export interface ModuleStatusReport {
+  id: string;
+  running: boolean;
+  pid: number | null;
+  host: string;
+  port: number;
+  portListening: boolean;
+  checkedAt: string;
+  summary: string;
+}
+
 export const DEFAULT_DPI_EXPERT_OPTIONS: DpiExpertOptions = {
   hostcase: false,
   hostdot: false,

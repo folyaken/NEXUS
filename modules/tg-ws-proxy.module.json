@@ -5,7 +5,8 @@
   "enabled": false,
   "executable": "./bin/TgWsProxy_windows_7_64bit.exe",
   "args": [
-    "--portable"
+    "--portable",
+    "--listen=127.0.0.1:8080"
   ],
   "status": "stopped",
   "category": "proxy",
@@ -19,7 +20,7 @@
   "healthcheck": {
     "type": "tcp",
     "host": "127.0.0.1",
-    "port": 1443,
+    "port": 8080,
     "timeout_ms": 15000
   }
 }

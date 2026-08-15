@@ -1,4 +1,4 @@
-import type { AboutSystemInfo, AppSettings, DpiExpertOptions, ModuleLog, ModuleManifest, NexusUpdateCheck, UpdateInfo, UserProfile, VpnDiagnostics, VpnLatencySample, VpnProfile, VpnRuntime, VpnSplitApp } from '../main/types';
+import type { AboutSystemInfo, AppSettings, DpiExpertOptions, ModuleStatusReport, TgProxyOptions, ModuleLog, ModuleManifest, NexusUpdateCheck, UpdateInfo, UserProfile, VpnDiagnostics, VpnLatencySample, VpnProfile, VpnRuntime, VpnSplitApp } from '../main/types';
 
 declare global {
   interface Window {
@@ -9,6 +9,9 @@ declare global {
       stopModule(id: string): Promise<ModuleManifest>;
       setModuleStrategy(id: string, strategy: string): Promise<ModuleManifest>;
       setModuleExtraArgs(id: string, options: DpiExpertOptions): Promise<ModuleManifest>;
+      setTgProxyOptions(id: string, options: TgProxyOptions): Promise<ModuleManifest>;
+      checkModuleStatus(id: string): Promise<ModuleStatusReport>;
+      refreshModuleStrategies(id: string): Promise<ModuleManifest>;
       getDpiHosts(): Promise<string[]>;
       addDpiHost(host: string): Promise<string[]>;
       removeDpiHost(host: string): Promise<string[]>;

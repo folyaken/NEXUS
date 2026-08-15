@@ -160,3 +160,54 @@ for (const profile of ['general (ALT10).bat', 'general (ALT2).bat', 'discord.bat
 const managerSource = fs.readFileSync(path.join(root, 'src', 'main', 'module-manager.ts'), 'utf8');
 assert.match(managerSource, /createBatchRunner\(id: string, batchFile: string, extraArgs: string\[\] = \[\]\)/);
 assert.match(managerSource, /const safeArgs = extraArgs/, 'runner должен проверять аргументы перед записью в .cmd');
+
+// --- Восстановление профилей из уже установленного релиза --------------------
+// Профили записываются в манифест при установке Zapret. У пользователей,
+// обновивших NEXUS поверх старого релиза, список пуст, и секция выбора профиля
+// не появлялась вовсе — поэтому нужен пересбор по кнопке.
+void (async () => {
+  const temp = await fsp.mkdtemp(path.join(os.tmpdir(), 'nexus-strategy-scan-test-'));
+  try {
+    const release = path.join(temp, 'bin', 'zapret');
+    await fsp.mkdir(release, { recursive: true });
+    for (const name of ['general (ALT10).bat', 'general (ALT2).bat', 'discord.bat', 'service_install.bat', 'check_updates.bat']) {
+      await fsp.writeFile(path.join(release, name), '@echo off\r\n');
+    }
+    await fsp.writeFile(path.join(temp, 'zapret.module.json'), JSON.stringify({
+      id: 'zapret',
+      name: 'Обход DPI',
+      description: 'Открывает YouTube, Discord и другие сайты без VPN.',
+      enabled: false,
+      executable: './bin/zapret/winws.exe',
+      working_dir: './bin/zapret',
+      args: [],
+      status: 'stopped',
+      category: 'dpi',
+      icon: 'S',
+      pid: null,
+      log_file: './logs/zapret.log',
+    }, null, 2));
+
+    const manager = new ModuleManager(temp);
+    manager.setProcessScanner(async () => []);
+    await manager.init();
+    assert.deepEqual(manager.list().find((item) => item.id === 'zapret').strategies, undefined, 'до пересбора профилей нет');
+
+    const refreshed = await manager.refreshStrategies('zapret');
+    const names = Object.keys(refreshed.strategies).sort();
+    assert.deepEqual(names, ['discord', 'general (ALT10)', 'general (ALT2)'], 'служебные скрипты не попадают в профили');
+    assert.equal(refreshed.strategy, 'general (ALT10)', 'по умолчанию выбирается ALT10');
+    assert.equal(refreshed.launch_mode, 'batch');
+
+    await manager.reload();
+    assert.deepEqual(
+      Object.keys(manager.list().find((item) => item.id === 'zapret').strategies).sort(),
+      names,
+      'найденные профили переживают пересканирование',
+    );
+
+    console.log('Zapret strategy discovery checks passed.');
+  } finally {
+    await fsp.rm(temp, { recursive: true, force: true });
+  }
+})();

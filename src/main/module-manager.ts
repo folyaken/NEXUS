@@ -6,8 +6,9 @@ import { promises as fs } from 'node:fs';
 import net from 'node:net';
 import os from 'node:os';
 import path from 'node:path';
-import type { ModuleHealthcheck, ModuleLog, ModuleManifest, ModuleStatus } from './types';
+import type { ModuleHealthcheck, ModuleLog, ModuleManifest, ModuleStatus, ModuleStatusReport } from './types';
 import { buildDpiExtraArgs, normalizeDpiExpertOptions } from './dpi-arguments';
+import { buildTgProxyArgs, normalizeTgProxyOptions, readTgProxyOptions } from './tg-proxy-options';
 import { readDpiHostlist, syncDpiHostlistInto } from './dpi-hostlist';
 import { tgWsProxyAssetCandidates } from './platform-assets';
 import { listPidsByImage, waitForExit } from './process-watch';
@@ -20,7 +21,7 @@ const WORKER_BY_ID: Record<string, string> = {
   zapret: process.platform === 'win32' ? 'winws.exe' : 'winws',
 };
 const TG_WS_DESCRIPTION = 'Возвращает доступ к Telegram, когда он заблокирован.';
-const TG_WS_HEALTHCHECK: ModuleHealthcheck = { type: 'tcp', host: '127.0.0.1', port: 1443, timeout_ms: 15000 };
+const TG_WS_HEALTHCHECK: ModuleHealthcheck = { type: 'tcp', host: '127.0.0.1', port: 8080, timeout_ms: 15000 };
 
 function delay(milliseconds: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, milliseconds));
@@ -176,6 +177,133 @@ export class ModuleManager extends EventEmitter {
       this.emitLog(id, 'info', 'Модуль перезапущен с новыми параметрами');
     }
     return this.modules.get(id) ?? module;
+  }
+
+  /**
+   * Сохраняет основные параметры TG WS Proxy и перезапускает модуль при необходимости.
+   *
+   * Порт обновляется сразу в трёх местах: аргументах запуска, healthcheck и
+   * конфигурации самого прокси. Рассинхронизация любого из них означала бы, что
+   * процесс слушает один порт, а NEXUS проверяет другой.
+   */
+  async setTgProxyOptions(id: string, options: unknown): Promise<ModuleManifest> {
+    const module = this.modules.get(id);
+    if (!module) throw new Error('Модуль не найден');
+    if (this.isUpdating(id)) throw new Error('Дождитесь завершения обновления модуля');
+
+    const normalized = normalizeTgProxyOptions(options);
+    const wasRunning = this.isRunning(id);
+
+    // Занятый порт выявляется до остановки рабочего процесса, иначе пользователь
+    // остался бы без работающего прокси из-за неудачной настройки.
+    const portChanged = readTgProxyOptions(module).port !== normalized.port;
+    if (portChanged && await this.isTcpOpen('127.0.0.1', normalized.port, 350)) {
+      throw new Error(`Порт ${normalized.port} уже занят другим приложением. Выберите свободный порт.`);
+    }
+
+    if (wasRunning) await this.stop(id, { persistEnabled: true });
+
+    module.args = buildTgProxyArgs(normalized);
+    module.healthcheck = { ...(module.healthcheck ?? { type: 'tcp', timeout_ms: 15000 }), type: 'tcp', host: '127.0.0.1', port: normalized.port };
+    await this.persistModule(module);
+    this.emit('changed', this.list());
+    this.emitLog(id, 'info', `Параметры сохранены · порт ${normalized.port} · режим ${normalized.mode === 'universal' ? 'все запросы' : 'только Telegram'}`);
+
+    if (wasRunning) {
+      await this.start(id);
+      this.emitLog(id, 'info', 'Модуль перезапущен с новыми параметрами');
+    }
+    return this.modules.get(id) ?? module;
+  }
+
+  /** Фактическое состояние модуля: процесс, PID и доступность порта. */
+  async checkStatus(id: string): Promise<ModuleStatusReport> {
+    const module = this.modules.get(id);
+    if (!module) throw new Error('Модуль не найден');
+
+    const host = module.healthcheck?.host ?? '127.0.0.1';
+    const port = module.healthcheck?.port ?? readTgProxyOptions(module).port;
+    const pid = this.processes.get(id)?.pid ?? this.workerPids.get(id) ?? await this.discoverWorker(module);
+    const running = Boolean(pid);
+    const portListening = await this.isTcpOpen(host, port, 700);
+
+    const summary = running && portListening
+      ? 'Модуль работает и принимает подключения'
+      : running
+        ? 'Процесс запущен, но порт не отвечает'
+        : portListening
+          ? 'Порт занят другим приложением'
+          : 'Модуль остановлен';
+
+    return {
+      id,
+      running,
+      pid: pid ?? null,
+      host,
+      port,
+      portListening,
+      checkedAt: new Date().toISOString(),
+      summary,
+    };
+  }
+
+  /**
+   * Пересобирает список профилей из уже установленного релиза.
+   *
+   * Раньше профили записывались только в момент установки Zapret, поэтому у
+   * пользователей с ранее скачанным релизом список оставался пустым (или содержал
+   * три устаревшие записи), и секция выбора профиля не появлялась вовсе.
+   */
+  async refreshStrategies(id: string): Promise<ModuleManifest> {
+    const module = this.modules.get(id);
+    if (!module) throw new Error('Модуль не найден');
+    if (this.isUpdating(id)) throw new Error('Дождитесь завершения обновления модуля');
+
+    const searchRoot = module.working_dir ? this.resolvePath(module.working_dir) : path.join(this.modulesDir, 'bin');
+    const discovered = await this.findBatchProfiles(searchRoot);
+    if (!discovered.length) {
+      throw new Error('Профили не найдены. Нажмите «Проверить обновления» и дождитесь загрузки модуля.');
+    }
+
+    const strategies: Record<string, string> = {};
+    for (const file of discovered) {
+      strategies[path.basename(file, '.bat')] = `./${path.relative(this.modulesDir, file).split(path.sep).join('/')}`;
+    }
+
+    module.strategies = strategies;
+    module.launch_mode = 'batch';
+    if (!module.strategy || !strategies[module.strategy]) {
+      module.strategy = strategies['general (ALT10)'] ? 'general (ALT10)' : Object.keys(strategies)[0];
+    }
+    await this.persistModule(module);
+    this.emit('changed', this.list());
+    this.emitLog(id, 'success', `Найдено профилей запуска: ${Object.keys(strategies).length}`);
+    return module;
+  }
+
+  /** Профили запуска (.bat) внутри установленного релиза, без служебных скриптов. */
+  private async findBatchProfiles(root: string): Promise<string[]> {
+    const found: string[] = [];
+    const skip = /^(?:service|check_?updates?|cleanup|diagnos|install|remove|uninstall|stop|kill|update|preset|blockcheck)/i;
+
+    const walk = async (directory: string, depth: number): Promise<void> => {
+      if (depth > 5 || found.length >= 64) return;
+      let entries;
+      try {
+        entries = await fs.readdir(directory, { withFileTypes: true });
+      } catch {
+        return;
+      }
+      for (const entry of entries.sort((left, right) => left.name.localeCompare(right.name, 'ru'))) {
+        if (entry.name === '.cache' || entry.name === 'logs') continue;
+        const candidate = path.join(directory, entry.name);
+        if (entry.isDirectory()) await walk(candidate, depth + 1);
+        else if (entry.isFile() && entry.name.toLowerCase().endsWith('.bat') && !skip.test(entry.name)) found.push(candidate);
+      }
+    };
+
+    await walk(root, 0);
+    return found;
   }
 
   async start(id: string): Promise<ModuleManifest> {
@@ -574,14 +702,20 @@ export class ModuleManager extends EventEmitter {
     const executable = isTgWsProxy && preferredTgAsset && knownTgNames.has(parsedExecutableName)
       ? `./bin/${preferredTgAsset}`
       : parsed.executable;
-    const healthcheck = isTgWsProxy ? { ...TG_WS_HEALTHCHECK } : this.normalizeHealthcheck(parsed.healthcheck, filename);
+    // Порт и режим настраиваются пользователем, поэтому фиксируется только форма
+    // проверки, а сами значения читаются из манифеста. Иначе пересканирование
+    // возвращало бы модуль на исходный порт и сбрасывало настройки.
+    const tgOptions = isTgWsProxy ? readTgProxyOptions({ args: Array.isArray(parsed.args) ? parsed.args.map(String) : [], healthcheck: parsed.healthcheck }) : null;
+    const healthcheck = isTgWsProxy
+      ? { ...TG_WS_HEALTHCHECK, port: tgOptions?.port ?? TG_WS_HEALTHCHECK.port }
+      : this.normalizeHealthcheck(parsed.healthcheck, filename);
     return {
       id: parsed.id,
       name: parsed.name,
       description: isTgWsProxy ? TG_WS_DESCRIPTION : parsed.description ?? 'Локальный сетевой инструмент',
       enabled: Boolean(parsed.enabled),
       executable,
-      args: isTgWsProxy ? ['--portable'] : Array.isArray(parsed.args) ? parsed.args.map(String) : [],
+      args: isTgWsProxy && tgOptions ? buildTgProxyArgs(tgOptions) : Array.isArray(parsed.args) ? parsed.args.map(String) : [],
       status: this.isRunning(parsed.id) ? 'running' : 'stopped',
       category: parsed.category ?? 'other',
       icon: parsed.icon ?? '◈',
@@ -790,7 +924,9 @@ export class ModuleManager extends EventEmitter {
       }
     }
     config.host = '127.0.0.1';
-    config.port = 1443;
+    // Порт берётся из настроек модуля: зашитое значение возвращало бы прокси на
+    // 1443 при каждом запуске и обесценивало выбор пользователя.
+    config.port = readTgProxyOptions(module).port;
     config.check_updates = false;
     config.autostart = false;
     if (typeof config.secret !== 'string' || !/^[a-f0-9]{32}$/i.test(config.secret)) {

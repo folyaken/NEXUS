@@ -1,5 +1,5 @@
 import { contextBridge, ipcRenderer } from 'electron';
-import type { AboutSystemInfo, AppSettings, DpiExpertOptions, ModuleLog, ModuleManifest, NexusUpdateCheck, UpdateInfo, UserProfile, VpnDiagnostics, VpnLatencySample, VpnProfile, VpnRuntime, VpnSplitApp } from './types';
+import type { AboutSystemInfo, AppSettings, DpiExpertOptions, ModuleStatusReport, TgProxyOptions, ModuleLog, ModuleManifest, NexusUpdateCheck, UpdateInfo, UserProfile, VpnDiagnostics, VpnLatencySample, VpnProfile, VpnRuntime, VpnSplitApp } from './types';
 
 contextBridge.exposeInMainWorld('nexus', {
   getModules: (): Promise<ModuleManifest[]> => ipcRenderer.invoke('modules:list'),
@@ -8,6 +8,9 @@ contextBridge.exposeInMainWorld('nexus', {
   stopModule: (id: string): Promise<ModuleManifest> => ipcRenderer.invoke('modules:stop', id),
   setModuleStrategy: (id: string, strategy: string): Promise<ModuleManifest> => ipcRenderer.invoke('modules:set-strategy', id, strategy),
   setModuleExtraArgs: (id: string, options: DpiExpertOptions): Promise<ModuleManifest> => ipcRenderer.invoke('modules:set-extra-args', id, options),
+  setTgProxyOptions: (id: string, options: TgProxyOptions): Promise<ModuleManifest> => ipcRenderer.invoke('modules:set-tg-options', id, options),
+  checkModuleStatus: (id: string): Promise<ModuleStatusReport> => ipcRenderer.invoke('modules:check-status', id),
+  refreshModuleStrategies: (id: string): Promise<ModuleManifest> => ipcRenderer.invoke('modules:refresh-strategies', id),
   getDpiHosts: (): Promise<string[]> => ipcRenderer.invoke('dpi:list-hosts'),
   addDpiHost: (host: string): Promise<string[]> => ipcRenderer.invoke('dpi:add-host', host),
   removeDpiHost: (host: string): Promise<string[]> => ipcRenderer.invoke('dpi:remove-host', host),
