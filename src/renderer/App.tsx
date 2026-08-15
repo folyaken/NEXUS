@@ -389,6 +389,20 @@ function AboutPage() {
       </article>
     </div>
 
+    <article className="about-license-card">
+      <div className="about-panel-heading"><div className="about-panel-icon"><NavGlyph name="about" /></div><div><span>ПРАВОВАЯ ИНФОРМАЦИЯ</span><h3>Лицензии</h3></div></div>
+      <p className="about-license-lead">NEXUS — проприетарное программное обеспечение. Copyright © 2026 NEXUS. Все права защищены.</p>
+      <div className="about-license-list">
+        <div className="about-license-row"><span>Xray-core</span><strong>MPL-2.0</strong></div>
+        <div className="about-license-row"><span>sing-box</span><strong>GPL-3.0</strong></div>
+        <div className="about-license-row"><span>Zapret</span><strong>MIT</strong></div>
+        <div className="about-license-row"><span>TG WS Proxy</span><strong>MIT</strong></div>
+        <div className="about-license-row"><span>Electron, React</span><strong>MIT</strong></div>
+        <div className="about-license-row"><span>Inter, JetBrains Mono, Space Grotesk</span><strong>OFL-1.1</strong></div>
+      </div>
+      <p className="about-license-note">Сетевые ядра и модули — самостоятельные программы сторонних разработчиков. Они загружаются с официальных репозиториев и запускаются отдельными процессами. Полный перечень условий приведён в файле THIRD-PARTY-NOTICES.md рядом с приложением.</p>
+    </article>
+
     <div className="about-footer-card"><div><strong>NEXUS</strong><span>Разработано для безопасной локальной работы</span></div><div><span>ХРАНЕНИЕ</span><strong>Только на устройстве</strong></div><div><span>КАНАЛ</span><strong>Stable</strong></div></div>
   </section>;
 }

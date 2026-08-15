@@ -1,9 +1,11 @@
 {
   "name": "nexus-network-tools",
   "version": "1.1.1",
-  "patchLevel": 35,
+  "patchLevel": 36,
   "private": true,
   "description": "NEXUS — локальная Electron-обёртка для сетевых инструментов",
+  "license": "SEE LICENSE IN LICENSE",
+  "author": "NEXUS",
   "main": "dist-electron/main.js",
   "scripts": {
     "dev": "node scripts/ensure-xray.cjs && node scripts/ensure-singbox.cjs && npm run build:main && concurrently -k \"vite --host 0.0.0.0\" \"wait-on http://localhost:5173 && electron .\"",
@@ -38,7 +40,9 @@
       "assets/**/*",
       "package.json",
       "modules/*.module.json",
-      "modules/README.md"
+      "modules/README.md",
+      "LICENSE",
+      "THIRD-PARTY-NOTICES.md"
     ],
     "extraResources": [
       {
@@ -91,12 +95,14 @@
       "createDesktopShortcut": true,
       "createStartMenuShortcut": true,
       "perMachine": true,
-      "allowElevation": true
+      "allowElevation": true,
+      "license": "LICENSE"
     },
     "linux": {
       "target": "AppImage",
       "category": "Network"
-    }
+    },
+    "copyright": "Copyright (c) 2026 NEXUS"
   },
   "dependencies": {
     "@react-spring/web": "^9.7.4",
