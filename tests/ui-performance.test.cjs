@@ -33,8 +33,9 @@ assert.match(styles, /@keyframes nx-orbit-b/);
 assert.doesNotMatch(app, /orbitA|orbitB/, 'вращение орбит должно быть на CSS');
 
 // Пользователи с отключённой анимацией не должны получать постоянную нагрузку.
-const reducedMotion = styles.slice(styles.lastIndexOf('@media (prefers-reduced-motion: reduce)'));
-assert.match(reducedMotion, /\.status-dot, \.orbit-a, \.orbit-b \{ animation: none; \}/);
+// Правило ищется по всему файлу: блоков prefers-reduced-motion несколько, и
+// привязка к последнему ломается при добавлении новых анимаций.
+assert.match(styles, /@media \(prefers-reduced-motion: reduce\)[\s\S]*?\.status-dot, \.orbit-a, \.orbit-b \{ animation: none; \}/);
 
 // --- Оформление выпадающего списка ------------------------------------------
 // Нативный <select> рисуется средствами ОС и выбивается из оформления.

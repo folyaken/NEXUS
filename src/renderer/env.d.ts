@@ -1,6 +1,9 @@
 import type { AboutSystemInfo, AppSettings, DpiExpertOptions, DpiHostlistResult, ModuleStatusReport, TgProxyOptions, ModuleLog, ModuleManifest, NexusUpdateCheck, UpdateInfo, UserProfile, VpnDiagnostics, VpnLatencySample, VpnProfile, VpnRuntime, VpnSplitApp } from '../main/types';
 
 declare global {
+  /** Версия из package.json, подставляется на этапе сборки (см. vite.config.ts). */
+  const __APP_VERSION__: string;
+
   interface Window {
     nexus?: {
       getModules(): Promise<ModuleManifest[]>;

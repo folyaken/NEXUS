@@ -79,7 +79,7 @@ assert.match(main, /appearance: raw\.appearance === 'graphite' \? 'graphite' : '
 assert.match(main, /vpnFragmentation: raw\.vpnFragmentation !== false/, 'old settings must migrate to enabled fragmentation');
 assert.match(vpnManager, /fragmentation = true/);
 assert.match(vpnManager, /buildXrayConfig\(profile\.params, port, mode, activeSplitApps, activeAppRouting, fragmentation, allowLan\)/);
-assert.equal(packageJson.version, '1.1.1');
+assert.match(packageJson.version, /^\d+\.\d+\.\d+/, 'версия должна следовать semver');
 assert.match(githubUpdater, /syncInFlight = new Map<string, Promise<void>>\(\)/, 'parallel sync requests must share one task per module');
 assert.match(githubUpdater, /ensureInFlight = new Map<string, Promise<void>>\(\)/, 'parallel ensure requests must share one task per module');
 assert.match(githubUpdater, /fs\.mkdtemp\(path\.join\(os\.tmpdir\(\), 'nexus-updater-'\)\)/);
@@ -136,8 +136,10 @@ assert.match(page, /sampleVpnLatency/);
 
 assert.doesNotMatch(app, /SettingsTab|settings-tabs|function ApplicationSettings|Настройки приложений/, 'VPN settings must not leak into global NEXUS settings');
 assert.doesNotMatch(app, /copyHwid|setCopied|Скопировать HWID/, 'HWID must be displayed without the temporary copy/check button');
-assert.match(app, /nexusVersion: '1\.1\.1'/);
-assert.match(app, /NEXUS v1\.1\.1/);
+// Версия подставляется из package.json на этапе сборки, а не хранится строкой:
+// иначе после повышения версии интерфейс показывал бы старое значение.
+assert.match(app, /nexusVersion: __APP_VERSION__/);
+assert.match(app, /NEXUS v\{__APP_VERSION__\}/);
 const heroVisual = app.slice(app.indexOf('function HeroVisual()'), app.indexOf('function GithubUpdateStrip'));
 // Вращение перенесено в CSS: бесконечные пружины @react-spring занимали главный
 // поток всё время, пока открыта главная, и мешали плавности наведения.

@@ -1380,3 +1380,13 @@ kbd { padding: 3px 5px; border: 1px solid rgba(255,255,255,.1); border-radius: 5
 .appearance-graphite .module-settings-notice.is-elevation > span { background: rgba(214,214,214,.16); color: #d6d6d6; }
 .appearance-graphite .module-settings-notice.is-elevation strong { color: #ebebeb; }
 .appearance-graphite .module-settings-notice.is-elevation p { color: #a8a8a8; }
+
+/* Скелет карточек модулей на время загрузки данных */
+.module-card-skeleton .module-card-inner { display: flex; flex-direction: column; gap: 13px; }
+.skeleton-block { display: block; border-radius: 8px; background: linear-gradient(90deg, rgba(255,255,255,.045) 25%, rgba(255,255,255,.085) 50%, rgba(255,255,255,.045) 75%); background-size: 200% 100%; animation: nx-skeleton 1.4s ease-in-out infinite; }
+.skeleton-icon { width: 42px; height: 42px; border-radius: 13px; }
+.skeleton-line { height: 11px; }
+.skeleton-line.short { width: 45%; }
+.module-card-skeleton .card-head-copy { display: flex; flex-direction: column; gap: 9px; }
+@keyframes nx-skeleton { from { background-position: 200% 0; } to { background-position: -200% 0; } }
+@media (prefers-reduced-motion: reduce) { .skeleton-block { animation: none; } }

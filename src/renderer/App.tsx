@@ -9,6 +9,13 @@ type Page = 'dashboard' | 'modules' | 'jey2ray' | 'logs' | 'settings' | 'about';
 type LogCategory = 'main' | 'core' | 'tunnel' | 'antifilter' | 'subscriptions' | 'service';
 type Tone = 'green' | 'amber' | 'red' | 'muted';
 
+/**
+ * Данные для просмотра интерфейса в браузере (`npm run dev:web`).
+ *
+ * В настольном приложении они не используются: там до ответа main-процесса
+ * показывается состояние загрузки. Раньше эти записи успевали мелькнуть в
+ * реальном окне, и пользователь видел выдуманные модули, журнал и обновления.
+ */
 const DEMO_MODULES: ModuleManifest[] = [
   { id: 'zapret', name: 'Обход DPI', description: 'Открывает YouTube, Discord и другие сайты без VPN.', enabled: false, executable: './bin/winws.exe', args: ['--wf-tcp=80,443', '--hostlist=list.txt'], status: 'stopped', category: 'dpi', icon: '🛡️', pid: null, log_file: './logs/zapret.log' },
   { id: 'tg-ws-proxy', name: 'TG WS Proxy', description: 'Возвращает доступ к Telegram, когда он заблокирован.', enabled: false, executable: './bin/TgWsProxy_windows_7_64bit.exe', args: ['--portable'], status: 'stopped', category: 'proxy', icon: '◈', pid: null, log_file: './logs/tg-ws-proxy.log', working_dir: './bin', healthcheck: { type: 'tcp', host: '127.0.0.1', port: 1443, timeout_ms: 15000 } },
@@ -148,6 +155,23 @@ function ModuleCard({ module, index, onToggle, onStrategyChange, onOpenSettings 
   </div></animated.article>;
 }
 
+/** Заглушки карточек на время загрузки: пустой экран читается как «модулей нет». */
+function ModuleSkeletons({ count }: { count: number }) {
+  return <>{Array.from({ length: count }, (_, index) => <div className="module-card module-card-skeleton" key={index} aria-hidden="true">
+    <div className="module-card-inner">
+      <div className="card-head">
+        <span className="skeleton-block skeleton-icon" />
+        <div className="card-head-copy">
+          <span className="skeleton-block skeleton-line short" />
+          <span className="skeleton-block skeleton-line" />
+        </div>
+      </div>
+      <span className="skeleton-block skeleton-line" />
+      <span className="skeleton-block skeleton-line short" />
+    </div>
+  </div>)}</>;
+}
+
 function StatCard({ label, value, note, icon, tone, index }: { label: string; value: string; note: string; icon: string; tone: string; index: number }) {
   const spring = useSpring({ from: { opacity: 0, y: 12 }, to: { opacity: 1, y: 0 }, delay: 100 + index * 70, config: config.gentle });
   return <animated.div className="stat-card" style={{ opacity: spring.opacity, transform: spring.y.to((y) => `translateY(${y}px)`) }}><div className={`stat-icon ${tone}`}><IconMark>{icon}</IconMark></div><div><span className="stat-label">{label}</span><strong>{value}</strong><span className="stat-note">{note}</span></div></animated.div>;
@@ -276,7 +300,7 @@ function LogsPage({ logs, category, setCategory, onNotice }: { logs: ModuleLog[]
 
 function AboutPage() {
   const [info, setInfo] = useState<AboutSystemInfo>({
-    nexusVersion: '1.1.1',
+    nexusVersion: __APP_VERSION__,
     xrayVersion: null,
     singBoxVersion: null,
     hwid: 'NX-LOCAL',
@@ -371,9 +395,14 @@ function AboutPage() {
 
 function App() {
   const [page, setPage] = useState<Page>('dashboard');
-  const [modules, setModules] = useState<ModuleManifest[]>(DEMO_MODULES);
-  const [logs, setLogs] = useState<ModuleLog[]>(DEMO_LOGS);
-  const [updates, setUpdates] = useState<UpdateInfo[]>(DEMO_UPDATES);
+  // window.nexus есть только в настольном приложении. В браузере показываем
+  // демо-набор, в приложении — пустые списки до ответа main-процесса.
+  const isDesktop = typeof window !== 'undefined' && Boolean(window.nexus);
+  const [modules, setModules] = useState<ModuleManifest[]>(isDesktop ? [] : DEMO_MODULES);
+  const [logs, setLogs] = useState<ModuleLog[]>(isDesktop ? [] : DEMO_LOGS);
+  const [updates, setUpdates] = useState<UpdateInfo[]>(isDesktop ? [] : DEMO_UPDATES);
+  // До первого ответа main-процесса интерфейс не должен выглядеть как «модулей нет».
+  const [loadingModules, setLoadingModules] = useState(isDesktop);
   // Search is intentionally hidden for now (CSS .search-box already exists).
   // const [query, setQuery] = useState('');
   const [moduleFilter, setModuleFilter] = useState<'all' | 'running' | 'stopped'>('all');
@@ -413,7 +442,9 @@ function App() {
       if (!alive) return;
       setModules(nextModules); setLogs(nextLogs); setUpdates(nextUpdates); setProfile(nextProfile); setProfileDraft(nextProfile.displayName);
       setSettings(nextSettings); setLastScan(scan); setMaximized(isMax);
-    }).catch((error: Error) => setToast(error.message));
+    }).catch((error: Error) => setToast(error.message)).finally(() => {
+      if (alive) setLoadingModules(false);
+    });
     const offModules = api.onModulesChanged(setModules);
     const offLogs = api.onLog((log) => setLogs((current) => [log, ...current].slice(0, 200)));
     const offUpdates = api.onUpdatesChanged(setUpdates);
@@ -566,13 +597,13 @@ function App() {
       <div className="sidebar-bottom">
         <button type="button" aria-label="О программе" title={sidebarCollapsed ? 'О программе' : undefined} className={`nav-item sidebar-about ${page === 'about' ? 'active' : ''}`} onClick={() => setPage('about')}><span className="nav-glyph"><NavGlyph name="about" /></span><span className="nav-item-label sidebar-copy">О программе</span></button>
         <div className="system-status" title={sidebarCollapsed ? `${systemTitle}: ${systemNote}` : undefined}><StatusDot tone={systemTone} /><div className="sidebar-copy"><span>{systemTitle}</span><small>{systemNote}</small></div></div>
-        <div className="version-row sidebar-copy"><span>NEXUS v1.1.1</span><span className="online-dot" /> LOCAL</div>
+        <div className="version-row sidebar-copy"><span>NEXUS v{__APP_VERSION__}</span><span className="online-dot" /> LOCAL</div>
       </div>
     </aside>
 
     <main className="main-content"><header className="topbar"><div className="breadcrumb"><span>CONTROL CENTER</span><b>/</b><strong>{page === 'about' ? 'О программе' : navItems.find((item) => item.id === page)?.label}</strong></div><div className="top-actions"><button className={`logs-shortcut ${page === 'logs' ? 'is-active' : ''}`} aria-label="Открыть логи" onClick={() => setPage('logs')}><span className="logs-shortcut-icon"><NavGlyph name="logs" /></span><span>Логи</span>{logs.some((log) => log.level === 'error') ? <i /> : null}</button><div className="profile-wrap" ref={profileWrapRef}><button className={`user-chip ${profileOpen ? 'is-open' : ''}`} aria-expanded={profileOpen} aria-haspopup="dialog" onClick={() => setProfileOpen((value) => !value)}><span className="user-avatar">{profileInitial}</span><span>{profileName}</span><span className="profile-chevron"><svg viewBox="0 0 20 20" aria-hidden="true"><path d="m5.5 7.5 4.5 4.5 4.5-4.5" /></svg></span></button><ProfilePopover open={profileOpen} profile={profile} draft={profileDraft} setDraft={setProfileDraft} onSave={handleSaveProfile} /></div></div></header>
 
-      {page === 'dashboard' && <><section className="hero"><div className="hero-copy"><div className="hero-kicker"><span className="spark-line">✦</span> LOCAL NETWORK ORCHESTRATOR <span className="hero-line" /></div><h1>Сеть, которая<br /><span>остаётся под контролем.</span></h1><p>Единый центр для спокойного управления сетевыми инструментами,<br />локальными прокси и профилями маршрутизации.</p><div className="hero-actions"><button className="primary-button" onClick={() => setPage('modules')}><span>Открыть модули</span><b>↗</b></button><button className="quiet-button" onClick={handleReload}><span>⟳</span> Сканировать заново</button></div></div><HeroVisual /></section><section className="stats-grid"><StatCard label="ВСЕГО МОДУЛЕЙ" value={String(modules.length).padStart(2, '0')} note="обнаружено локально" icon="◈" tone="cyan" index={0} /><StatCard label="АКТИВНЫЕ" value={String(running).padStart(2, '0')} note={running ? 'контур запущен' : 'готовы к запуску'} icon="ϟ" tone="violet" index={1} /><StatCard label="ЗДОРОВЬЕ" value={`${modules.length ? Math.round((healthy / modules.length) * 100) : 100}%`} note={errors ? `${errors} с ошибкой` : 'без критических ошибок'} icon="⌁" tone="mint" index={2} /><StatCard label="ПОСЛЕДНИЙ СКАН" value={lastScanLabel} note={settings.autoStart ? 'автозапуск включён' : 'автозапуск выключен'} icon="◷" tone="amber" index={3} /></section><section className="section-heading"><div><span className="section-kicker">YOUR TOOLKIT</span><h2>Быстрый доступ</h2></div><button className="text-button" onClick={() => setPage('modules')}>Все модули <span>→</span></button></section><div className="dashboard-grid"><div className="module-grid compact">{filteredModules.slice(0, 4).map((module, index) => <ModuleCard key={module.id} module={module} index={index} onToggle={handleToggle} onStrategyChange={handleStrategyChange} onOpenSettings={openModuleSettings} />)}</div><PulsePanel running={running} total={modules.length} errors={errors} /></div></>}
+      {page === 'dashboard' && <><section className="hero"><div className="hero-copy"><div className="hero-kicker"><span className="spark-line">✦</span> LOCAL NETWORK ORCHESTRATOR <span className="hero-line" /></div><h1>Сеть, которая<br /><span>остаётся под контролем.</span></h1><p>Единый центр для спокойного управления сетевыми инструментами,<br />локальными прокси и профилями маршрутизации.</p><div className="hero-actions"><button className="primary-button" onClick={() => setPage('modules')}><span>Открыть модули</span><b>↗</b></button><button className="quiet-button" onClick={handleReload}><span>⟳</span> Сканировать заново</button></div></div><HeroVisual /></section><section className="stats-grid"><StatCard label="ВСЕГО МОДУЛЕЙ" value={String(modules.length).padStart(2, '0')} note="обнаружено локально" icon="◈" tone="cyan" index={0} /><StatCard label="АКТИВНЫЕ" value={String(running).padStart(2, '0')} note={running ? 'контур запущен' : 'готовы к запуску'} icon="ϟ" tone="violet" index={1} /><StatCard label="ЗДОРОВЬЕ" value={`${modules.length ? Math.round((healthy / modules.length) * 100) : 100}%`} note={errors ? `${errors} с ошибкой` : 'без критических ошибок'} icon="⌁" tone="mint" index={2} /><StatCard label="ПОСЛЕДНИЙ СКАН" value={lastScanLabel} note={settings.autoStart ? 'автозапуск включён' : 'автозапуск выключен'} icon="◷" tone="amber" index={3} /></section><section className="section-heading"><div><span className="section-kicker">YOUR TOOLKIT</span><h2>Быстрый доступ</h2></div><button className="text-button" onClick={() => setPage('modules')}>Все модули <span>→</span></button></section><div className="dashboard-grid"><div className="module-grid compact">{loadingModules ? <ModuleSkeletons count={4} /> : filteredModules.slice(0, 4).map((module, index) => <ModuleCard key={module.id} module={module} index={index} onToggle={handleToggle} onStrategyChange={handleStrategyChange} onOpenSettings={openModuleSettings} />)}</div><PulsePanel running={running} total={modules.length} errors={errors} /></div></>}
 
       {page === 'modules' && settingsModule && <ModuleSettings
         module={settingsModule}
@@ -581,7 +612,7 @@ function App() {
         onStrategyChange={handleStrategyChange}
       />}
 
-      {page === 'modules' && !settingsModule && <section className="page-section"><div className="page-heading"><div><span className="section-kicker">MODULE REGISTRY</span><h1>Все модули</h1><p>Манифесты из <code>./modules</code> · {modules.length} подключено</p></div><button className="primary-button small" onClick={handleReload}><span>⟳</span><b>Сканировать</b></button></div><GithubUpdateStrip updates={updates} syncing={syncing} onSync={handleSyncUpdates} /><div className="filter-row"><span className="filter-label">ФИЛЬТР:</span><button className={`filter-chip ${moduleFilter === 'all' ? 'active' : ''}`} onClick={() => setModuleFilter('all')}>Все <b>{modules.length}</b></button><button className={`filter-chip ${moduleFilter === 'running' ? 'active' : ''}`} onClick={() => setModuleFilter('running')}>Активные <b>{running}</b></button><button className={`filter-chip ${moduleFilter === 'stopped' ? 'active' : ''}`} onClick={() => setModuleFilter('stopped')}>Остановлены <b>{modules.length - running}</b></button></div><div className="module-grid full">{filteredModules.map((module, index) => <ModuleCard key={module.id} module={module} index={index} onToggle={handleToggle} onStrategyChange={handleStrategyChange} onOpenSettings={openModuleSettings} />)}</div>{filteredModules.length === 0 && <div className="empty-state"><span>⌕</span><h3>Ничего не найдено</h3><p>Смените фильтр или просканируйте modules ещё раз.</p></div>}</section>}
+      {page === 'modules' && !settingsModule && <section className="page-section"><div className="page-heading"><div><span className="section-kicker">MODULE REGISTRY</span><h1>Все модули</h1><p>Манифесты из <code>./modules</code> · {modules.length} подключено</p></div><button className="primary-button small" onClick={handleReload}><span>⟳</span><b>Сканировать</b></button></div><GithubUpdateStrip updates={updates} syncing={syncing} onSync={handleSyncUpdates} /><div className="filter-row"><span className="filter-label">ФИЛЬТР:</span><button className={`filter-chip ${moduleFilter === 'all' ? 'active' : ''}`} onClick={() => setModuleFilter('all')}>Все <b>{modules.length}</b></button><button className={`filter-chip ${moduleFilter === 'running' ? 'active' : ''}`} onClick={() => setModuleFilter('running')}>Активные <b>{running}</b></button><button className={`filter-chip ${moduleFilter === 'stopped' ? 'active' : ''}`} onClick={() => setModuleFilter('stopped')}>Остановлены <b>{modules.length - running}</b></button></div><div className="module-grid full">{loadingModules ? <ModuleSkeletons count={4} /> : filteredModules.map((module, index) => <ModuleCard key={module.id} module={module} index={index} onToggle={handleToggle} onStrategyChange={handleStrategyChange} onOpenSettings={openModuleSettings} />)}</div>{!loadingModules && filteredModules.length === 0 && <div className="empty-state"><span>⌕</span><h3>Ничего не найдено</h3><p>Смените фильтр или просканируйте modules ещё раз.</p></div>}</section>}
 
       {page === 'jey2ray' && <Jey2RayPage settings={settings} updates={updates} syncing={syncing} onSync={handleSyncUpdates} onSettings={(next) => void persistSettings(next)} onToast={setToast} />}
 
