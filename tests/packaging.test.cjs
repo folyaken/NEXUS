@@ -158,3 +158,30 @@ assert.match(mainSource, /if \(app\.isPackaged && process\.platform === 'win32' 
 assert.match(mainSource, /relaunchElevated\(process\.execPath, process\.argv\.slice\(1\)\)/);
 // Отказ пользователя от повышения не должен закрывать приложение.
 assert.match(mainSource, /Повышение не удалось/);
+
+// --- Кеш winCodeSign готовится до сборки ------------------------------------
+// Пакет winCodeSign содержит библиотеки macOS в виде символических ссылок.
+// Windows создаёт их только с правами администратора, поэтому распаковка
+// обрывалась, electron-builder повторял попытку и установщик не создавался —
+// в release оставался только win-unpacked.
+const prepareScript = path.join(root, 'scripts', 'prepare-wincodesign.cjs');
+assert.ok(fs.existsSync(prepareScript), 'нужен скрипт подготовки кеша');
+
+const prepareSource = fs.readFileSync(prepareScript, 'utf8');
+assert.match(prepareSource, /-x!darwin/, 'компоненты macOS обязаны исключаться при распаковке');
+// Ключ -snld не поддерживается сборками 7-Zip из node_modules: с ним
+// распаковка падает на разборе аргументов.
+assert.doesNotMatch(prepareSource, /'-snld'/, 'неподдерживаемый ключ ломает распаковку');
+
+// Скрипт вспомогательный: его сбой не должен останавливать сборку.
+assert.match(prepareSource, /Сборка продолжится/, 'ошибки подготовки подавляются');
+// Повторные запуски не должны качать пакет заново.
+assert.match(prepareSource, /уже подготовлен/, 'готовый кеш переиспользуется');
+
+// Подготовка обязана выполняться раньше electron-builder.
+const packageWin = manifest.scripts['package:win'];
+assert.match(packageWin, /prepare-wincodesign\.cjs/, 'сборка должна готовить кеш');
+assert.ok(
+  packageWin.indexOf('prepare-wincodesign.cjs') < packageWin.indexOf('electron-builder'),
+  'кеш готовится до запуска сборщика, иначе он скачает пакет сам',
+);
