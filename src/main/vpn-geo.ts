@@ -1,7 +1,7 @@
 import { promises as dns } from 'node:dns';
 import { existsSync } from 'node:fs';
 import { promises as fs } from 'node:fs';
-import { countryByCode, looksLikeHost, looksLikeIp } from './vpn-classify';
+import { countryByCode, looksLikeHost, looksLikeIp, looksLikeTechnicalName } from './vpn-classify';
 import type { VpnProfile } from './types';
 
 type GeoHit = { code: string; name: string; flag: string; city?: string; isp?: string };
@@ -145,17 +145,39 @@ export async function applyGeo(profiles: VpnProfile[], cacheFile: string): Promi
     await fs.writeFile(cacheFile, `${JSON.stringify(cacheDocument)}\n`, 'utf8');
   }
 
+  // Серверов в одной стране обычно несколько. Одинаковые названия в списке
+  // неразличимы, поэтому повторы нумеруются: «Германия · 2», «Германия · 3».
+  const usedNames = new Map<string, number>();
+  for (const profile of profiles) {
+    const hit = cache[profile.server];
+    const nameless = looksLikeHost(profile.name)
+      || profile.name === profile.server
+      || looksLikeTechnicalName(profile.name);
+    if (hit && nameless) continue;
+    usedNames.set(profile.name, (usedNames.get(profile.name) ?? 0) + 1);
+  }
+
+  const uniqueName = (base: string): string => {
+    const seen = usedNames.get(base) ?? 0;
+    usedNames.set(base, seen + 1);
+    return seen === 0 ? base : `${base} · ${seen + 1}`;
+  };
+
   return profiles.map((profile) => {
     const hit = cache[profile.server];
     if (!hit) return profile;
-    const nameless = looksLikeHost(profile.name) || profile.name === profile.server;
+    // Служебный тег из конфигурации («proxy-13») в списке серверов
+    // бесполезен: пользователь выбирает по стране, а не по номеру выхода.
+    const nameless = looksLikeHost(profile.name)
+      || profile.name === profile.server
+      || looksLikeTechnicalName(profile.name);
     return {
       ...profile,
       country: hit.code,
       countryName: hit.name,
       city: hit.city,
       flag: hit.flag,
-      name: nameless ? (hit.city ? `${hit.name} · ${hit.city}` : hit.name) : profile.name,
+      name: nameless ? uniqueName(hit.city ? `${hit.name} · ${hit.city}` : hit.name) : profile.name,
     };
   });
 }
