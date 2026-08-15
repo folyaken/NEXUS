@@ -79,6 +79,23 @@ assert.notEqual(build.win.signAndEditExecutable, false,
 assert.ok(!('signExecutable' in build.win),
   'signExecutable не поддерживается установленной версией electron-builder');
 
+// Без сертификата electron-builder всё равно тянет и распаковывает winCodeSign.
+// В архиве лежат символические ссылки для macOS, и Windows без прав на их
+// создание выдаёт поток ошибок «Cannot create symbolic link … libcrypto.dylib»
+// на каждый .exe. Собственная функция подписи убирает загрузку пакета целиком.
+assert.equal(build.win.sign, 'build/no-sign.cjs', 'нужна заглушка подписи, пока нет сертификата');
+assert.ok(fs.existsSync(path.join(root, 'build', 'no-sign.cjs')), 'файл заглушки должен существовать');
+assert.ok(build.files.includes('build/no-sign.cjs'), 'заглушка обязана попадать в сборку');
+
+const noSign = require(path.join(root, 'build', 'no-sign.cjs'));
+assert.equal(typeof noSign.default, 'function', 'electron-builder ожидает экспорт default');
+
+// Ключевое: заглушка отключает только подпись. Правка ресурсов обязана
+// остаться — именно она записывает requestedExecutionLevel в манифест, без
+// которого Zapret и TUN не получат прав администратора.
+assert.notEqual(build.win.signAndEditExecutable, false,
+  'этот флаг отключил бы и правку манифеста вместе с запросом прав');
+
 // Конфигурация проверяется настоящей схемой electron-builder, а не на глаз:
 // неизвестное свойство обнаруживается здесь, а не при сборке установщика.
 const scheme = require(path.join(root, 'node_modules', 'app-builder-lib', 'scheme.json'));
