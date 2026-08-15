@@ -1,10 +1,11 @@
 import { app, BrowserWindow, clipboard, dialog, ipcMain, Menu, Notification, nativeImage, nativeTheme, Tray } from 'electron';
 import path from 'node:path';
 import { createHash } from 'node:crypto';
-import { existsSync } from 'node:fs';
+import { existsSync, mkdirSync, rmSync, writeFileSync } from 'node:fs';
 import { promises as fs } from 'node:fs';
 import { execFile } from 'node:child_process';
 import os from 'node:os';
+import { companionCount } from './dpi-companions';
 import { addDpiHost, readDpiHostlist, removeDpiHost } from './dpi-hostlist';
 import { ModuleManager } from './module-manager';
 import { GithubUpdater } from './github-updater';
@@ -18,6 +19,42 @@ const gotLock = app.requestSingleInstanceLock();
 if (!gotLock) {
   app.quit();
 }
+
+/**
+ * Кеш Chromium вынесен в отдельный подкаталог профиля.
+ *
+ * Zapret и TUN-режим требуют прав администратора, поэтому приложение регулярно
+ * запускают то от админа, то обычным пользователем. Каталог кеша при этом
+ * получает владельца-администратора, и следующий обычный запуск уже не может в
+ * него писать: Chromium сыплет «Unable to move the cache … (0x5)» и
+ * «Gpu Cache Creation failed». Собственный каталог позволяет пересоздать кеш при
+ * отказе в доступе, не трогая настройки и профили пользователя.
+ */
+function prepareChromiumCache(): void {
+  try {
+    const cacheRoot = path.join(app.getPath('userData'), 'chromium-cache');
+    mkdirSync(cacheRoot, { recursive: true });
+
+    // Проверка записи: если каталог остался от запуска с другими правами,
+    // пересоздаём его — иначе Chromium будет ругаться при каждом старте.
+    const probe = path.join(cacheRoot, '.write-test');
+    try {
+      writeFileSync(probe, '');
+      rmSync(probe, { force: true });
+    } catch {
+      rmSync(cacheRoot, { recursive: true, force: true });
+      mkdirSync(cacheRoot, { recursive: true });
+    }
+
+    app.setPath('cache', cacheRoot);
+    app.setPath('sessionData', path.join(cacheRoot, 'session'));
+  } catch {
+    // Кеш — это только ускорение отрисовки. Если подготовить его не удалось,
+    // приложение обязано запуститься и работать без него.
+  }
+}
+
+if (gotLock) prepareChromiumCache();
 
 let mainWindow: BrowserWindow | null = null;
 let tray: Tray | null = null;
@@ -537,7 +574,10 @@ function wireIpc(): void {
   ipcMain.handle('dpi:add-host', async (_event, host: unknown) => {
     const result = await addDpiHost(manager.getModulesDir(), String(host ?? ''));
     const restarted = await manager.reapplyDpiHosts('zapret').catch(() => false);
-    return { hosts: result.hosts, restarted };
+    // Число связанных доменов показывается пользователю: иначе непонятно, почему
+    // одна запись «instagram.com» покрывает и картинки, и видео сервиса.
+    const added = result.hosts[result.hosts.length - 1] ?? '';
+    return { hosts: result.hosts, restarted, companions: companionCount(added) };
   });
   ipcMain.handle('dpi:remove-host', async (_event, host: unknown) => {
     const result = await removeDpiHost(manager.getModulesDir(), String(host ?? ''));

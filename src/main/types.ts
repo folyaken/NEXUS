@@ -58,6 +58,8 @@ export interface DpiHostlistResult {
   hosts: string[];
   /** Был ли перезапущен работающий модуль, чтобы список вступил в силу. */
   restarted: boolean;
+  /** Сколько связанных доменов сервиса подключилось вместе с добавленным. */
+  companions?: number;
 }
 
 /** Режим работы TG WS Proxy. */

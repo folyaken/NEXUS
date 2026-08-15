@@ -58,9 +58,11 @@ function DpiHostlistSection({ onToast }: { onToast: (message: string) => void })
       if (next) setHosts(next.hosts);
       setDraft('');
       inputRef.current?.focus();
+      const companions = next?.companions ?? 0;
+      const extra = companions > 0 ? ` · подключено связанных доменов: ${companions}` : '';
       onToast(next?.restarted
-        ? `${normalized} добавлен · модуль перезапущен, сайт уже работает`
-        : `${normalized} добавлен в обход DPI`);
+        ? `${normalized} добавлен${extra} · модуль перезапущен`
+        : `${normalized} добавлен${extra}`);
     } catch (error) {
       onToast(cleanError(error));
     } finally {
@@ -86,7 +88,7 @@ function DpiHostlistSection({ onToast }: { onToast: (message: string) => void })
     <div className="module-settings-card-head">
       <div>
         <h3>Свои сайты</h3>
-        <p>Добавьте сайты, которые нужно открывать в обход блокировок. Встроенный список YouTube и Discord продолжает работать.</p>
+        <p>Добавьте сайты, которые нужно открывать в обход блокировок. Поддомены и служебные адреса сервиса подключаются автоматически. Встроенный список YouTube и Discord продолжает работать.</p>
       </div>
       <span className="module-settings-count">{hosts.length}</span>
     </div>
@@ -117,7 +119,7 @@ function DpiHostlistSection({ onToast }: { onToast: (message: string) => void })
       ? <p className="dpi-host-hint is-warning">{normalized} уже есть в списке</p>
       : normalized && normalized !== draft.trim().toLowerCase()
         ? <p className="dpi-host-hint">Будет добавлен как <b>{normalized}</b></p>
-        : <p className="dpi-host-hint">Можно вставить и полную ссылку — адрес определится сам.</p>}
+        : <p className="dpi-host-hint">Достаточно основного домена — можно вставить и полную ссылку.</p>}
 
     {!loaded ? <p className="dpi-host-hint">Загрузка списка…</p> : hosts.length ? <>
       <ul className="dpi-host-list">

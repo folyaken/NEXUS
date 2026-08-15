@@ -8,6 +8,7 @@ import os from 'node:os';
 import path from 'node:path';
 import type { ModuleHealthcheck, ModuleLog, ModuleManifest, ModuleStatus, ModuleStatusReport } from './types';
 import { buildDpiExtraArgs, normalizeDpiExpertOptions } from './dpi-arguments';
+import { expandDpiHosts } from './dpi-companions';
 import { buildTgProxyArgs, normalizeTgProxyOptions, readTgProxyOptions } from './tg-proxy-options';
 import { readDpiHostlist, syncDpiHostlistInto } from './dpi-hostlist';
 import { tgWsProxyAssetCandidates } from './platform-assets';
@@ -869,6 +870,11 @@ export class ModuleManager extends EventEmitter {
       const targets = userList ? [userList] : [...referenced];
       if (!targets.length) targets.push('lists/list-general-user.txt');
 
+      // В файл уходит расширенный набор: сайты часто отдают контент с отдельных
+      // доменов (cdninstagram.com, sndcdn.com), которые поддоменами не являются
+      // и автоматикой ядра не покрываются. В интерфейсе список остаётся коротким.
+      const expanded = expandDpiHosts(hosts);
+
       let updated = 0;
       const applied: string[] = [];
       for (const relative of targets) {
@@ -877,7 +883,7 @@ export class ModuleManager extends EventEmitter {
         if (!target.startsWith(path.resolve(releaseRoot))) continue;
         // Файл может отсутствовать до первого запуска service.bat — создаём сами,
         // иначе домены снова остались бы неприменёнными.
-        if (await syncDpiHostlistInto(target, hosts, { create: true })) {
+        if (await syncDpiHostlistInto(target, expanded, { create: true })) {
           updated += 1;
           applied.push(path.basename(target));
         }
@@ -885,7 +891,9 @@ export class ModuleManager extends EventEmitter {
 
       if (!hosts.length) return;
       if (updated) {
-        this.emitLog(module.id, 'success', `Свои сайты применены (${hosts.length}): ${applied.join(', ')}`);
+        const extra = expanded.length - hosts.length;
+        const suffix = extra > 0 ? ` (+${extra} связанных)` : '';
+        this.emitLog(module.id, 'success', `Свои сайты применены: ${hosts.length}${suffix} → ${applied.join(', ')}`);
       } else {
         this.emitLog(module.id, 'warn', 'Не удалось найти список доменов Zapret — свои сайты не применены');
       }
