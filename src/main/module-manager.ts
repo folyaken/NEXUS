@@ -7,6 +7,7 @@ import net from 'node:net';
 import os from 'node:os';
 import path from 'node:path';
 import type { ModuleHealthcheck, ModuleLog, ModuleManifest, ModuleStatus } from './types';
+import { readDpiHostlist, syncDpiHostlistInto } from './dpi-hostlist';
 import { tgWsProxyAssetCandidates } from './platform-assets';
 import { listPidsByImage, waitForExit } from './process-watch';
 import { sanitizeDiagnosticText } from './vpn-diagnostics';
@@ -17,7 +18,7 @@ const TG_WS_PROXY_ID = 'tg-ws-proxy';
 const WORKER_BY_ID: Record<string, string> = {
   zapret: process.platform === 'win32' ? 'winws.exe' : 'winws',
 };
-const TG_WS_DESCRIPTION = 'Локальный MTProto-прокси Telegram. После запуска сервис доступен на 127.0.0.1:1443, а подключение настраивается через значок TG WS Proxy в трее.';
+const TG_WS_DESCRIPTION = 'Возвращает доступ к Telegram, когда он заблокирован.';
 const TG_WS_HEALTHCHECK: ModuleHealthcheck = { type: 'tcp', host: '127.0.0.1', port: 1443, timeout_ms: 15000 };
 
 function delay(milliseconds: number): Promise<void> {
@@ -196,6 +197,7 @@ export class ModuleManager extends EventEmitter {
         this.failModule(module, message);
         throw new Error(message);
       }
+      if (id === 'zapret') await this.applyCustomDpiHosts(module, batchFile);
       const runnerFile = await this.createBatchRunner(id, batchFile);
       executable = process.env.ComSpec ?? 'cmd.exe';
       args = ['/d', '/c', 'call', runnerFile];
@@ -636,6 +638,41 @@ export class ModuleManager extends EventEmitter {
       } catch {
         /* reload will surface malformed manifests separately */
       }
+    }
+  }
+
+  /**
+   * Подмешивает пользовательские домены в списки, которые читает выбранный профиль.
+   *
+   * Имена файлов берутся из самого .bat: у разных стратегий они отличаются, а
+   * жёстко зашитый путь молча перестал бы работать после обновления Zapret.
+   */
+  private async applyCustomDpiHosts(module: ModuleManifest, batchFile: string): Promise<void> {
+    try {
+      const { hosts } = await readDpiHostlist(this.modulesDir);
+      if (!hosts.length) return;
+
+      const script = await fs.readFile(batchFile, 'utf8');
+      const releaseRoot = module.working_dir ? this.resolvePath(module.working_dir) : path.dirname(batchFile);
+      const referenced = new Set<string>();
+      for (const match of script.matchAll(/--hostlist[=\s]+"?([^"\s]+\.txt)"?/gi)) {
+        referenced.add(match[1].replace(/%~dp0/gi, '').replace(/\\/g, '/'));
+      }
+      if (!referenced.size) referenced.add('lists/list-general.txt');
+
+      let updated = 0;
+      for (const relative of referenced) {
+        const target = path.resolve(releaseRoot, relative);
+        // Защита от выхода за пределы установленного релиза.
+        if (!target.startsWith(path.resolve(releaseRoot))) continue;
+        if (await syncDpiHostlistInto(target, hosts)) updated += 1;
+      }
+      if (updated) {
+        this.emitLog(module.id, 'info', `Свои сайты добавлены в обход DPI: ${hosts.length}`);
+      }
+    } catch (error) {
+      const reason = error instanceof Error ? error.message : 'неизвестная ошибка';
+      this.emitLog(module.id, 'warn', `Не удалось применить список своих сайтов: ${reason}`);
     }
   }
 

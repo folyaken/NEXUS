@@ -3,16 +3,17 @@ import { animated, config, useSpring } from '@react-spring/web';
 import type { AboutSystemInfo, AppSettings, ModuleLog, ModuleManifest, ModuleStatus, NexusUpdateCheck, UpdateInfo, UserProfile } from '../main/types';
 import { DEFAULT_SETTINGS } from '../main/types';
 import { Jey2RayPage } from './Jey2RayPage';
+import { ModuleSettings } from './ModuleSettings';
 
 type Page = 'dashboard' | 'modules' | 'jey2ray' | 'logs' | 'settings' | 'about';
 type LogCategory = 'main' | 'core' | 'tunnel' | 'antifilter' | 'subscriptions' | 'service';
 type Tone = 'green' | 'amber' | 'red' | 'muted';
 
 const DEMO_MODULES: ModuleManifest[] = [
-  { id: 'zapret', name: 'Обход DPI', description: 'Профиль для Zapret: YouTube, Discord и другие сервисы.', enabled: false, executable: './bin/winws.exe', args: ['--wf-tcp=80,443', '--hostlist=list.txt'], status: 'stopped', category: 'dpi', icon: '🛡️', pid: null, log_file: './logs/zapret.log' },
-  { id: 'tg-ws-proxy', name: 'TG WS Proxy', description: 'Локальный MTProto-прокси Telegram на 127.0.0.1:1443.', enabled: false, executable: './bin/TgWsProxy_windows_7_64bit.exe', args: ['--portable'], status: 'stopped', category: 'proxy', icon: '◈', pid: null, log_file: './logs/tg-ws-proxy.log', working_dir: './bin', healthcheck: { type: 'tcp', host: '127.0.0.1', port: 1443, timeout_ms: 15000 } },
-  { id: 'exitlag-sdk', name: 'ExitLag SDK', description: 'Профиль маршрутизации для игровых и realtime-соединений.', enabled: false, executable: './bin/exitlag-sdk.exe', args: ['--profile', 'balanced'], status: 'stopped', category: 'sdk', icon: '✦', pid: null, log_file: './logs/exitlag-sdk.log' },
-  { id: 'dns-guard', name: 'DNS Guard', description: 'Локальный DNS-профиль с быстрым переключением конфигурации.', enabled: false, executable: './bin/dns-guard.exe', args: ['--mode', 'secure'], status: 'stopped', category: 'dns', icon: '⌁', pid: null, log_file: './logs/dns-guard.log' },
+  { id: 'zapret', name: 'Обход DPI', description: 'Открывает YouTube, Discord и другие сайты без VPN.', enabled: false, executable: './bin/winws.exe', args: ['--wf-tcp=80,443', '--hostlist=list.txt'], status: 'stopped', category: 'dpi', icon: '🛡️', pid: null, log_file: './logs/zapret.log' },
+  { id: 'tg-ws-proxy', name: 'TG WS Proxy', description: 'Возвращает доступ к Telegram, когда он заблокирован.', enabled: false, executable: './bin/TgWsProxy_windows_7_64bit.exe', args: ['--portable'], status: 'stopped', category: 'proxy', icon: '◈', pid: null, log_file: './logs/tg-ws-proxy.log', working_dir: './bin', healthcheck: { type: 'tcp', host: '127.0.0.1', port: 1443, timeout_ms: 15000 } },
+  { id: 'exitlag-sdk', name: 'ExitLag SDK', description: 'Снижает пинг и убирает лаги в онлайн-играх.', enabled: false, executable: './bin/exitlag-sdk.exe', args: ['--profile', 'balanced'], status: 'stopped', category: 'sdk', icon: '✦', pid: null, log_file: './logs/exitlag-sdk.log' },
+  { id: 'dns-guard', name: 'DNS Guard', description: 'Защищает от подмены сайтов и рекламы на уровне DNS.', enabled: false, executable: './bin/dns-guard.exe', args: ['--mode', 'secure'], status: 'stopped', category: 'dns', icon: '⌁', pid: null, log_file: './logs/dns-guard.log' },
 ];
 
 const DEMO_LOGS: ModuleLog[] = [
@@ -133,7 +134,7 @@ function Toggle({ checked, onChange, busy = false, disabled = false }: { checked
   return <animated.button className={`toggle ${checked ? 'is-on' : ''}`} aria-label={checked ? 'Выключить модуль' : 'Включить модуль'} disabled={busy || disabled} onClick={onChange} style={{ background: spring.background, boxShadow: spring.shadow }}><animated.span className="toggle-knob" style={{ transform: spring.x.to((x) => `translateX(${x}px)`) }} /></animated.button>;
 }
 
-function ModuleCard({ module, index, onToggle, onStrategyChange }: { module: ModuleManifest; index: number; onToggle: (module: ModuleManifest) => void; onStrategyChange: (module: ModuleManifest, strategy: string) => void }) {
+function ModuleCard({ module, index, onToggle, onStrategyChange, onOpenSettings }: { module: ModuleManifest; index: number; onToggle: (module: ModuleManifest) => void; onStrategyChange: (module: ModuleManifest, strategy: string) => void; onOpenSettings?: (module: ModuleManifest) => void }) {
   const [hovered, setHovered] = useState(false);
   const entry = useSpring({ opacity: 1, y: 0, config: { tension: 240, friction: 24 }, delay: Math.min(index * 65, 260) });
   const hover = useSpring({ y: hovered ? -4 : 0, shadow: hovered ? '0 26px 56px rgba(0, 0, 0, .32), 0 0 0 1px rgba(124, 242, 214, .18)' : '0 18px 45px rgba(0, 0, 0, .20), 0 0 0 1px rgba(255,255,255,.055)', config: config.gentle });
@@ -144,7 +145,7 @@ function ModuleCard({ module, index, onToggle, onStrategyChange }: { module: Mod
   return <animated.article className="module-card" onMouseEnter={() => setHovered(true)} onMouseLeave={() => setHovered(false)} style={{ opacity: entry.opacity, transform: entry.y.to((y) => `translateY(${y}px)`) }}><animated.div className="module-card-inner" style={{ transform: hover.y.to((y) => `translateY(${y}px)`), boxShadow: hover.shadow }}>
     <div className="card-head"><div className={`module-icon ${module.category}`}><span>{module.icon}</span></div><div className="card-head-copy"><div className="eyebrow-row"><span className="category-chip">{categoryNames[module.category] ?? 'OTHER'}</span><StatusDot tone={tone} /><span className={`status-copy ${tone}`}>{moduleLabel(module)}</span></div><h3>{module.name}</h3></div><Toggle checked={isRunning} busy={isBusy} disabled={isDevelopment} onChange={() => onToggle(module)} /></div>
     {(module.id === 'zapret' || module.strategies) && <div className="strategy-row"><label htmlFor={`strategy-${module.id}`}>Профиль запуска</label><select id={`strategy-${module.id}`} value={module.strategy ?? Object.keys(module.strategies ?? {})[0] ?? zapretStrategies[0]} disabled={isRunning || isBusy} onChange={(event) => onStrategyChange(module, event.target.value)}>{(Object.keys(module.strategies ?? {}).length ? Object.keys(module.strategies ?? {}) : zapretStrategies).map((strategy) => <option key={strategy} value={strategy}>{strategy}</option>)}</select></div>}
-    <p className={`module-description ${module.status === 'error' ? 'error-copy' : ''} ${isDevelopment ? 'development-copy' : ''}`}>{isDevelopment ? 'Интеграция будет добавлена в следующей версии.' : module.status === 'error' && module.error ? module.error : module.description}</p><div className="card-divider" /><div className="card-foot"><span className="module-meta"><span className="meta-dot" />{isDevelopment ? 'Скоро' : module.pid ? `PID ${module.pid}` : 'Готов к запуску'}</span><button className={`module-action ${isDevelopment ? 'is-disabled' : ''}`} disabled={isDevelopment} onClick={() => onToggle(module)}>{isDevelopment ? 'В разработке' : isRunning ? 'Остановить' : isBusy ? 'Подождите' : 'Запустить'} <span>↗</span></button></div>
+    <p className={`module-description ${module.status === 'error' ? 'error-copy' : ''} ${isDevelopment ? 'development-copy' : ''}`}>{isDevelopment ? 'Интеграция будет добавлена в следующей версии.' : module.status === 'error' && module.error ? module.error : module.description}</p><div className="card-divider" /><div className="card-foot"><span className="module-meta"><span className="meta-dot" />{isDevelopment ? 'Скоро' : module.pid ? `PID ${module.pid}` : 'Готов к запуску'}</span><div className="card-foot-actions">{onOpenSettings && !isDevelopment && <button type="button" className="module-settings-button" aria-label={`Настройки: ${module.name}`} title="Настройки модуля" onClick={() => onOpenSettings(module)}><GearIcon /></button>}<button className={`module-action ${isDevelopment ? 'is-disabled' : ''}`} disabled={isDevelopment} onClick={() => onToggle(module)}>{isDevelopment ? 'В разработке' : isRunning ? 'Остановить' : isBusy ? 'Подождите' : 'Запустить'} <span>↗</span></button></div></div>
   </animated.div></animated.article>;
 }
 
@@ -378,6 +379,7 @@ function App() {
   // Search is intentionally hidden for now (CSS .search-box already exists).
   // const [query, setQuery] = useState('');
   const [moduleFilter, setModuleFilter] = useState<'all' | 'running' | 'stopped'>('all');
+  const [settingsModuleId, setSettingsModuleId] = useState<string | null>(null);
   const [logCategory, setLogCategory] = useState<LogCategory>('main');
   const [sidebarCollapsed, setSidebarCollapsed] = useState(() => {
     try { return localStorage.getItem('nexus-sidebar-collapsed') === 'true'; }
@@ -481,6 +483,14 @@ function App() {
     } catch (error) { setToast(error instanceof Error ? error.message : 'Не удалось изменить состояние модуля'); }
   };
 
+  // Карточка берётся из актуального списка, поэтому статус и профиль в панели
+  // настроек обновляются вместе с модулем, без отдельной копии состояния.
+  const settingsModule = settingsModuleId ? modules.find((item) => item.id === settingsModuleId) ?? null : null;
+
+  useEffect(() => {
+    if (page !== 'modules') setSettingsModuleId(null);
+  }, [page]);
+
   const handleStrategyChange = async (module: ModuleManifest, strategy: string) => {
     try {
       if (desktop) {
@@ -560,7 +570,14 @@ function App() {
 
       {page === 'dashboard' && <><section className="hero"><div className="hero-copy"><div className="hero-kicker"><span className="spark-line">✦</span> LOCAL NETWORK ORCHESTRATOR <span className="hero-line" /></div><h1>Сеть, которая<br /><span>остаётся под контролем.</span></h1><p>Единый центр для спокойного управления сетевыми инструментами,<br />локальными прокси и профилями маршрутизации.</p><div className="hero-actions"><button className="primary-button" onClick={() => setPage('modules')}><span>Открыть модули</span><b>↗</b></button><button className="quiet-button" onClick={handleReload}><span>⟳</span> Сканировать заново</button></div></div><HeroVisual /></section><section className="stats-grid"><StatCard label="ВСЕГО МОДУЛЕЙ" value={String(modules.length).padStart(2, '0')} note="обнаружено локально" icon="◈" tone="cyan" index={0} /><StatCard label="АКТИВНЫЕ" value={String(running).padStart(2, '0')} note={running ? 'контур запущен' : 'готовы к запуску'} icon="ϟ" tone="violet" index={1} /><StatCard label="ЗДОРОВЬЕ" value={`${modules.length ? Math.round((healthy / modules.length) * 100) : 100}%`} note={errors ? `${errors} с ошибкой` : 'без критических ошибок'} icon="⌁" tone="mint" index={2} /><StatCard label="ПОСЛЕДНИЙ СКАН" value={lastScanLabel} note={settings.autoStart ? 'автозапуск включён' : 'автозапуск выключен'} icon="◷" tone="amber" index={3} /></section><section className="section-heading"><div><span className="section-kicker">YOUR TOOLKIT</span><h2>Быстрый доступ</h2></div><button className="text-button" onClick={() => setPage('modules')}>Все модули <span>→</span></button></section><div className="dashboard-grid"><div className="module-grid compact">{filteredModules.slice(0, 4).map((module, index) => <ModuleCard key={module.id} module={module} index={index} onToggle={handleToggle} onStrategyChange={handleStrategyChange} />)}</div><PulsePanel running={running} total={modules.length} errors={errors} /></div></>}
 
-      {page === 'modules' && <section className="page-section"><div className="page-heading"><div><span className="section-kicker">MODULE REGISTRY</span><h1>Все модули</h1><p>Манифесты из <code>./modules</code> · {modules.length} подключено</p></div><button className="primary-button small" onClick={handleReload}><span>⟳</span><b>Сканировать</b></button></div><GithubUpdateStrip updates={updates} syncing={syncing} onSync={handleSyncUpdates} /><div className="filter-row"><span className="filter-label">ФИЛЬТР:</span><button className={`filter-chip ${moduleFilter === 'all' ? 'active' : ''}`} onClick={() => setModuleFilter('all')}>Все <b>{modules.length}</b></button><button className={`filter-chip ${moduleFilter === 'running' ? 'active' : ''}`} onClick={() => setModuleFilter('running')}>Активные <b>{running}</b></button><button className={`filter-chip ${moduleFilter === 'stopped' ? 'active' : ''}`} onClick={() => setModuleFilter('stopped')}>Остановлены <b>{modules.length - running}</b></button></div><div className="module-grid full">{filteredModules.map((module, index) => <ModuleCard key={module.id} module={module} index={index} onToggle={handleToggle} onStrategyChange={handleStrategyChange} />)}</div>{filteredModules.length === 0 && <div className="empty-state"><span>⌕</span><h3>Ничего не найдено</h3><p>Смените фильтр или просканируйте modules ещё раз.</p></div>}</section>}
+      {page === 'modules' && settingsModule && <ModuleSettings
+        module={settingsModule}
+        onClose={() => setSettingsModuleId(null)}
+        onToast={setToast}
+        onStrategyChange={handleStrategyChange}
+      />}
+
+      {page === 'modules' && !settingsModule && <section className="page-section"><div className="page-heading"><div><span className="section-kicker">MODULE REGISTRY</span><h1>Все модули</h1><p>Манифесты из <code>./modules</code> · {modules.length} подключено</p></div><button className="primary-button small" onClick={handleReload}><span>⟳</span><b>Сканировать</b></button></div><GithubUpdateStrip updates={updates} syncing={syncing} onSync={handleSyncUpdates} /><div className="filter-row"><span className="filter-label">ФИЛЬТР:</span><button className={`filter-chip ${moduleFilter === 'all' ? 'active' : ''}`} onClick={() => setModuleFilter('all')}>Все <b>{modules.length}</b></button><button className={`filter-chip ${moduleFilter === 'running' ? 'active' : ''}`} onClick={() => setModuleFilter('running')}>Активные <b>{running}</b></button><button className={`filter-chip ${moduleFilter === 'stopped' ? 'active' : ''}`} onClick={() => setModuleFilter('stopped')}>Остановлены <b>{modules.length - running}</b></button></div><div className="module-grid full">{filteredModules.map((module, index) => <ModuleCard key={module.id} module={module} index={index} onToggle={handleToggle} onStrategyChange={handleStrategyChange} onOpenSettings={(item) => setSettingsModuleId(item.id)} />)}</div>{filteredModules.length === 0 && <div className="empty-state"><span>⌕</span><h3>Ничего не найдено</h3><p>Смените фильтр или просканируйте modules ещё раз.</p></div>}</section>}
 
       {page === 'jey2ray' && <Jey2RayPage settings={settings} updates={updates} syncing={syncing} onSync={handleSyncUpdates} onSettings={(next) => void persistSettings(next)} onToast={setToast} />}
 

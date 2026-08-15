@@ -5,6 +5,7 @@ import { existsSync } from 'node:fs';
 import { promises as fs } from 'node:fs';
 import { execFile } from 'node:child_process';
 import os from 'node:os';
+import { addDpiHost, readDpiHostlist, removeDpiHost } from './dpi-hostlist';
 import { ModuleManager } from './module-manager';
 import { GithubUpdater } from './github-updater';
 import { VpnManager } from './vpn-manager';
@@ -526,6 +527,15 @@ function wireIpc(): void {
   ipcMain.handle('modules:start', (_event, id: string) => manager.start(id));
   ipcMain.handle('modules:stop', (_event, id: string) => manager.stop(id));
   ipcMain.handle('modules:set-strategy', (_event, id: string, strategy: string) => manager.setStrategy(id, strategy));
+  ipcMain.handle('dpi:list-hosts', async () => (await readDpiHostlist(manager.getModulesDir())).hosts);
+  ipcMain.handle('dpi:add-host', async (_event, host: unknown) => {
+    const result = await addDpiHost(manager.getModulesDir(), String(host ?? ''));
+    return result.hosts;
+  });
+  ipcMain.handle('dpi:remove-host', async (_event, host: unknown) => {
+    const result = await removeDpiHost(manager.getModulesDir(), String(host ?? ''));
+    return result.hosts;
+  });
   ipcMain.handle('logs:list', (_event, id?: string) => {
     const moduleLogs = id === 'jey2ray' ? [] : manager.getLogs(id);
     const vpnLogs = !id || id === 'jey2ray' ? vpn.getLogs() : [];

@@ -18,6 +18,8 @@ const SUBSCRIPTION_USER_AGENT = 'v2rayN/6.60';
 const SUBSCRIPTION_FALLBACK_USER_AGENTS = Object.freeze([
   `${['Ha', 'pp'].join('')}/2.0`,
   'clash-verge/v1.7.7',
+  'v2rayNG/1.9.16',
+  'sing-box/1.10.3',
 ]);
 
 const SUBSCRIPTION_UTF8_DECODER = new TextDecoder('utf-8', { fatal: true });
@@ -28,9 +30,9 @@ export const SUBSCRIPTION_TRANSPORT_LIMITS = Object.freeze({
   totalTimeoutMs: 75_000,
   maxRedirects: 5,
   // One supplied URL plus at most one link deliberately discovered on its landing page,
-  // plus up to two User-Agent retries used only when the panel answered with HTML.
+  // plus User-Agent retries used only when the panel returned no usable configuration.
   // Redirect hops share this budget; format/query spraying is intentionally forbidden.
-  maxRequests: 10,
+  maxRequests: 12,
   maxResponseBytes: 8 * 1024 * 1024,
   maxDiscoveredUrls: 1,
 });
@@ -572,24 +574,25 @@ export async function fetchSubscriptionMaterial(url: string, hwid: string, log: 
       const linkedResponse = await downloadOnce(discovered[0], SUBSCRIPTION_USER_AGENT);
       if (linkedResponse.body.trim() && !htmlLooksLikePage(linkedResponse.body)) take(linkedResponse);
     }
+  }
 
-    // Панели Marzban/Remnawave/3x-ui выбирают формат ответа по User-Agent и
-    // отдают HTML-страницу клиенту, которого не узнали. Ровно один повтор с
-    // другим известным агентом: это не перебор форматов — конфиг ещё не был
-    // выдан, поэтому лимит устройств у провайдера не расходуется.
-    if (!links.size && !clash.length) {
-      for (const userAgent of SUBSCRIPTION_FALLBACK_USER_AGENTS) {
-        let retry: SubscriptionTextResponse;
-        try {
-          retry = await downloadOnce(initialTarget.toString(), userAgent);
-        } catch {
-          break;
-        }
-        if (retry.body.trim() && !htmlLooksLikePage(retry.body)) {
-          log(`Панель ответила HTML — конфигурация получена с агентом ${userAgent}`);
-          take(retry);
-          break;
-        }
+  // Панели Marzban/Remnawave/3x-ui выбирают формат ответа по User-Agent: клиенту,
+  // которого не узнали, они отдают HTML-страницу либо пустой ответ. Повтор идёт и
+  // в том, и в другом случае — раньше пустой ответ вообще не давал шанса на
+  // повтор, и обновление падало с «Не удалось обновить подписки (1)».
+  // Лимит устройств у провайдера при этом не расходуется: конфигурация ещё не выдана.
+  if (!links.size && !clash.length) {
+    for (const userAgent of SUBSCRIPTION_FALLBACK_USER_AGENTS) {
+      let retry: SubscriptionTextResponse;
+      try {
+        retry = await downloadOnce(initialTarget.toString(), userAgent);
+      } catch {
+        break;
+      }
+      if (retry.body.trim() && !htmlLooksLikePage(retry.body)) {
+        log(`Конфигурация получена после смены агента на ${userAgent}`);
+        take(retry);
+        break;
       }
     }
   }

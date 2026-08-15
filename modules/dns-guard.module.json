@@ -1,11 +1,14 @@
 {
   "id": "dns-guard",
   "name": "DNS Guard",
-  "description": "Локальный DNS-профиль с быстрым переключением конфигурации.",
+  "description": "Защищает от подмены сайтов и рекламы на уровне DNS.",
   "enabled": false,
   "development": true,
   "executable": "./bin/dns-guard.exe",
-  "args": ["--mode", "secure"],
+  "args": [
+    "--mode",
+    "secure"
+  ],
   "status": "stopped",
   "category": "dns",
   "icon": "⌁",

@@ -8,6 +8,9 @@ declare global {
       startModule(id: string): Promise<ModuleManifest>;
       stopModule(id: string): Promise<ModuleManifest>;
       setModuleStrategy(id: string, strategy: string): Promise<ModuleManifest>;
+      getDpiHosts(): Promise<string[]>;
+      addDpiHost(host: string): Promise<string[]>;
+      removeDpiHost(host: string): Promise<string[]>;
       getLogs(id?: string): Promise<ModuleLog[]>;
       getUpdates(): Promise<UpdateInfo[]>;
       syncUpdates(): Promise<UpdateInfo[]>;

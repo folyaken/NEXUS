@@ -35,7 +35,7 @@ assert.match(subscription, /break;/, 'после успешного ответа
 
 // Бюджет запросов обязан покрывать повторы, иначе они упрутся в лимит.
 const limits = subscription.slice(subscription.indexOf('SUBSCRIPTION_TRANSPORT_LIMITS'));
-assert.match(limits, /maxRequests: 10,/, 'бюджет должен учитывать повторы по User-Agent');
+assert.match(limits, /maxRequests: 12,/, 'бюджет должен учитывать повторы по User-Agent');
 
 // Текст ошибки обязан объяснять, что делать, а не просто фиксировать формат.
 assert.match(vpnManager, /Панель вернула веб-страницу вместо конфигурации/, 'ошибка должна называть причину');
