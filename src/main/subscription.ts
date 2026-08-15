@@ -29,6 +29,46 @@ const SUBSCRIPTION_FALLBACK_USER_AGENTS = Object.freeze([
   'Clash-Meta/1.18.8',
   'FlClash/0.8.80',
   'v2rayN/7.12',
+  // Клиенты, которые провайдеры выдают своим пользователям под собственными
+  // именами. Панель узнаёт только их, а всем прочим показывает страницу входа —
+  // именно на этом подписка и не добавлялась.
+  'INCY/1.0',
+  'FlClashX/0.8.80',
+  'Koala Clash/1.0',
+  'Clash-Meta/Prizrak-Box (1.0)',
+  'Hiddify/2.5.7',
+  'NekoBox/1.3.6',
+  'Shadowrocket/2.2.35',
+  'Stash/2.7.0',
+  'ClashX/1.118.0',
+  'Karing/1.1.5.0',
+  'v2rayTun/2.0',
+  'SFA/1.10.3',
+  // Последняя попытка — обычный браузер: панели, у которых нет строгого списка,
+  // отдают ему готовый список ссылок вместо страницы.
+  'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36',
+]);
+
+/**
+ * Известные окончания адреса, по которым панели отдают готовую конфигурацию.
+ *
+ * Страница подписки и конфигурация живут по одному адресу: страница
+ * возвращается браузеру, конфигурация — клиентскому приложению. Когда панель
+ * настроена на узкий список приложений, ни один агент не подходит, и
+ * единственный оставшийся способ — попросить конкретный формат напрямую.
+ * Пользователь получил бы то же самое, нажав кнопку на странице.
+ */
+const SUBSCRIPTION_FORMAT_SUFFIXES = Object.freeze([
+  '/v2ray',
+  '/v2ray-json',
+  '/xray',
+  '/clash',
+  '/clash-meta',
+  '/mihomo',
+  '/sing-box',
+  '/singbox',
+  '/json',
+  '/raw',
 ]);
 
 const SUBSCRIPTION_UTF8_DECODER = new TextDecoder('utf-8', { fatal: true });
@@ -40,9 +80,9 @@ export const SUBSCRIPTION_TRANSPORT_LIMITS = Object.freeze({
   maxRedirects: 5,
   // One supplied URL plus at most one link deliberately discovered on its landing page,
   // plus User-Agent retries used only when the panel returned no usable configuration.
-  // Retries cover both targets, so the budget allows two rounds of them.
-  // Redirect hops share this budget; format/query spraying is intentionally forbidden.
-  maxRequests: 24,
+  // Retries cover both targets, and known format suffixes are tried only after
+  // every client name failed. Redirect hops share this budget.
+  maxRequests: 64,
   maxResponseBytes: 8 * 1024 * 1024,
   maxDiscoveredUrls: 1,
 });
@@ -479,6 +519,24 @@ export function extractSubscriptionUrlFromClientLink(link: string): string | nul
   return null;
 }
 
+/**
+ * Строит адрес запроса конкретного формата подписки.
+ *
+ * Окончание дописывается к пути, а не заменяет его: адрес подписки — это
+ * идентификатор пользователя, потерять его нельзя. Если окончание уже стоит в
+ * адресе, повторно оно не добавляется.
+ */
+export function subscriptionUrlWithSuffix(base: URL, suffix: string): string | null {
+  const path = base.pathname.replace(/\/+$/, '');
+  if (!path || path === '') return null;
+  // Адрес уже указывает на конкретный формат — дописывать второй бессмысленно.
+  if (SUBSCRIPTION_FORMAT_SUFFIXES.some((item) => path.toLowerCase().endsWith(item))) return null;
+  const candidate = new URL(base.toString());
+  candidate.pathname = `${path}${suffix}`;
+  candidate.hash = '';
+  return candidate.toString();
+}
+
 function extractUrlsFromHtml(html: string, pageUrl: string, excludedUrls: Iterable<string> = []): string[] {
   const found = new Set<string>();
   const excluded = new Set([...excludedUrls].map((value) => {
@@ -688,6 +746,28 @@ export async function fetchSubscriptionMaterial(url: string, hwid: string, log: 
           take(retry);
           break retries;
         }
+      }
+    }
+  }
+
+  // Последний рубеж: панель не узнала ни одно приложение и каждый раз
+  // возвращала страницу входа. Тогда формат запрашивается адресом напрямую —
+  // ровно то, что делает кнопка «Добавить подписку» на самой странице.
+  if (!links.size && !clash.length) {
+    for (const suffix of SUBSCRIPTION_FORMAT_SUFFIXES) {
+      const candidate = subscriptionUrlWithSuffix(initialTarget, suffix);
+      if (!candidate) continue;
+      let formatted: SubscriptionTextResponse;
+      try {
+        formatted = await downloadOnce(candidate, SUBSCRIPTION_USER_AGENT);
+      } catch {
+        // Неподдерживаемый формат — обычная ситуация: панель отвечает отказом.
+        continue;
+      }
+      if (formatted.body.trim() && !htmlLooksLikePage(formatted.body)) {
+        log(`Конфигурация получена по прямому адресу формата ${suffix}`);
+        take(formatted);
+        break;
       }
     }
   }
