@@ -7,6 +7,7 @@ import path from 'node:path';
 import { spawn, type ChildProcess } from 'node:child_process';
 import { createProfileFromLink, isSubscriptionUrl } from './share-link';
 import { fetchSubscriptionMaterial, validateSubscriptionUrl } from './subscription';
+import { readSubscriptionUrlFromPage } from './subscription-page';
 import { canConnect, enrichProfile, isServiceNode, looksLikeHost } from './vpn-classify';
 import { profileConnectionKey, profileIdentityKey, profileSourceKey, stableProfileId } from './vpn-identity';
 import { applyGeo } from './vpn-geo';
@@ -281,7 +282,20 @@ export class VpnManager extends EventEmitter {
   private async importSubscriptionUnlocked(url: string): Promise<VpnProfile[]> {
     const parsed = validateSubscriptionUrl(url);
     this.emitLog('info', `Загрузка подписки ${parsed.host}…`);
-    const material = await fetchSubscriptionMaterial(url, this.hwid, (message) => this.emitLog('info', message));
+    const logProgress = (message: string) => this.emitLog('info', message);
+    let material = await fetchSubscriptionMaterial(url, this.hwid, logProgress);
+
+    // Панель могла отдать не конфигурацию, а страницу, которая рисует себя
+    // скриптами уже в браузере. В её исходном тексте ссылок нет, поэтому
+    // страница открывается так же, как её видит человек, и адрес читается
+    // из кнопки «Добавить подписку». Это последняя попытка: она нужна только
+    // когда ни один из обычных способов ничего не дал.
+    if (!material.links.length && !material.clash.length) {
+      const pageUrl = await readSubscriptionUrlFromPage(url, logProgress);
+      if (pageUrl && profileSourceKey(pageUrl) !== profileSourceKey(url)) {
+        material = await fetchSubscriptionMaterial(pageUrl, this.hwid, logProgress);
+      }
+    }
     const candidates: VpnProfile[] = [];
     let notices = 0;
 
