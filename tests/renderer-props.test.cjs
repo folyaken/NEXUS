@@ -92,4 +92,26 @@ const consoleLine = styles.slice(styles.indexOf('.log-console-line {'));
 const consoleSize = /font-size:\s*([\d.]+)px/.exec(consoleLine.slice(0, consoleLine.indexOf('}')));
 assert.equal(consoleSize && consoleSize[1], '10', 'размер текста журнала менять не следует');
 
+// --- Проверка обновления при запуске ------------------------------------------
+// Пользователь не должен узнавать о новой версии, только если сам вспомнит
+// заглянуть в «О программе».
+const main = fs.readFileSync(path.join(root, 'src', 'main', 'main.ts'), 'utf8');
+assert.match(main, /appUpdater\.check\(\)/, 'обновление обязано проверяться при запуске');
+// Проверка отложена: сразу после старта приложение поднимает модули, а сеть
+// может быть ещё не готова.
+assert.match(main, /setTimeout\(\(\) => \{[\s\S]{0,120}appUpdater\.check/);
+// Ошибка проверки не должна мешать запуску: нет сети — просто не проверили.
+assert.match(main, /appUpdater\.check\(\)\.catch\(\(\) => undefined\)/);
+// Ничего не скачивается и не ставится само — решает пользователь. Загрузка
+// вызывается только из обработчика кнопки, а не из кода запуска.
+const startupBlock = main.slice(main.indexOf('createWindow();'), main.indexOf('const startupUpdates'));
+assert.doesNotMatch(startupBlock, /appUpdater\.(download|install)\(/,
+  'при запуске обновление только проверяется, но не скачивается и не ставится');
+assert.match(main, /ipcMain\.handle\('about:download-update'/, 'загрузка остаётся действием пользователя');
+
+// Отметка о найденном обновлении — скромная: точка, а не окно поверх работы.
+assert.match(app, /nav-update-dot/);
+assert.match(app, /setUpdateReady\(state\.status === 'available' \|\| state\.status === 'downloaded'\)/);
+assert.match(styles, /\.nav-update-dot/);
+
 console.log('Renderer props and log readability checks passed.');

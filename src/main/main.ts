@@ -889,6 +889,15 @@ if (gotLock) {
     await vpn.init(settings.lastVpnProfileId);
     createTray();
     createWindow();
+
+    // Проверка новой версии при запуске. Идёт в фоне и с задержкой: сразу
+    // после старта приложение занято поднятием модулей, а сеть может быть ещё
+    // не готова. Ничего не скачивается и не устанавливается — пользователь
+    // только видит ненавязчивую отметку, что обновление есть.
+    setTimeout(() => {
+      void appUpdater.check().catch(() => undefined);
+    }, 8_000);
+
     const startupUpdates = updater.syncAll();
     if (settings.autoStart || (settings.autoConnectVpn && settings.lastVpnProfileId)) {
       void startupUpdates.then(async () => {

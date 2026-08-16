@@ -483,7 +483,20 @@ function App() {
   const [settings, setSettings] = useState<AppSettings>(DEFAULT_SETTINGS);
   // Перевод интерфейса: словарь выбирается по языку из настроек.
   const t = useMemo(() => createTranslator(settings.language), [settings.language]);
+  // Найденное при запуске обновление: отмечается точкой у пункта «О программе».
+  // Ничего не скачивается само — решение принимает пользователь.
+  const [updateReady, setUpdateReady] = useState(false);
   const [syncing, setSyncing] = useState(false);
+  useEffect(() => {
+    const api = window.nexus;
+    if (!api?.onNexusUpdateChanged) return undefined;
+    const remember = (state: NexusUpdateCheck) => {
+      setUpdateReady(state.status === 'available' || state.status === 'downloaded');
+    };
+    void api.getNexusUpdateState?.().then(remember).catch(() => undefined);
+    return api.onNexusUpdateChanged(remember);
+  }, []);
+
   const [maximized, setMaximized] = useState(false);
   const [lastScan, setLastScan] = useState<string | null>(null);
   const [profile, setProfile] = useState<UserProfile>({ displayName: '', deviceId: 'NX-LOCAL', deviceName: 'Локальное устройство' });
@@ -664,7 +677,7 @@ function App() {
       <div className="nav-label sidebar-copy">CONTROL CENTER</div>
       <nav>{navItems.map((item) => <button key={item.id} aria-label={t(item.label)} title={sidebarCollapsed ? t(item.label) : undefined} className={`nav-item ${page === item.id ? 'active' : ''}`} onClick={() => setPage(item.id)}><span className="nav-glyph"><NavGlyph name={item.icon} /></span><span className="nav-item-label sidebar-copy">{t(item.label)}</span>{item.id === 'logs' && logs.length > 0 ? <em className="sidebar-copy">{Math.min(logs.length, 99)}</em> : null}</button>)}</nav>
       <div className="sidebar-bottom">
-        <button type="button" aria-label={t('О программе')} title={sidebarCollapsed ? t('О программе') : undefined} className={`nav-item sidebar-about ${page === 'about' ? 'active' : ''}`} onClick={() => setPage('about')}><span className="nav-glyph"><NavGlyph name="about" /></span><span className="nav-item-label sidebar-copy">{t('О программе')}</span></button>
+        <button type="button" aria-label={t('О программе')} title={sidebarCollapsed ? t('О программе') : undefined} className={`nav-item sidebar-about ${page === 'about' ? 'active' : ''}`} onClick={() => setPage('about')}><span className="nav-glyph"><NavGlyph name="about" /></span><span className="nav-item-label sidebar-copy">{t('О программе')}</span>{updateReady ? <em className="nav-update-dot" title={t('Доступно обновление')} /> : null}</button>
         <div className="system-status" title={sidebarCollapsed ? `${systemTitle}: ${systemNote}` : undefined}><StatusDot tone={systemTone} /><div className="sidebar-copy"><span>{systemTitle}</span><small>{systemNote}</small></div></div>
         <div className="version-row sidebar-copy"><span>NEXUS v{__APP_VERSION__}</span><span className="online-dot" /> LOCAL</div>
       </div>

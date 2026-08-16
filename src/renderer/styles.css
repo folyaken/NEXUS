@@ -900,7 +900,9 @@ kbd { padding: 3px 5px; border: 1px solid rgba(255,255,255,.1); border-radius: 5
 .appearance-graphite .server-support { color: #bebebe; }
 
 @media (prefers-reduced-motion: reduce) {
-  .app-frame:not(.motion-force) .tunnel-route-track i, .power-orb.is-on .orb-halo, .power-orb.is-wait .orb-halo { animation: none; }
+  .app-frame:not(.motion-force) .tunnel-route-track i,
+  .app-frame:not(.motion-force) .power-orb.is-on .orb-halo,
+  .app-frame:not(.motion-force) .power-orb.is-wait .orb-halo { animation: none; }
   .app-frame:not(.motion-force) .tunnel-route-track i { left: calc(50% - 3px); opacity: 1; }
   .app-frame:not(.motion-force) .hero-visual .orbit-a { transform: rotate(-18deg) !important; }
   .app-frame:not(.motion-force) .hero-visual .orbit-b { transform: rotate(24deg) !important; }
@@ -1611,3 +1613,17 @@ kbd { padding: 3px 5px; border: 1px solid rgba(255,255,255,.1); border-radius: 5
 .about-update-checked { margin-top: 12px; font-size: 10.5px; }
 .about-update-checked i { width: 6px; height: 6px; }
 .about-update-notes { font-size: 12px; }
+
+/* Отметка о доступном обновлении рядом с пунктом «О программе».
+   Намеренно скромная: точка вместо окна поверх интерфейса. Программа не должна
+   прерывать работу ради сообщения, которое можно прочитать позже. */
+.nav-update-dot {
+  width: 7px; height: 7px; margin-left: auto; flex: 0 0 auto;
+  border-radius: 50%; background: var(--mint);
+  box-shadow: 0 0 8px rgba(113,244,184,.65);
+  animation: nav-update-pulse 2.4s ease-in-out infinite;
+}
+.appearance-graphite .nav-update-dot { background: #d6d6d6; box-shadow: 0 0 8px rgba(214,214,214,.5); }
+@keyframes nav-update-pulse { 0%, 100% { opacity: 1; } 50% { opacity: .45; } }
+@media (prefers-reduced-motion: reduce) { .app-frame:not(.motion-force) .nav-update-dot { animation: none; } }
+.app-frame.motion-off .nav-update-dot { animation: none; }

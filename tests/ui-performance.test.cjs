@@ -48,6 +48,37 @@ assert.match(styles, /@media \(prefers-reduced-motion: reduce\)[\s\S]*?\.app-fra
 // разрешает: иначе настройка «Выключены» ничего бы не меняла.
 assert.match(styles, /\.app-frame\.motion-off [\s\S]*?animation: none;/);
 
+// Настройка «Анимации» обязана перекрывать системную для КАЖДОГО правила.
+// Один пропущенный селектор — и часть движения гаснет у всех, у кого Windows
+// экономит анимации: так у пользователя перестали летать кружки вокруг кнопки
+// включения VPN, хотя остальные анимации работали.
+const withoutComments = styles.replace(/\/\*[\s\S]*?\*\//g, '');
+const unguarded = [];
+const media = /@media \(prefers-reduced-motion: reduce\)\s*\{/g;
+let found;
+while ((found = media.exec(withoutComments)) !== null) {
+  let index = media.lastIndex;
+  let depth = 1;
+  while (index < withoutComments.length && depth > 0) {
+    if (withoutComments[index] === '{') depth += 1;
+    else if (withoutComments[index] === '}') depth -= 1;
+    index += 1;
+  }
+  const block = withoutComments.slice(media.lastIndex, index - 1);
+  for (const rule of block.matchAll(/([^{}]+)\{[^{}]*\}/g)) {
+    for (const selector of rule[1].split(',')) {
+      const text = selector.trim().replace(/\s+/g, ' ');
+      if (text && !text.includes('motion-force')) unguarded.push(text);
+    }
+  }
+}
+assert.deepEqual(unguarded, [],
+  `эти правила гасят анимацию мимо выбора пользователя: ${unguarded.join(' | ')}`);
+
+// Кнопка включения VPN — самая заметная анимация в программе, проверяем явно.
+assert.match(styles, /\.app-frame:not\(\.motion-force\) \.power-orb\.is-on \.orb-halo/);
+assert.match(styles, /\.app-frame\.motion-off \.power-orb\.is-on \.orb-halo/);
+
 // --- Оформление выпадающего списка ------------------------------------------
 // Нативный <select> рисуется средствами ОС и выбивается из оформления.
 assert.doesNotMatch(moduleSettings, /<select[\s>]/, 'нативный select заменён собственным компонентом');
