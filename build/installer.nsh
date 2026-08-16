@@ -54,6 +54,107 @@
   !insertmacro stopNexusWorkers
 !macroend
 
+; --- Выбор ярлыков -----------------------------------------------------------
+; Установщик electron-builder создаёт ярлыки молча. Пользователи привыкли решать
+; это сами, поэтому добавлена отдельная страница с двумя галочками. Обе
+; отмечены заранее: это привычное поведение, а снять отметку легко.
+;
+; Ярлыки не «не создаются», а удаляются сразу после создания: порядок шагов в
+; шаблоне зафиксирован, и вклиниться до него нельзя. Для пользователя разницы
+; нет — в конце установки ярлык либо есть, либо его нет.
+Var NexusShortcutDialog
+Var NexusDesktopCheckbox
+Var NexusStartMenuCheckbox
+Var NexusWantDesktop
+Var NexusWantStartMenu
+
+!macro customPageAfterChangeDir
+  Page custom NexusShortcutPageShow NexusShortcutPageLeave
+!macroend
+
+!macro customHeader
+  Function NexusShortcutPageShow
+    ; Значения по умолчанию задаются здесь: страница может открыться не с
+    ; первого раза, если пользователь вернулся кнопкой «Назад».
+    ${if} $NexusWantDesktop == ""
+      StrCpy $NexusWantDesktop "1"
+    ${endIf}
+    ${if} $NexusWantStartMenu == ""
+      StrCpy $NexusWantStartMenu "1"
+    ${endIf}
+
+    ; При обновлении вопрос не задаётся: выбор сделан при первой установке.
+    ; Пропуск выполняется здесь, а не макросом skipPageIfUpdated: тот
+    ; рассчитан на страницы MUI и с собственной страницей прервал бы саму
+    ; установку.
+    ${if} ${isUpdated}
+      Abort
+    ${endIf}
+
+    nsDialogs::Create 1018
+    Pop $NexusShortcutDialog
+    ${if} $NexusShortcutDialog == error
+      Abort
+    ${endIf}
+
+    !insertmacro MUI_HEADER_TEXT "Ярлыки NEXUS" "Выберите, где разместить значки для запуска программы."
+
+    ${NSD_CreateCheckbox} 0 10u 100% 12u "Создать значок на рабочем столе"
+    Pop $NexusDesktopCheckbox
+    ${if} $NexusWantDesktop == "1"
+      ${NSD_Check} $NexusDesktopCheckbox
+    ${endIf}
+
+    ${NSD_CreateCheckbox} 0 30u 100% 12u "Добавить NEXUS в меню «Пуск»"
+    Pop $NexusStartMenuCheckbox
+    ${if} $NexusWantStartMenu == "1"
+      ${NSD_Check} $NexusStartMenuCheckbox
+    ${endIf}
+
+    ${NSD_CreateLabel} 0 58u 100% 24u "Значки можно создать или удалить позже вручную. Программа работает независимо от них."
+    Pop $0
+
+    nsDialogs::Show
+  FunctionEnd
+
+  Function NexusShortcutPageLeave
+    ${NSD_GetState} $NexusDesktopCheckbox $0
+    ${if} $0 == ${BST_CHECKED}
+      StrCpy $NexusWantDesktop "1"
+    ${else}
+      StrCpy $NexusWantDesktop "0"
+    ${endIf}
+
+    ${NSD_GetState} $NexusStartMenuCheckbox $0
+    ${if} $0 == ${BST_CHECKED}
+      StrCpy $NexusWantStartMenu "1"
+    ${else}
+      StrCpy $NexusWantStartMenu "0"
+    ${endIf}
+  FunctionEnd
+!macroend
+
+; --- Применение выбора -------------------------------------------------------
+; Выполняется после создания ярлыков штатным шаблоном.
+!macro customInstall
+  ${if} $NexusWantDesktop == "0"
+    Delete "$newDesktopLink"
+    Delete "$oldDesktopLink"
+  ${endIf}
+  ${if} $NexusWantStartMenu == "0"
+    Delete "$newStartMenuLink"
+    Delete "$oldStartMenuLink"
+    ; Каталог удаляется только если он опустел: чужие ярлыки трогать нельзя.
+    !ifdef MENU_FILENAME
+      RMDir "$SMPROGRAMS\${MENU_FILENAME}"
+    !endif
+    ; Кнопка «Запустить NEXUS» на последнем шаге открывает $launchLink, а тот
+    ; указывает на ярлык меню «Пуск». Без переключения на сам файл программы
+    ; запуск после установки завершился бы ошибкой «файл не найден».
+    StrCpy $launchLink "$INSTDIR\${APP_EXECUTABLE_FILENAME}"
+  ${endIf}
+!macroend
+
 ; --- Перед удалением ---------------------------------------------------------
 !macro customUnInit
   !insertmacro stopNexusWorkers

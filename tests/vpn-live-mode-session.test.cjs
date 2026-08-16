@@ -171,7 +171,9 @@ assert.match(app, /appearance-options/);
 assert.match(app, /if \(name === 'settings'\) return <GearIcon \/>/);
 assert.match(app, /nexus-sidebar-collapsed/);
 assert.match(app, /aria-label=\{sidebarCollapsed \? 'Развернуть боковую панель' : 'Свернуть боковую панель'\}/);
-assert.match(app, />О программе<\/span>/);
+// Пункт «О программе» остаётся на месте; текст проходит через перевод, поэтому
+// в разметке он записан вызовом словаря, а не строкой.
+assert.match(app, />\{t\('О программе'\)\}<\/span>/);
 assert.match(app, /<h1>О программе<\/h1>/);
 assert.match(app, /<span>Логи<\/span>/);
 assert.match(app, /<h1>Логи<\/h1>/);

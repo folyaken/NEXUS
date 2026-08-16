@@ -169,10 +169,27 @@ export interface VpnSplitApp {
   path: string;
 }
 
+/** Языки интерфейса. */
+export type AppLanguage = 'ru' | 'en';
+
+/**
+ * Показывать ли движение в интерфейсе.
+ *
+ * `system` — как настроено в Windows. Именно из-за этого у части пользователей
+ * анимации выглядели «застывшими»: Windows умеет отключать их глобально
+ * (Специальные возможности → Визуальные эффекты → Эффекты анимации), и
+ * приложение честно подчинялось. Теперь выбор можно переопределить.
+ */
+export type MotionPreference = 'system' | 'full' | 'reduced';
+
 export interface AppSettings {
-  language: 'ru';
+  language: AppLanguage;
   theme: 'dark';
   appearance: 'indigo' | 'graphite';
+  /** Анимации интерфейса: по настройке Windows, всегда или никогда. */
+  motion: MotionPreference;
+  /** Запускать NEXUS вместе с Windows. */
+  launchAtLogin: boolean;
   autoStart: boolean;
   notifications: boolean;
   closeToTray: boolean;
@@ -193,6 +210,8 @@ export const DEFAULT_SETTINGS: AppSettings = {
   language: 'ru',
   theme: 'dark',
   appearance: 'indigo',
+  motion: 'full',
+  launchAtLogin: false,
   autoStart: false,
   notifications: true,
   closeToTray: true,

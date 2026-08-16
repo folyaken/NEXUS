@@ -30,6 +30,30 @@ function delay(milliseconds: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, milliseconds));
 }
 
+/**
+ * Порядок модулей в интерфейсе.
+ *
+ * Готовые к работе идут первыми, недоделанные — в конец списка. Иначе человек
+ * первым делом видит то, что включить нельзя, и решает, что программа не
+ * работает. Внутри каждой группы порядок задан явно: сначала обход блокировок,
+ * затем доступ к Telegram — ими пользуются чаще всего.
+ */
+const MODULE_DISPLAY_ORDER: readonly string[] = ['zapret', TG_WS_PROXY_ID];
+
+function compareModulesForDisplay(left: ModuleManifest, right: ModuleManifest): number {
+  const leftReady = left.development ? 1 : 0;
+  const rightReady = right.development ? 1 : 0;
+  if (leftReady !== rightReady) return leftReady - rightReady;
+
+  const leftRank = MODULE_DISPLAY_ORDER.indexOf(left.id);
+  const rightRank = MODULE_DISPLAY_ORDER.indexOf(right.id);
+  const leftPlace = leftRank < 0 ? MODULE_DISPLAY_ORDER.length : leftRank;
+  const rightPlace = rightRank < 0 ? MODULE_DISPLAY_ORDER.length : rightRank;
+  if (leftPlace !== rightPlace) return leftPlace - rightPlace;
+
+  return left.name.localeCompare(right.name, 'ru');
+}
+
 export class ModuleManager extends EventEmitter {
   private readonly modules = new Map<string, ModuleManifest>();
   private readonly processes = new Map<string, ManagedProcess>();
@@ -113,7 +137,8 @@ export class ModuleManager extends EventEmitter {
         args: [...module.args],
         strategies: module.strategies ? { ...module.strategies } : undefined,
         healthcheck: module.healthcheck ? { ...module.healthcheck } : undefined,
-      }));
+      }))
+      .sort(compareModulesForDisplay);
   }
 
   getLogs(id?: string): ModuleLog[] {

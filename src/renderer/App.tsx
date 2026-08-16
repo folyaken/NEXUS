@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { animated, config, useSpring } from '@react-spring/web';
 import type { AboutSystemInfo, AppSettings, ModuleLog, ModuleManifest, ModuleStatus, NexusUpdateCheck, UpdateInfo, UserProfile } from '../main/types';
 import { DEFAULT_SETTINGS } from '../main/types';
+import { createTranslator } from '../main/i18n';
 import { Jey2RayPage } from './Jey2RayPage';
 import { ModuleSettings } from './ModuleSettings';
 
@@ -469,6 +470,8 @@ function App() {
   });
   const [toast, setToast] = useState('');
   const [settings, setSettings] = useState<AppSettings>(DEFAULT_SETTINGS);
+  // Перевод интерфейса: словарь выбирается по языку из настроек.
+  const t = useMemo(() => createTranslator(settings.language), [settings.language]);
   const [syncing, setSyncing] = useState(false);
   const [maximized, setMaximized] = useState(false);
   const [lastScan, setLastScan] = useState<string | null>(null);
@@ -642,15 +645,15 @@ function App() {
     }
   };
 
-  return <div className={`app-frame appearance-${settings.appearance}`}><WindowBar maximized={maximized} /><div className={`app-shell ${sidebarCollapsed ? 'is-sidebar-collapsed' : ''}`}><div className="ambient ambient-one" /><div className="ambient ambient-two" />
+  return <div className={`app-frame appearance-${settings.appearance} ${settings.motion === 'full' ? 'motion-force' : ''} ${settings.motion === 'reduced' ? 'motion-off' : ''}`}><WindowBar maximized={maximized} /><div className={`app-shell ${sidebarCollapsed ? 'is-sidebar-collapsed' : ''}`}><div className="ambient ambient-one" /><div className="ambient ambient-two" />
     <aside className="sidebar">
       <button type="button" className="sidebar-collapse-button" aria-label={sidebarCollapsed ? 'Развернуть боковую панель' : 'Свернуть боковую панель'} title={sidebarCollapsed ? 'Развернуть панель' : 'Свернуть панель'} aria-pressed={sidebarCollapsed} onClick={() => setSidebarCollapsed((value) => !value)}><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m14.5 6-6 6 6 6" /></svg></button>
       <div className="brand"><div className="brand-orb"><NexusMark /></div><div className="sidebar-copy"><strong>NEXUS</strong><span>NETWORK CONTROL</span></div></div>
       <div className="workspace-selector workspace-static" title={sidebarCollapsed ? (profile.deviceName || 'Локальное устройство') : undefined}><span className="workspace-avatar">N</span><div className="sidebar-copy"><span className="workspace-label">DEVICE PROFILE · {profile.deviceId}</span><strong>{profile.deviceName || 'Локальное устройство'}</strong></div><span className="workspace-badge sidebar-copy">LOCAL</span></div>
       <div className="nav-label sidebar-copy">CONTROL CENTER</div>
-      <nav>{navItems.map((item) => <button key={item.id} aria-label={item.label} title={sidebarCollapsed ? item.label : undefined} className={`nav-item ${page === item.id ? 'active' : ''}`} onClick={() => setPage(item.id)}><span className="nav-glyph"><NavGlyph name={item.icon} /></span><span className="nav-item-label sidebar-copy">{item.label}</span>{item.id === 'logs' && logs.length > 0 ? <em className="sidebar-copy">{Math.min(logs.length, 99)}</em> : null}</button>)}</nav>
+      <nav>{navItems.map((item) => <button key={item.id} aria-label={t(item.label)} title={sidebarCollapsed ? t(item.label) : undefined} className={`nav-item ${page === item.id ? 'active' : ''}`} onClick={() => setPage(item.id)}><span className="nav-glyph"><NavGlyph name={item.icon} /></span><span className="nav-item-label sidebar-copy">{t(item.label)}</span>{item.id === 'logs' && logs.length > 0 ? <em className="sidebar-copy">{Math.min(logs.length, 99)}</em> : null}</button>)}</nav>
       <div className="sidebar-bottom">
-        <button type="button" aria-label="О программе" title={sidebarCollapsed ? 'О программе' : undefined} className={`nav-item sidebar-about ${page === 'about' ? 'active' : ''}`} onClick={() => setPage('about')}><span className="nav-glyph"><NavGlyph name="about" /></span><span className="nav-item-label sidebar-copy">О программе</span></button>
+        <button type="button" aria-label={t('О программе')} title={sidebarCollapsed ? t('О программе') : undefined} className={`nav-item sidebar-about ${page === 'about' ? 'active' : ''}`} onClick={() => setPage('about')}><span className="nav-glyph"><NavGlyph name="about" /></span><span className="nav-item-label sidebar-copy">{t('О программе')}</span></button>
         <div className="system-status" title={sidebarCollapsed ? `${systemTitle}: ${systemNote}` : undefined}><StatusDot tone={systemTone} /><div className="sidebar-copy"><span>{systemTitle}</span><small>{systemNote}</small></div></div>
         <div className="version-row sidebar-copy"><span>NEXUS v{__APP_VERSION__}</span><span className="online-dot" /> LOCAL</div>
       </div>
@@ -683,8 +686,9 @@ function Settings({ settings, onChange }: {
   settings: AppSettings;
   onChange: (next: AppSettings) => void;
 }) {
+  const t = createTranslator(settings.language);
   return <section className="page-section settings-page global-settings-page">
-    <div className="page-heading"><div><span className="section-kicker">NEXUS PREFERENCES</span><h1>Настройки</h1><p>Глобальные параметры языка, оформления и поведения NEXUS.</p></div></div>
+    <div className="page-heading"><div><span className="section-kicker">NEXUS PREFERENCES</span><h1>{t('Настройки')}</h1><p>Глобальные параметры языка, оформления и поведения NEXUS.</p></div></div>
 
     <div className="global-settings-hero">
       <span className="global-settings-hero-icon"><GearIcon /></span>
@@ -694,33 +698,45 @@ function Settings({ settings, onChange }: {
 
     <div className="settings-layout global-settings-layout">
       <div className="settings-card global-preferences-card">
-        <div className="settings-card-head"><div className="settings-symbol"><GearIcon /></div><div><h3>Язык и оформление</h3><p>Внешний вид всего приложения.</p></div></div>
-        <div className="global-preference-row">
-          <div><strong>Язык интерфейса</strong><p>Основной язык меню, подсказок и уведомлений.</p></div>
-          <span className="global-preference-value">Русский</span>
+        <div className="settings-card-head"><div className="settings-symbol"><GearIcon /></div><div><h3>{t('Язык и оформление')}</h3><p>{t('Внешний вид всего приложения.')}</p></div></div>
+        <div className="global-preference-row appearance-preference-row">
+          <div><strong>{t('Язык интерфейса')}</strong><p>{t('Основной язык меню, подсказок и уведомлений.')}</p></div>
+          <div className="appearance-options" role="radiogroup" aria-label="Язык интерфейса">
+            <button type="button" role="radio" aria-checked={settings.language === 'ru'} className={settings.language === 'ru' ? 'active' : ''} onClick={() => onChange({ ...settings, language: 'ru' })}>Русский</button>
+            <button type="button" role="radio" aria-checked={settings.language === 'en'} className={settings.language === 'en' ? 'active' : ''} onClick={() => onChange({ ...settings, language: 'en' })}>English</button>
+          </div>
         </div>
         <div className="global-preference-row">
-          <div><strong>Тема</strong><p>Комфортная тёмная тема для длительной работы.</p></div>
-          <span className="global-preference-value"><i />Тёмная</span>
+          <div><strong>{t('Тема')}</strong><p>{t('Комфортная тёмная тема для длительной работы.')}</p></div>
+          <span className="global-preference-value"><i />{t('Тёмная')}</span>
         </div>
         <div className="global-preference-row appearance-preference-row">
-          <div><strong>Оформление</strong><p>Выберите характер акцентов интерфейса.</p></div>
+          <div><strong>{t('Анимации')}</strong><p>{t('Если движение в интерфейсе не работает, Windows отключил его для всех программ. Здесь это можно переопределить.')}</p></div>
+          <div className="appearance-options" role="radiogroup" aria-label="Анимации интерфейса">
+            <button type="button" role="radio" aria-checked={settings.motion === 'full'} className={settings.motion === 'full' ? 'active' : ''} onClick={() => onChange({ ...settings, motion: 'full' })}>{t('Включены')}</button>
+            <button type="button" role="radio" aria-checked={settings.motion === 'system'} className={settings.motion === 'system' ? 'active' : ''} onClick={() => onChange({ ...settings, motion: 'system' })}>{t('Как в Windows')}</button>
+            <button type="button" role="radio" aria-checked={settings.motion === 'reduced'} className={settings.motion === 'reduced' ? 'active' : ''} onClick={() => onChange({ ...settings, motion: 'reduced' })}>{t('Выключены')}</button>
+          </div>
+        </div>
+        <div className="global-preference-row appearance-preference-row">
+          <div><strong>{t('Оформление')}</strong><p>{t('Выберите характер акцентов интерфейса.')}</p></div>
           <div className="appearance-options" role="radiogroup" aria-label="Оформление NEXUS">
-            <button type="button" role="radio" aria-checked={settings.appearance === 'indigo'} className={settings.appearance === 'indigo' ? 'active' : ''} onClick={() => onChange({ ...settings, appearance: 'indigo' })}><i className="indigo" />Индиго</button>
-            <button type="button" role="radio" aria-checked={settings.appearance === 'graphite'} className={settings.appearance === 'graphite' ? 'active' : ''} onClick={() => onChange({ ...settings, appearance: 'graphite' })}><i className="graphite" />Графит</button>
+            <button type="button" role="radio" aria-checked={settings.appearance === 'indigo'} className={settings.appearance === 'indigo' ? 'active' : ''} onClick={() => onChange({ ...settings, appearance: 'indigo' })}><i className="indigo" />{t('Индиго')}</button>
+            <button type="button" role="radio" aria-checked={settings.appearance === 'graphite'} className={settings.appearance === 'graphite' ? 'active' : ''} onClick={() => onChange({ ...settings, appearance: 'graphite' })}><i className="graphite" />{t('Графит')}</button>
           </div>
         </div>
       </div>
 
       <div className="settings-card global-behavior-card">
-        <div className="settings-card-head"><div className="settings-symbol violet">✦</div><div><h3>Поведение NEXUS</h3><p>Общие действия приложения в Windows.</p></div></div>
-        <SettingRow label="Автозапуск модулей" description="Запускать ранее включённые модули при старте приложения." checked={settings.autoStart} onChange={() => onChange({ ...settings, autoStart: !settings.autoStart })} />
-        <SettingRow label="Уведомления о событиях" description="Показывать системные уведомления об ошибках и важных событиях." checked={settings.notifications} onChange={() => onChange({ ...settings, notifications: !settings.notifications })} />
-        <SettingRow label="Закрывать в трей" description="Крестик прячет окно. Полный выход доступен из меню трея." checked={settings.closeToTray} onChange={() => onChange({ ...settings, closeToTray: !settings.closeToTray })} />
+        <div className="settings-card-head"><div className="settings-symbol violet">✦</div><div><h3>{t('Поведение NEXUS')}</h3><p>{t('Общие действия приложения в Windows.')}</p></div></div>
+        <SettingRow label={t('Запускать вместе с Windows')} description={t('NEXUS откроется в трее сразу после входа в систему.')} checked={settings.launchAtLogin} onChange={() => onChange({ ...settings, launchAtLogin: !settings.launchAtLogin })} />
+        <SettingRow label={t('Автозапуск модулей')} description={t('Запускать ранее включённые модули при старте приложения.')} checked={settings.autoStart} onChange={() => onChange({ ...settings, autoStart: !settings.autoStart })} />
+        <SettingRow label={t('Уведомления о событиях')} description={t('Показывать системные уведомления об ошибках и важных событиях.')} checked={settings.notifications} onChange={() => onChange({ ...settings, notifications: !settings.notifications })} />
+        <SettingRow label={t('Закрывать в трей')} description={t('Крестик прячет окно. Полный выход доступен из меню трея.')} checked={settings.closeToTray} onChange={() => onChange({ ...settings, closeToTray: !settings.closeToTray })} />
       </div>
     </div>
 
-    <div className="info-callout global-settings-note"><span>i</span><div><strong>Настройки модулей разделены</strong><p>Параметры конкретного модуля открываются внутри его страницы. Здесь остаются только общие настройки NEXUS.</p></div></div>
+    <div className="info-callout global-settings-note"><span>i</span><div><strong>{t('Настройки модулей разделены')}</strong><p>{t('Параметры конкретного модуля открываются внутри его страницы. Здесь остаются только общие настройки NEXUS.')}</p></div></div>
   </section>;
 }
 

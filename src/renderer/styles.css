@@ -900,11 +900,11 @@ kbd { padding: 3px 5px; border: 1px solid rgba(255,255,255,.1); border-radius: 5
 .appearance-graphite .server-support { color: #bebebe; }
 
 @media (prefers-reduced-motion: reduce) {
-  .tunnel-route-track i, .power-orb.is-on .orb-halo, .power-orb.is-wait .orb-halo { animation: none; }
-  .tunnel-route-track i { left: calc(50% - 3px); opacity: 1; }
-  .hero-visual .orbit-a { transform: rotate(-18deg) !important; }
-  .hero-visual .orbit-b { transform: rotate(24deg) !important; }
-  .hero-visual .core-glow { transform: none !important; opacity: 1 !important; }
+  .app-frame:not(.motion-force) .tunnel-route-track i, .power-orb.is-on .orb-halo, .power-orb.is-wait .orb-halo { animation: none; }
+  .app-frame:not(.motion-force) .tunnel-route-track i { left: calc(50% - 3px); opacity: 1; }
+  .app-frame:not(.motion-force) .hero-visual .orbit-a { transform: rotate(-18deg) !important; }
+  .app-frame:not(.motion-force) .hero-visual .orbit-b { transform: rotate(24deg) !important; }
+  .app-frame:not(.motion-force) .hero-visual .core-glow { transform: none !important; opacity: 1 !important; }
 }
 
 /* 18.7: compact navigation, logs console and about screen */
@@ -1098,8 +1098,10 @@ kbd { padding: 3px 5px; border: 1px solid rgba(255,255,255,.1); border-radius: 5
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .sidebar, .main-content, .sidebar-copy, .sidebar-collapse-button, .sidebar-collapse-button svg, .profile-chevron { transition-duration: .01ms; }
-  .logs-live-state i, .nexus-showcase-mark { animation: none; }
+  .app-frame:not(.motion-force) .sidebar, .app-frame:not(.motion-force) .main-content,
+  .app-frame:not(.motion-force) .sidebar-copy, .app-frame:not(.motion-force) .sidebar-collapse-button,
+  .app-frame:not(.motion-force) .sidebar-collapse-button svg, .app-frame:not(.motion-force) .profile-chevron { transition-duration: .01ms; }
+  .app-frame:not(.motion-force) .logs-live-state i, .app-frame:not(.motion-force) .nexus-showcase-mark { animation: none; }
 }
 
 /* Grayscale complete branches, but stop at every branch that leads to a server
@@ -1366,9 +1368,10 @@ kbd { padding: 3px 5px; border: 1px solid rgba(255,255,255,.1); border-radius: 5
 @keyframes nx-orbit-b { from { transform: rotate(24deg); } to { transform: rotate(384deg); } }
 
 @media (prefers-reduced-motion: reduce) {
-  .status-dot, .orbit-a, .orbit-b { animation: none; }
-  .nx-select-list { animation: none; }
-  .nx-select-caret, .module-card-inner { transition-duration: .01ms; }
+  .app-frame:not(.motion-force) .status-dot, .app-frame:not(.motion-force) .orbit-a,
+  .app-frame:not(.motion-force) .orbit-b { animation: none; }
+  .app-frame:not(.motion-force) .nx-select-list { animation: none; }
+  .app-frame:not(.motion-force) .nx-select-caret, .app-frame:not(.motion-force) .module-card-inner { transition-duration: .01ms; }
 }
 
 /* Предупреждение о нехватке прав администратора */
@@ -1389,7 +1392,7 @@ kbd { padding: 3px 5px; border: 1px solid rgba(255,255,255,.1); border-radius: 5
 .skeleton-line.short { width: 45%; }
 .module-card-skeleton .card-head-copy { display: flex; flex-direction: column; gap: 9px; }
 @keyframes nx-skeleton { from { background-position: 200% 0; } to { background-position: -200% 0; } }
-@media (prefers-reduced-motion: reduce) { .skeleton-block { animation: none; } }
+@media (prefers-reduced-motion: reduce) { .app-frame:not(.motion-force) .skeleton-block { animation: none; } }
 
 /* Правовая информация в разделе «О программе» */
 .about-license-card { margin-top: 15px; padding: 21px 22px; border: 1px solid var(--line); border-radius: 18px; background: #151d2c; }
@@ -1502,3 +1505,29 @@ kbd { padding: 3px 5px; border: 1px solid rgba(255,255,255,.1); border-radius: 5
 .appearance-graphite .app-picker-secondary:hover { border-color: rgba(214,214,214,.32); background: rgba(214,214,214,.09); color: #ebebeb; }
 .appearance-graphite .app-picker-refresh:hover { color: #ebebeb; }
 .appearance-graphite .app-picker-confirm { background: linear-gradient(130deg, #d6d6d6, #ebebeb); color: #121212; }
+
+/* Отключение анимаций по выбору пользователя.
+   Работает независимо от настроек Windows: правила повторяют блоки
+   prefers-reduced-motion, но применяются по классу на корне приложения. */
+.app-frame.motion-off .tunnel-route-track i,
+.app-frame.motion-off .power-orb.is-on .orb-halo,
+.app-frame.motion-off .power-orb.is-wait .orb-halo,
+.app-frame.motion-off .logs-live-state i,
+.app-frame.motion-off .nexus-showcase-mark,
+.app-frame.motion-off .status-dot,
+.app-frame.motion-off .orbit-a,
+.app-frame.motion-off .orbit-b,
+.app-frame.motion-off .nx-select-list,
+.app-frame.motion-off .skeleton-block { animation: none; }
+.app-frame.motion-off .tunnel-route-track i { left: calc(50% - 3px); opacity: 1; }
+.app-frame.motion-off .hero-visual .orbit-a { transform: rotate(-18deg) !important; }
+.app-frame.motion-off .hero-visual .orbit-b { transform: rotate(24deg) !important; }
+.app-frame.motion-off .hero-visual .core-glow { transform: none !important; opacity: 1 !important; }
+.app-frame.motion-off .sidebar,
+.app-frame.motion-off .main-content,
+.app-frame.motion-off .sidebar-copy,
+.app-frame.motion-off .sidebar-collapse-button,
+.app-frame.motion-off .sidebar-collapse-button svg,
+.app-frame.motion-off .profile-chevron,
+.app-frame.motion-off .nx-select-caret,
+.app-frame.motion-off .module-card-inner { transition-duration: .01ms; }

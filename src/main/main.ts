@@ -96,9 +96,13 @@ function normalizeSettings(raw: Partial<AppSettings>): AppSettings {
   const vpnSplitApps = normalizeVpnSplitApps(raw.vpnSplitApps);
   const vpnAppRouting = resolveVpnAppRouting(raw.vpnAppRouting, raw.vpnSplitTunnel, vpnMode, vpnSplitApps);
   return {
-    language: 'ru',
+    language: raw.language === 'en' ? 'en' : 'ru',
     theme: 'dark',
     appearance: raw.appearance === 'graphite' ? 'graphite' : 'indigo',
+    // Полное движение по умолчанию: у части пользователей Windows глобально
+    // гасит анимации, и интерфейс выглядел сломанным, хотя работал верно.
+    motion: raw.motion === 'system' || raw.motion === 'reduced' ? raw.motion : 'full',
+    launchAtLogin: Boolean(raw.launchAtLogin),
     autoStart: Boolean(raw.autoStart),
     notifications: raw.notifications !== false,
     closeToTray: raw.closeToTray !== false,
@@ -168,8 +172,41 @@ async function readSettings(): Promise<AppSettings> {
 async function saveSettings(next: AppSettings): Promise<AppSettings> {
   settings = normalizeSettings(next ?? settings);
   await writeJsonSafely(settingsPath(), settings);
+  applyLaunchAtLogin(settings.launchAtLogin);
   if (tray && !tray.isDestroyed()) refreshTrayMenu(trayVpnStatus);
   return settings;
+}
+
+/**
+ * Запуск вместе с Windows.
+ *
+ * Регистрацией занимается сама операционная система, поэтому реестр вручную не
+ * правится. В среде разработки настройка не применяется: иначе автозапуск
+ * получил бы не установленную программу, а временную сборку.
+ *
+ * Приложение открывается свёрнутым в трей: показывать окно при каждом входе в
+ * систему навязчиво, а модули и VPN поднимаются в фоне.
+ */
+function applyLaunchAtLogin(enabled: boolean): void {
+  if (process.platform !== 'win32' || !app.isPackaged) return;
+  try {
+    app.setLoginItemSettings({
+      openAtLogin: enabled,
+      path: process.execPath,
+      args: enabled ? [LAUNCH_AT_LOGIN_FLAG] : [],
+    });
+  } catch {
+    // Политики организации могут запрещать автозапуск. Приложение продолжает
+    // работать: настройка просто не вступит в силу.
+  }
+}
+
+/** Признак запуска системой при входе в Windows. */
+const LAUNCH_AT_LOGIN_FLAG = '--launched-at-login';
+
+function startedByWindowsLogin(): boolean {
+  return process.argv.includes(LAUNCH_AT_LOGIN_FLAG)
+    || Boolean(process.platform === 'win32' && app.isPackaged && app.getLoginItemSettings({ path: process.execPath }).wasOpenedAtLogin);
 }
 
 async function pickVpnApplications(): Promise<VpnSplitApp[]> {
@@ -445,6 +482,9 @@ function createTray(): void {
 }
 
 function createWindow(): void {
+  // При входе в Windows окно не показывается: программа уходит в трей и молча
+  // поднимает модули. Всплывающее окно на каждом включении компьютера мешало бы.
+  const startHidden = startedByWindowsLogin();
   mainWindow = new BrowserWindow({
     width: 1440,
     height: 900,
@@ -454,6 +494,7 @@ function createWindow(): void {
     maximizable: true,
     fullscreenable: false,
     center: true,
+    show: !startHidden,
     frame: false,
     icon: assetPath('nexus-app.png'),
     backgroundColor: '#090d16',
@@ -836,6 +877,10 @@ if (gotLock) {
     }
 
     registerEmergencyCleanup();
+    // Регистрация в автозапуске восстанавливается при каждом старте: после
+    // обновления путь к программе меняется, и старая запись указывала бы в
+    // никуда.
+    applyLaunchAtLogin(settings.launchAtLogin);
     appUpdater = new AppUpdater(app.getVersion(), app.isPackaged);
     const profile = await readProfile();
     vpn.setHwid(profile.deviceId);
