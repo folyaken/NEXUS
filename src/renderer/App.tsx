@@ -261,7 +261,7 @@ function formatLogTimestamp(value: string): string {
   return `${pad(date.getDate())}.${pad(date.getMonth() + 1)}.${pad(date.getFullYear() % 100)} ${pad(date.getHours())}:${pad(date.getMinutes())}:${pad(date.getSeconds())}`;
 }
 
-function LogsPage({ logs, category, setCategory, onNotice }: { logs: ModuleLog[]; category: LogCategory; setCategory: (category: LogCategory) => void; onNotice: (text: string) => void }) {
+function LogsPage({ logs, category, setCategory, onNotice, t }: { logs: ModuleLog[]; category: LogCategory; setCategory: (category: LogCategory) => void; onNotice: (text: string) => void; t: (text: string) => string }) {
   const consoleRef = useRef<HTMLDivElement>(null);
   const visibleLogs = useMemo(() => logs.filter((log) => matchesLogCategory(log, category)).slice().reverse(), [logs, category]);
   const reportText = useMemo(() => visibleLogs.map((log) => `[${formatLogTimestamp(log.timestamp)}] [${logSourceLabel(log.id)}] [${log.level.toUpperCase()}] ${log.message}`).join('\n'), [visibleLogs]);
@@ -685,7 +685,7 @@ function App() {
 
       {page === 'jey2ray' && <Jey2RayPage settings={settings} updates={updates} syncing={syncing} onSync={handleSyncUpdates} onSettings={(next) => void persistSettings(next)} onToast={setToast} />}
 
-      {page === 'logs' && <LogsPage logs={logs} category={logCategory} setCategory={setLogCategory} onNotice={setToast} />}
+      {page === 'logs' && <LogsPage logs={logs} category={logCategory} setCategory={setLogCategory} onNotice={setToast} t={t} />}
 
       {page === 'settings' && <Settings settings={settings} onChange={(next) => void persistSettings(next)} />}
       {page === 'about' && <AboutPage t={t} />}

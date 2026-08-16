@@ -1597,3 +1597,17 @@ kbd { padding: 3px 5px; border: 1px solid rgba(255,255,255,.1); border-radius: 5
 .module-card-inner { display: flex; flex-direction: column; }
 .module-card-inner .card-divider { margin-top: auto; }
 .module-card-inner .module-description { margin-bottom: 4px; }
+
+/* Более крупные подписи в карточке обновления.
+   Метка «СТАБИЛЬНАЯ ВЕРСИЯ», надпись «ОБНОВЛЕНИЕ NEXUS», поясняющая строка и
+   отметка времени были 7–8px: разобрать их можно было только вплотную к
+   экрану. Это единственное место, где человек читает состояние обновления,
+   поэтому размеры подняты до обычных для интерфейса. */
+.about-update-badge { gap: 8px; padding: 7px 11px; font-size: 9.5px; letter-spacing: .08em; }
+.about-update-badge i { width: 6px; height: 6px; }
+.about-update-copy > span { font-size: 10px; letter-spacing: .11em; }
+.about-update-copy h3 { margin-top: 7px; font-size: 19px; }
+.about-update-copy p { max-width: 420px; margin-top: 9px; font-size: 12px; line-height: 1.6; }
+.about-update-checked { margin-top: 12px; font-size: 10.5px; }
+.about-update-checked i { width: 6px; height: 6px; }
+.about-update-notes { font-size: 12px; }
