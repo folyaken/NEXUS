@@ -1,7 +1,7 @@
 {
   "name": "nexus-network-tools",
   "version": "1.1.1",
-  "patchLevel": 56,
+  "patchLevel": 57,
   "private": true,
   "description": "NEXUS — локальная Electron-обёртка для сетевых инструментов",
   "license": "SEE LICENSE IN LICENSE",
@@ -30,7 +30,10 @@
     "patch": "node scripts/pack-patch.cjs",
     "package": "npm run build && electron-builder",
     "preview": "vite preview --host 0.0.0.0",
-    "prepare:wincodesign": "node scripts/prepare-wincodesign.cjs"
+    "prepare:wincodesign": "node scripts/prepare-wincodesign.cjs",
+    "channel": "node scripts/update-channel.cjs",
+    "channel:set": "node scripts/update-channel.cjs set",
+    "release:win": "node scripts/build-release.cjs"
   },
   "build": {
     "appId": "com.folyaken.nexus",

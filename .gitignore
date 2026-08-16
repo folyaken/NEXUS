@@ -42,3 +42,6 @@ Thumbs.db
 *.AppImage
 *.dmg
 *.apk
+
+# Личный адрес канала обновлений: у каждого свой
+update-channel.json
