@@ -67,9 +67,9 @@ npm run release:win
 1. Откройте `https://github.com/folyaken/NEXUS-releases/releases/new`
 2. **Choose a tag** → введите `v1.1.2` → *Create new tag*
 3. Перетащите в поле вложений **три файла** из папки `release`:
-   - `NEXUS Setup 1.1.2.exe`
+   - `NEXUS-Setup-1.1.2.exe`
    - `latest.yml`
-   - `NEXUS Setup 1.1.2.exe.blockmap`
+   - `NEXUS-Setup-1.1.2.exe.blockmap`
 4. Нажмите **Publish release**
 
 > **`latest.yml` обязателен.** Именно в нём записано, какая версия вышла и какой
@@ -77,6 +77,10 @@ npm run release:win
 >
 > **`.blockmap` ускоряет загрузку.** С ним докачиваются только изменившиеся
 > части, а не весь установщик заново.
+>
+> **Не переименовывайте файлы.** В имени нет пробелов намеренно: GitHub
+> заменяет пробелы точками, и программа стала бы искать обновление по
+> несуществующему адресу.
 
 ---
 

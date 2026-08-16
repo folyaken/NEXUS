@@ -74,6 +74,17 @@ assert.match(releaseScript, /'--publish', 'never'/);
 assert.match(releaseScript, /prepare-license\.cjs/);
 assert.match(releaseScript, /ensure-xray\.cjs/);
 
+// --- Имя установщика без пробелов -------------------------------------------
+// GitHub заменяет пробелы в именах вложений на точки, а latest.yml ссылается на
+// исходное имя. Обновление тогда падает с «файл не найден», хотя внешне релиз
+// выложен правильно.
+assert.equal(manifest.build.nsis.artifactName, 'NEXUS-Setup-${version}.${ext}');
+assert.doesNotMatch(manifest.build.nsis.artifactName, /\s/, 'пробелы в имени ломают обновление');
+assert.match(releaseScript, /NEXUS-Setup-\$\{version\}\.exe/);
+// Скрипт обязан ловить расхождение имени в latest.yml и на диске.
+assert.match(releaseScript, /latest\.yml ссылается на/);
+assert.match(releaseScript, /есть пробелы/);
+
 // --- Файл настройки ----------------------------------------------------------
 void (() => {
   const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'nexus-channel-'));

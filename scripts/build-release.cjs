@@ -53,7 +53,10 @@ function main() {
 
   const releaseDir = path.join(root, 'release');
   const version = JSON.parse(fs.readFileSync(path.join(root, 'package.json'), 'utf8')).version;
-  const installer = `NEXUS Setup ${version}.exe`;
+  // Имя без пробелов принципиально: GitHub заменяет пробелы в именах вложений
+  // на точки, а latest.yml ссылается на исходное имя. Обновление тогда падает
+  // с ошибкой «файл не найден», хотя внешне всё выложено правильно.
+  const installer = `NEXUS-Setup-${version}.exe`;
   const required = [installer, 'latest.yml'];
   const blockmap = `${installer}.blockmap`;
 
@@ -70,6 +73,27 @@ function main() {
     console.error('Не хватает обязательных файлов — обновление работать не будет.');
     process.exit(1);
   }
+  // Сверяем имя файла внутри latest.yml с тем, что лежит на диске: если они
+  // разойдутся, программа будет искать обновление по несуществующему адресу.
+  try {
+    const feed = fs.readFileSync(path.join(releaseDir, 'latest.yml'), 'utf8');
+    const referenced = feed.match(/^\s*(?:url|path):\s*(.+)$/m);
+    const name = referenced ? referenced[1].trim().replace(/^['"]|['"]$/g, '') : '';
+    if (name && name !== installer) {
+      console.error('');
+      console.error(`latest.yml ссылается на «${name}», а собран «${installer}».`);
+      console.error('Обновление не найдёт файл. Соберите выпуск заново.');
+      process.exit(1);
+    }
+    if (/\s/.test(name)) {
+      console.error('');
+      console.error('В имени установщика есть пробелы: GitHub заменит их точками, и обновление сломается.');
+      process.exit(1);
+    }
+  } catch {
+    // Содержимое проверить не удалось — наличие файла уже подтверждено выше.
+  }
+
   console.log('');
   console.log('latest.yml обязателен: именно по нему программа узнаёт о новой версии.');
 }
