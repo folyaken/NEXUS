@@ -15,11 +15,19 @@ const path = require('node:path');
 const root = path.resolve(__dirname, '..');
 const { readChannelUrl, builderPublishArgs } = require('./update-channel.cjs');
 
-function run(command, args) {
+/**
+ * Запускает шаг сборки.
+ *
+ * Через оболочку выполняются только команды без аргументов от пользователя
+ * (`npm`, `npx`): Node предупреждает, что при `shell: true` аргументы не
+ * экранируются. Все остальные шаги — это вызовы Node с путями к скриптам,
+ * им оболочка не нужна вовсе.
+ */
+function run(command, args, useShell = false) {
   const result = spawnSync(command, args, {
     cwd: root,
     stdio: 'inherit',
-    shell: process.platform === 'win32',
+    shell: useShell && process.platform === 'win32',
   });
   if (result.status !== 0) process.exit(result.status ?? 1);
 }
@@ -45,11 +53,11 @@ function main() {
   run(process.execPath, [path.join('scripts', 'prepare-wincodesign.cjs')]);
   run(process.execPath, [path.join('scripts', 'prepare-license.cjs')]);
 
-  run('npm', ['run', 'build']);
+  run('npm', ['run', 'build'], true);
 
   // `--publish never` означает «собрать файлы, но никуда не загружать»:
   // готовые файлы выкладываются вручную. Токен GitHub в сборке не участвует.
-  run('npx', ['electron-builder', '--win', '--x64', '--publish', 'never', ...builderPublishArgs()]);
+  run('npx', ['electron-builder', '--win', '--x64', '--publish', 'never', ...builderPublishArgs()], true);
 
   const releaseDir = path.join(root, 'release');
   const version = JSON.parse(fs.readFileSync(path.join(root, 'package.json'), 'utf8')).version;
