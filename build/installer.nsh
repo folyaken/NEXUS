@@ -62,17 +62,29 @@
 ; Ярлыки не «не создаются», а удаляются сразу после создания: порядок шагов в
 ; шаблоне зафиксирован, и вклиниться до него нельзя. Для пользователя разницы
 ; нет — в конце установки ярлык либо есть, либо его нет.
-Var NexusShortcutDialog
-Var NexusDesktopCheckbox
-Var NexusStartMenuCheckbox
-Var NexusWantDesktop
-Var NexusWantStartMenu
+;
+; Весь этот блок нужен только установщику. Файл подключается и при сборке
+; деинсталлятора — там нет ни страниц, ни nsDialogs, и компилятор NSIS выдаёт
+; предупреждение, которое electron-builder считает ошибкой (ключ -WX). Поэтому
+; страница объявляется только когда собирается установщик.
+!ifndef BUILD_UNINSTALLER
+  Var NexusShortcutDialog
+  Var NexusDesktopCheckbox
+  Var NexusStartMenuCheckbox
+  Var NexusWantDesktop
+  Var NexusWantStartMenu
+!endif
 
 !macro customPageAfterChangeDir
-  Page custom NexusShortcutPageShow NexusShortcutPageLeave
+  ; Страница объявляется только в установщике: при сборке деинсталлятора её
+  ; функции не компилируются, и ссылка на них оборвалась бы.
+  !ifndef BUILD_UNINSTALLER
+    Page custom NexusShortcutPageShow NexusShortcutPageLeave
+  !endif
 !macroend
 
 !macro customHeader
+  !ifndef BUILD_UNINSTALLER
   Function NexusShortcutPageShow
     ; Значения по умолчанию задаются здесь: страница может открыться не с
     ; первого раза, если пользователь вернулся кнопкой «Назад».
@@ -132,11 +144,13 @@ Var NexusWantStartMenu
       StrCpy $NexusWantStartMenu "0"
     ${endIf}
   FunctionEnd
+  !endif
 !macroend
 
 ; --- Применение выбора -------------------------------------------------------
 ; Выполняется после создания ярлыков штатным шаблоном.
 !macro customInstall
+  !ifndef BUILD_UNINSTALLER
   ${if} $NexusWantDesktop == "0"
     Delete "$newDesktopLink"
     Delete "$oldDesktopLink"
@@ -153,6 +167,7 @@ Var NexusWantStartMenu
     ; запуск после установки завершился бы ошибкой «файл не найден».
     StrCpy $launchLink "$INSTDIR\${APP_EXECUTABLE_FILENAME}"
   ${endIf}
+  !endif
 !macroend
 
 ; --- Перед удалением ---------------------------------------------------------

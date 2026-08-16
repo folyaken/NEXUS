@@ -97,6 +97,45 @@ assert.match(installer, /StrCpy \$launchLink "\$INSTDIR\\\$\{APP_EXECUTABLE_FILE
 // Каталог меню удаляется только пустым: чужие ярлыки трогать нельзя.
 assert.match(installer, /RMDir "\$SMPROGRAMS\\\$\{MENU_FILENAME\}"/);
 
+
+// Файл дополнений подключается и при сборке деинсталлятора. Там нет ни страниц,
+// ни nsDialogs, а компилятор NSIS запускается с ключом «предупреждения как
+// ошибки» — из-за этого сборка обрывалась на этапе деинсталлятора, и установщик
+// не создавался вовсе.
+const renderInstaller = (defines) => {
+  const output = [];
+  const stack = [true];
+  for (const line of installer.split('\n')) {
+    const text = line.trim();
+    if (text.startsWith('!ifndef ')) { stack.push(stack[stack.length - 1] && !defines.has(text.split(/\s+/)[1])); continue; }
+    if (text.startsWith('!ifdef ')) { stack.push(stack[stack.length - 1] && defines.has(text.split(/\s+/)[1])); continue; }
+    if (text === '!endif') { stack.pop(); continue; }
+    // Комментарии отбрасываются: слово в пояснении не должно выдавать себя за
+    // работающий код.
+    if (stack[stack.length - 1] && !text.startsWith(';')) output.push(line);
+  }
+  assert.equal(stack.length, 1, 'условия в installer.nsh должны быть парными');
+  return output.join('\n');
+};
+
+const forInstaller = renderInstaller(new Set(['MENU_FILENAME']));
+const forUninstaller = renderInstaller(new Set(['BUILD_UNINSTALLER', 'MENU_FILENAME']));
+
+// В установщике страница есть целиком.
+assert.match(forInstaller, /Page custom NexusShortcutPageShow/);
+assert.match(forInstaller, /Function NexusShortcutPageShow/);
+assert.match(forInstaller, /nsDialogs::Create/);
+
+// В деинсталляторе её нет вовсе — ни объявления, ни ссылки на функции.
+assert.doesNotMatch(forUninstaller, /Page custom/, 'страница не должна попадать в деинсталлятор');
+assert.doesNotMatch(forUninstaller, /nsDialogs::/, 'nsDialogs недоступен при сборке деинсталлятора');
+assert.doesNotMatch(forUninstaller, /Var NexusWantDesktop/);
+
+// А вот остановка процессов и возврат системного прокси нужны именно
+// деинсталлятору: без них после удаления пользователь теряет интернет.
+assert.match(forUninstaller, /stopNexusWorkers/);
+assert.match(forUninstaller, /restoreSystemProxy/);
+
 // --- Английский язык ----------------------------------------------------------
 assert.match(i18n, /export function createTranslator/);
 // Русский текст остаётся ключом: если перевода нет, показывается оригинал, а не
