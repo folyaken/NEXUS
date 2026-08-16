@@ -193,10 +193,21 @@ function DpiHostlistSection({ onToast }: { onToast: (message: string) => void })
           disabled={safePage === 0}
           aria-label="Предыдущая страница"
           onClick={() => setPage(safePage - 1)}
-        >←</button>
+        >
+          <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M15 5l-7 7 7 7" /></svg>
+        </button>
         <span className="dpi-host-pager-state">
-          Страница {safePage + 1} из {pageCount}
-          <em>{filtered.length} {hostsWord(filtered.length)}</em>
+          <span className="dpi-host-pager-count">
+            {filtered.length} {hostsWord(filtered.length)} · {safePage + 1}/{pageCount}
+          </span>
+          {/* Точки показывают положение в списке нагляднее числа. При большом
+              количестве страниц они превратились бы в кашу, поэтому рисуются
+              только до восьми. */}
+          {pageCount <= 8 && <span className="dpi-host-pager-dots" aria-hidden="true">
+            {Array.from({ length: pageCount }, (_, index) => (
+              <i key={index} className={index === safePage ? 'is-current' : ''} />
+            ))}
+          </span>}
         </span>
         <button
           type="button"
@@ -204,7 +215,9 @@ function DpiHostlistSection({ onToast }: { onToast: (message: string) => void })
           disabled={safePage >= pageCount - 1}
           aria-label="Следующая страница"
           onClick={() => setPage(safePage + 1)}
-        >→</button>
+        >
+          <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M9 5l7 7-7 7" /></svg>
+        </button>
       </div>}
 
       <p className="dpi-host-note">Если модуль запущен, он перезапускается автоматически — сайт начинает работать сразу.</p>

@@ -143,6 +143,17 @@ function Toggle({ checked, onChange, busy = false, disabled = false }: { checked
   return <animated.button className={`toggle ${checked ? 'is-on' : ''}`} aria-label={checked ? 'Выключить модуль' : 'Включить модуль'} disabled={busy || disabled} onClick={onChange} style={{ background: spring.background, boxShadow: spring.shadow }}><animated.span className="toggle-knob" style={{ transform: spring.x.to((x) => `translateX(${x}px)`) }} /></animated.button>;
 }
 
+/**
+ * Номер версии модуля для показа.
+ *
+ * Версия приходит из имени метки релиза GitHub, а разработчики часто уже
+ * ставят там «v» — получалось «vv1.10.1». Буква добавляется только когда её нет.
+ */
+function formatModuleVersion(version: string): string {
+  const value = version.trim();
+  return /^v/i.test(value) ? value : `v${value}`;
+}
+
 function ModuleCard({ module, index, onToggle, onStrategyChange, onOpenSettings, t }: { module: ModuleManifest; index: number; onToggle: (module: ModuleManifest) => void; onStrategyChange: (module: ModuleManifest, strategy: string) => void; onOpenSettings?: (module: ModuleManifest) => void; t: (text: string) => string }) {
   const entry = useSpring({ opacity: 1, y: 0, config: { tension: 240, friction: 24 }, delay: Math.min(index * 65, 260) });
   const isBusy = module.status === 'starting' || module.status === 'stopping';
@@ -152,7 +163,7 @@ function ModuleCard({ module, index, onToggle, onStrategyChange, onOpenSettings,
   return <animated.article className="module-card" style={{ opacity: entry.opacity, transform: entry.y.to((y) => `translateY(${y}px)`) }}><div className="module-card-inner">
     <div className="card-head"><div className={`module-icon ${module.category}`}><span>{module.icon}</span></div><div className="card-head-copy"><div className="eyebrow-row"><span className="category-chip">{categoryNames[module.category] ?? 'OTHER'}</span><StatusDot tone={tone} /><span className={`status-copy ${tone}`}>{moduleLabel(module)}</span></div><h3>{module.name}</h3></div><div className="card-head-controls">{onOpenSettings && !isDevelopment && <button type="button" className="module-settings-button" aria-label={`${t('Настройки модуля')}: ${module.name}`} title={t('Настройки модуля')} onClick={() => onOpenSettings(module)}><GearIcon /></button>}<Toggle checked={isRunning} busy={isBusy} disabled={isDevelopment} onChange={() => onToggle(module)} /></div></div>
     {(module.id === 'zapret' || module.strategies) && <div className="strategy-summary"><span className="strategy-summary-label">{t('Профиль')}</span><b>{module.strategy ?? Object.keys(module.strategies ?? {})[0] ?? DEFAULT_ZAPRET_STRATEGY}</b>{onOpenSettings && !isDevelopment && <button type="button" className="strategy-summary-link" onClick={() => onOpenSettings(module)}>{t('Изменить')}</button>}</div>}
-    <p className={`module-description ${module.status === 'error' ? 'error-copy' : ''} ${isDevelopment ? 'development-copy' : ''}`}>{isDevelopment ? t('Интеграция будет добавлена в следующей версии.') : module.status === 'error' && module.error ? module.error : t(module.description)}</p><div className="card-divider" /><div className="card-foot"><span className="module-meta"><span className="meta-dot" />{isDevelopment ? t('Скоро') : module.pid ? `PID ${module.pid}` : t('Готов к запуску')}{!isDevelopment && module.installed_version ? <em className="module-version" title="Установленная версия модуля">v{module.installed_version}</em> : null}</span><button className={`module-action ${isDevelopment ? 'is-disabled' : ''}`} disabled={isDevelopment} onClick={() => onToggle(module)}>{isDevelopment ? t('В разработке') : isRunning ? t('Остановить') : isBusy ? t('Подождите') : t('Запустить')} <span>↗</span></button></div>
+    <p className={`module-description ${module.status === 'error' ? 'error-copy' : ''} ${isDevelopment ? 'development-copy' : ''}`}>{isDevelopment ? t('Интеграция будет добавлена в следующей версии.') : module.status === 'error' && module.error ? module.error : t(module.description)}</p><div className="card-divider" /><div className="card-foot"><span className="module-meta"><span className="meta-dot" />{isDevelopment ? t('Скоро') : module.pid ? `PID ${module.pid}` : t('Готов к запуску')}{!isDevelopment && module.installed_version ? <em className="module-version" title={t('Установленная версия модуля')}>{formatModuleVersion(module.installed_version)}</em> : null}</span><button className={`module-action ${isDevelopment ? 'is-disabled' : ''}`} disabled={isDevelopment} onClick={() => onToggle(module)}>{isDevelopment ? t('В разработке') : isRunning ? t('Остановить') : isBusy ? t('Подождите') : t('Запустить')} <span>↗</span></button></div>
   </div></animated.article>;
 }
 
@@ -285,7 +296,7 @@ function LogsPage({ logs, category, setCategory, onNotice }: { logs: ModuleLog[]
   }, [reportText]);
 
   return <section className="page-section logs-page">
-    <div className="page-heading logs-heading"><div><span className="section-kicker">RUNTIME CONSOLE</span><h1>Логи</h1><p>Системные события NEXUS в реальном времени.</p></div><button className="logs-report-button" onClick={() => void copyReport()}><NavGlyph name="logs" /> Скопировать отчёт</button></div>
+    <div className="page-heading logs-heading"><div><span className="section-kicker">{t('КОНСОЛЬ СОБЫТИЙ')}</span><h1>Логи</h1><p>Системные события NEXUS в реальном времени.</p></div><button className="logs-report-button" onClick={() => void copyReport()}><NavGlyph name="logs" /> Скопировать отчёт</button></div>
     <div className="logs-hint"><span className="logs-hint-icon">i</span><span>Нажмите <kbd>Ctrl</kbd> + <kbd>R</kbd>, чтобы скопировать отчёт выбранной категории.</span><span className="logs-live-state"><i /> LIVE</span></div>
     <div className="log-source-tabs" role="tablist" aria-label="Источники логов">
       {LOG_CATEGORIES.map((tab) => <button key={tab.id} type="button" role="tab" aria-selected={category === tab.id} className={category === tab.id ? 'is-active' : ''} onClick={() => setCategory(tab.id)}>{tab.label}</button>)}
@@ -299,7 +310,7 @@ function LogsPage({ logs, category, setCategory, onNotice }: { logs: ModuleLog[]
   </section>;
 }
 
-function AboutPage() {
+function AboutPage({ t }: { t: (text: string) => string }) {
   const [info, setInfo] = useState<AboutSystemInfo>({
     nexusVersion: __APP_VERSION__,
     xrayVersion: null,
@@ -371,7 +382,7 @@ function AboutPage() {
   const coreValue = (value: string | null) => loadingInfo ? 'Определение…' : value || 'Не обнаружен';
   const updateStatus = updateCheck?.status ?? 'idle';
   const updateBadge = ({
-    idle: 'STABLE CHANNEL',
+    idle: t('СТАБИЛЬНАЯ ВЕРСИЯ'),
     checking: 'ПРОВЕРКА',
     available: 'ДОСТУПНО ОБНОВЛЕНИЕ',
     downloading: 'ЗАГРУЗКА',
@@ -379,7 +390,7 @@ function AboutPage() {
     'up-to-date': 'АКТУАЛЬНАЯ ВЕРСИЯ',
     disabled: 'КАНАЛ НЕДОСТУПЕН',
     error: 'ОШИБКА ПРОВЕРКИ',
-  } as Record<string, string>)[updateStatus] ?? 'STABLE CHANNEL';
+  } as Record<string, string>)[updateStatus] ?? t('СТАБИЛЬНАЯ ВЕРСИЯ');
   const updateHeadline = ({
     idle: 'Проверить новую версию',
     checking: 'Проверяем обновления…',
@@ -393,11 +404,11 @@ function AboutPage() {
   const checkedAt = updateCheck ? new Intl.DateTimeFormat('ru-RU', { hour: '2-digit', minute: '2-digit' }).format(new Date(updateCheck.checkedAt)) : null;
 
   return <section className="page-section about-page">
-    <div className="page-heading"><div><span className="section-kicker">ABOUT NEXUS</span><h1>О программе</h1><p>Версии компонентов, сведения об устройстве и обновление NEXUS.</p></div><span className="about-version-pill">VERSION {info.nexusVersion}</span></div>
+    <div className="page-heading"><div><span className="section-kicker">{t('О ПРОГРАММЕ')}</span><h1>{t('О программе')}</h1><p>{t('Версии компонентов, сведения об устройстве и обновление NEXUS.')}</p></div><span className="about-version-pill">{t('ВЕРСИЯ')} {info.nexusVersion}</span></div>
     <div className="about-hero-card">
       <div className="about-mark"><NexusShowcaseMark /></div>
-      <div className="about-hero-copy"><span>NETWORK CONTROL PLANE</span><h2>NEXUS</h2><p>Быстрое управление VPN, маршрутами и локальными сетевыми модулями в одном аккуратном интерфейсе.</p></div>
-      <div className="about-build"><span>STABLE CHANNEL</span><strong>{info.nexusVersion}</strong><small>Desktop for Windows</small></div>
+      <div className="about-hero-copy"><span>{t('УПРАВЛЕНИЕ СЕТЬЮ')}</span><h2>NEXUS</h2><p>{t('Быстрое управление VPN, маршрутами и локальными сетевыми модулями в одном аккуратном интерфейсе.')}</p></div>
+      <div className="about-build"><span>{t('СТАБИЛЬНАЯ ВЕРСИЯ')}</span><strong>{info.nexusVersion}</strong><small>{t('Для Windows')}</small></div>
     </div>
 
     <div className="about-system-layout">
@@ -659,9 +670,9 @@ function App() {
       </div>
     </aside>
 
-    <main className="main-content"><header className="topbar"><div className="breadcrumb"><span>CONTROL CENTER</span><b>/</b><strong>{page === 'about' ? t('О программе') : t(navItems.find((item) => item.id === page)?.label ?? '')}</strong></div><div className="top-actions"><button className={`logs-shortcut ${page === 'logs' ? 'is-active' : ''}`} aria-label={t('Логи')} onClick={() => setPage('logs')}><span className="logs-shortcut-icon"><NavGlyph name="logs" /></span><span>{t('Логи')}</span>{logs.some((log) => log.level === 'error') ? <i /> : null}</button><div className="profile-wrap" ref={profileWrapRef}><button className={`user-chip ${profileOpen ? 'is-open' : ''}`} aria-expanded={profileOpen} aria-haspopup="dialog" onClick={() => setProfileOpen((value) => !value)}><span className="user-avatar">{profileInitial}</span><span>{profileName}</span><span className="profile-chevron"><svg viewBox="0 0 20 20" aria-hidden="true"><path d="m5.5 7.5 4.5 4.5 4.5-4.5" /></svg></span></button><ProfilePopover open={profileOpen} profile={profile} draft={profileDraft} setDraft={setProfileDraft} onSave={handleSaveProfile} /></div></div></header>
+    <main className="main-content"><header className="topbar"><div className="breadcrumb"><span>{t('ЦЕНТР УПРАВЛЕНИЯ')}</span><b>/</b><strong>{page === 'about' ? t('О программе') : t(navItems.find((item) => item.id === page)?.label ?? '')}</strong></div><div className="top-actions"><button className={`logs-shortcut ${page === 'logs' ? 'is-active' : ''}`} aria-label={t('Логи')} onClick={() => setPage('logs')}><span className="logs-shortcut-icon"><NavGlyph name="logs" /></span><span>{t('Логи')}</span>{logs.some((log) => log.level === 'error') ? <i /> : null}</button><div className="profile-wrap" ref={profileWrapRef}><button className={`user-chip ${profileOpen ? 'is-open' : ''}`} aria-expanded={profileOpen} aria-haspopup="dialog" onClick={() => setProfileOpen((value) => !value)}><span className="user-avatar">{profileInitial}</span><span>{profileName}</span><span className="profile-chevron"><svg viewBox="0 0 20 20" aria-hidden="true"><path d="m5.5 7.5 4.5 4.5 4.5-4.5" /></svg></span></button><ProfilePopover open={profileOpen} profile={profile} draft={profileDraft} setDraft={setProfileDraft} onSave={handleSaveProfile} /></div></div></header>
 
-      {page === 'dashboard' && <><section className="hero"><div className="hero-copy"><div className="hero-kicker"><span className="spark-line">✦</span> LOCAL NETWORK ORCHESTRATOR <span className="hero-line" /></div><h1>{t('Сеть, которая')}<br /><span>{t('остаётся под контролем.')}</span></h1><p>{t('Единый центр для спокойного управления сетевыми инструментами,')}<br />{t('локальными прокси и профилями маршрутизации.')}</p><div className="hero-actions"><button className="primary-button" onClick={() => setPage('modules')}><span>{t('Открыть модули')}</span><b>↗</b></button><button className="quiet-button" onClick={handleReload}><span>⟳</span> {t('Сканировать заново')}</button></div></div><HeroVisual /></section><section className="stats-grid"><StatCard label={t('ВСЕГО МОДУЛЕЙ')} value={String(modules.length).padStart(2, '0')} note={t('обнаружено локально')} icon="◈" tone="cyan" index={0} /><StatCard label={t('АКТИВНЫЕ')} value={String(running).padStart(2, '0')} note={running ? t('контур запущен') : t('готовы к запуску')} icon="ϟ" tone="violet" index={1} /><StatCard label={t('ЗДОРОВЬЕ')} value={`${modules.length ? Math.round((healthy / modules.length) * 100) : 100}%`} note={errors ? `${errors} ${t('с ошибкой')}` : t('без критических ошибок')} icon="⌁" tone="mint" index={2} /><StatCard label={t('ПОСЛЕДНИЙ СКАН')} value={lastScanLabel} note={settings.autoStart ? t('автозапуск включён') : t('автозапуск выключен')} icon="◷" tone="amber" index={3} /></section><section className="section-heading"><div><span className="section-kicker">YOUR TOOLKIT</span><h2>{t('Быстрый доступ')}</h2></div><button className="text-button" onClick={() => setPage('modules')}>{t('Все модули')} <span>→</span></button></section><div className="dashboard-grid"><div className="module-grid compact">{loadingModules ? <ModuleSkeletons count={4} /> : filteredModules.slice(0, 4).map((module, index) => <ModuleCard key={module.id} module={module} index={index} onToggle={handleToggle} onStrategyChange={handleStrategyChange} onOpenSettings={openModuleSettings} t={t} />)}</div><PulsePanel running={running} total={modules.length} errors={errors} /></div></>}
+      {page === 'dashboard' && <><section className="hero"><div className="hero-copy"><div className="hero-kicker"><span className="spark-line">✦</span> {t('УПРАВЛЕНИЕ ЛОКАЛЬНОЙ СЕТЬЮ')} <span className="hero-line" /></div><h1>{t('Сеть, которая')}<br /><span>{t('остаётся под контролем.')}</span></h1><p>{t('Единый центр для спокойного управления сетевыми инструментами,')}<br />{t('локальными прокси и профилями маршрутизации.')}</p><div className="hero-actions"><button className="primary-button" onClick={() => setPage('modules')}><span>{t('Открыть модули')}</span><b>↗</b></button><button className="quiet-button" onClick={handleReload}><span>⟳</span> {t('Сканировать заново')}</button></div></div><HeroVisual /></section><section className="stats-grid"><StatCard label={t('ВСЕГО МОДУЛЕЙ')} value={String(modules.length).padStart(2, '0')} note={t('обнаружено локально')} icon="◈" tone="cyan" index={0} /><StatCard label={t('АКТИВНЫЕ')} value={String(running).padStart(2, '0')} note={running ? t('контур запущен') : t('готовы к запуску')} icon="ϟ" tone="violet" index={1} /><StatCard label={t('ЗДОРОВЬЕ')} value={`${modules.length ? Math.round((healthy / modules.length) * 100) : 100}%`} note={errors ? `${errors} ${t('с ошибкой')}` : t('без критических ошибок')} icon="⌁" tone="mint" index={2} /><StatCard label={t('ПОСЛЕДНИЙ СКАН')} value={lastScanLabel} note={settings.autoStart ? t('автозапуск включён') : t('автозапуск выключен')} icon="◷" tone="amber" index={3} /></section><section className="section-heading"><div><span className="section-kicker">{t('ВАШИ ИНСТРУМЕНТЫ')}</span><h2>{t('Быстрый доступ')}</h2></div><button className="text-button" onClick={() => setPage('modules')}>{t('Все модули')} <span>→</span></button></section><div className="dashboard-grid"><div className="module-grid compact">{loadingModules ? <ModuleSkeletons count={4} /> : filteredModules.slice(0, 4).map((module, index) => <ModuleCard key={module.id} module={module} index={index} onToggle={handleToggle} onStrategyChange={handleStrategyChange} onOpenSettings={openModuleSettings} t={t} />)}</div><PulsePanel running={running} total={modules.length} errors={errors} /></div></>}
 
       {page === 'modules' && settingsModule && <ModuleSettings
         module={settingsModule}
@@ -670,14 +681,14 @@ function App() {
         onStrategyChange={handleStrategyChange}
       />}
 
-      {page === 'modules' && !settingsModule && <section className="page-section"><div className="page-heading"><div><span className="section-kicker">MODULE REGISTRY</span><h1>{t('Все модули')}</h1><p>{t('Манифесты из')} <code>./modules</code> · {modules.length} {t('подключено')}</p></div><button className="primary-button small" onClick={handleReload}><span>⟳</span><b>{t('Сканировать')}</b></button></div><GithubUpdateStrip updates={updates} syncing={syncing} onSync={handleSyncUpdates} /><div className="filter-row"><span className="filter-label">{t('ФИЛЬТР:')}</span><button className={`filter-chip ${moduleFilter === 'all' ? 'active' : ''}`} onClick={() => setModuleFilter('all')}>{t('Все')} <b>{modules.length}</b></button><button className={`filter-chip ${moduleFilter === 'running' ? 'active' : ''}`} onClick={() => setModuleFilter('running')}>{t('Активные')} <b>{running}</b></button><button className={`filter-chip ${moduleFilter === 'stopped' ? 'active' : ''}`} onClick={() => setModuleFilter('stopped')}>{t('Остановлены')} <b>{modules.length - running}</b></button></div><div className="module-grid full">{loadingModules ? <ModuleSkeletons count={4} /> : filteredModules.map((module, index) => <ModuleCard key={module.id} module={module} index={index} onToggle={handleToggle} onStrategyChange={handleStrategyChange} onOpenSettings={openModuleSettings} t={t} />)}</div>{!loadingModules && filteredModules.length === 0 && <div className="empty-state"><span>⌕</span><h3>{t('Ничего не найдено')}</h3><p>{t('Смените фильтр или просканируйте modules ещё раз.')}</p></div>}</section>}
+      {page === 'modules' && !settingsModule && <section className="page-section"><div className="page-heading"><div><span className="section-kicker">{t('РЕЕСТР МОДУЛЕЙ')}</span><h1>{t('Все модули')}</h1><p>{t('Манифесты из')} <code>./modules</code> · {modules.length} {t('подключено')}</p></div><button className="primary-button small" onClick={handleReload}><span>⟳</span><b>{t('Сканировать')}</b></button></div><GithubUpdateStrip updates={updates} syncing={syncing} onSync={handleSyncUpdates} /><div className="filter-row"><span className="filter-label">{t('ФИЛЬТР:')}</span><button className={`filter-chip ${moduleFilter === 'all' ? 'active' : ''}`} onClick={() => setModuleFilter('all')}>{t('Все')} <b>{modules.length}</b></button><button className={`filter-chip ${moduleFilter === 'running' ? 'active' : ''}`} onClick={() => setModuleFilter('running')}>{t('Активные')} <b>{running}</b></button><button className={`filter-chip ${moduleFilter === 'stopped' ? 'active' : ''}`} onClick={() => setModuleFilter('stopped')}>{t('Остановлены')} <b>{modules.length - running}</b></button></div><div className="module-grid full">{loadingModules ? <ModuleSkeletons count={4} /> : filteredModules.map((module, index) => <ModuleCard key={module.id} module={module} index={index} onToggle={handleToggle} onStrategyChange={handleStrategyChange} onOpenSettings={openModuleSettings} t={t} />)}</div>{!loadingModules && filteredModules.length === 0 && <div className="empty-state"><span>⌕</span><h3>{t('Ничего не найдено')}</h3><p>{t('Смените фильтр или просканируйте modules ещё раз.')}</p></div>}</section>}
 
       {page === 'jey2ray' && <Jey2RayPage settings={settings} updates={updates} syncing={syncing} onSync={handleSyncUpdates} onSettings={(next) => void persistSettings(next)} onToast={setToast} />}
 
       {page === 'logs' && <LogsPage logs={logs} category={logCategory} setCategory={setLogCategory} onNotice={setToast} />}
 
       {page === 'settings' && <Settings settings={settings} onChange={(next) => void persistSettings(next)} />}
-      {page === 'about' && <AboutPage />}
+      {page === 'about' && <AboutPage t={t} />}
     </main><Toast message={toast} />
   </div></div>;
 }
@@ -688,7 +699,7 @@ function Settings({ settings, onChange }: {
 }) {
   const t = createTranslator(settings.language);
   return <section className="page-section settings-page global-settings-page">
-    <div className="page-heading"><div><span className="section-kicker">NEXUS PREFERENCES</span><h1>{t('Настройки')}</h1><p>Глобальные параметры языка, оформления и поведения NEXUS.</p></div></div>
+    <div className="page-heading"><div><span className="section-kicker">{t('ПАРАМЕТРЫ NEXUS')}</span><h1>{t('Настройки')}</h1><p>Глобальные параметры языка, оформления и поведения NEXUS.</p></div></div>
 
     <div className="global-settings-hero">
       <span className="global-settings-hero-icon"><GearIcon /></span>

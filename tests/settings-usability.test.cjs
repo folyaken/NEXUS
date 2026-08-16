@@ -42,7 +42,15 @@ assert.match(app, /!isDevelopment && module\.installed_version/);
 // страница вытягивалась, и до кнопок под списком приходилось долго крутить.
 assert.match(moduleSettings, /const PAGE_SIZE = 6;/);
 assert.match(moduleSettings, /dpi-host-pager/);
-assert.match(moduleSettings, /Страница \{safePage \+ 1\} из \{pageCount\}/);
+// Положение в списке показывается числом и точками: «3 сайта · 1/2».
+assert.match(moduleSettings, /\{safePage \+ 1\}\/\{pageCount\}/);
+assert.match(moduleSettings, /dpi-host-pager-dots/, 'нужен наглядный указатель страницы');
+// Точек не должно быть слишком много: при десятках страниц они сливаются.
+assert.match(moduleSettings, /pageCount <= 8 &&/);
+// Стрелки рисуются значками, а не символами «←» и «→»: символы выглядят
+// неровно и по-разному в разных шрифтах.
+assert.doesNotMatch(moduleSettings, />←<\/button>/, 'стрелка должна быть значком');
+assert.doesNotMatch(moduleSettings, />→<\/button>/, 'стрелка должна быть значком');
 // Поиск появляется только когда список длинный: на трёх сайтах он мешает.
 assert.match(moduleSettings, /hosts\.length > PAGE_SIZE && <input/);
 // Страница могла исчезнуть после удаления сайтов — показываем существующую.

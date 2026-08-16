@@ -1566,15 +1566,34 @@ kbd { padding: 3px 5px; border: 1px solid rgba(255,255,255,.1); border-radius: 5
 }
 .dpi-host-search::placeholder { color: #6f7f95; }
 .dpi-host-search:focus { outline: none; border-color: var(--accent); }
-.dpi-host-pager { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-top: 13px; }
-.dpi-host-pager-button {
-  width: 34px; height: 34px; flex-shrink: 0;
-  border: 1px solid var(--line); border-radius: 10px;
-  background: rgba(255,255,255,.03); color: #c8d3e4;
-  font-size: 15px; line-height: 1; cursor: pointer;
-  transition: background .18s ease, color .18s ease;
+.dpi-host-pager {
+  display: grid; grid-template-columns: 36px 1fr 36px; align-items: center;
+  gap: 10px; margin-top: 14px; padding: 7px;
+  border: 1px solid rgba(255,255,255,.05); border-radius: 13px;
+  background: rgba(255,255,255,.022);
 }
-.dpi-host-pager-button:hover:not(:disabled) { background: rgba(255,255,255,.08); color: #fff; }
-.dpi-host-pager-button:disabled { opacity: .35; cursor: default; }
-.dpi-host-pager-state { display: flex; flex-direction: column; align-items: center; gap: 2px; color: #93a1b8; font-size: 12px; }
-.dpi-host-pager-state em { color: #6f7f95; font-size: 11px; font-style: normal; }
+.dpi-host-pager-button {
+  display: grid; width: 36px; height: 32px; place-items: center;
+  border: 1px solid var(--line); border-radius: 9px;
+  background: rgba(255,255,255,.04); color: #b7c4d8; cursor: pointer;
+  transition: background .18s ease, color .18s ease, border-color .18s ease;
+}
+.dpi-host-pager-button svg { width: 15px; height: 15px; fill: none; stroke: currentColor; stroke-width: 2.1; stroke-linecap: round; stroke-linejoin: round; }
+.dpi-host-pager-button:hover:not(:disabled) { border-color: rgba(255,255,255,.2); background: rgba(255,255,255,.09); color: #fff; }
+.dpi-host-pager-button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.dpi-host-pager-button:disabled { opacity: .3; cursor: default; }
+.dpi-host-pager-state { display: flex; flex-direction: column; align-items: center; gap: 3px; min-width: 0; }
+.dpi-host-pager-count { color: #aeb9cb; font-size: 11.5px; }
+.dpi-host-pager-dots { display: flex; align-items: center; justify-content: center; gap: 5px; }
+.dpi-host-pager-dots i { width: 5px; height: 5px; border-radius: 50%; background: rgba(255,255,255,.18); transition: background .18s ease, width .18s ease; }
+.dpi-host-pager-dots i.is-current { width: 16px; border-radius: 3px; background: var(--cyan); }
+.appearance-graphite .dpi-host-pager-dots i.is-current { background: #c9c9c9; }
+
+/* Единая линия низа у карточек модулей.
+   У модуля обхода DPI есть дополнительная строка с профилем, поэтому его
+   содержимое выше, а у остальных нижняя часть «подпрыгивала» к описанию.
+   Карточка становится колонкой, а разделитель с подвалом прижимается к низу —
+   тогда кнопки и версия стоят на одной линии во всём ряду. */
+.module-card-inner { display: flex; flex-direction: column; }
+.module-card-inner .card-divider { margin-top: auto; }
+.module-card-inner .module-description { margin-bottom: 4px; }

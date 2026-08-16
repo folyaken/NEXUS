@@ -172,6 +172,22 @@ const EN: Record<string, string> = {
   'Свернуть боковую панель': 'Collapse the sidebar',
   'Развернуть боковую панель': 'Expand the sidebar',
 
+  'О ПРОГРАММЕ': 'ABOUT NEXUS',
+  'ВЕРСИЯ': 'VERSION',
+  'УПРАВЛЕНИЕ СЕТЬЮ': 'NETWORK CONTROL PLANE',
+  'СТАБИЛЬНАЯ ВЕРСИЯ': 'STABLE CHANNEL',
+  'Для Windows': 'Desktop for Windows',
+  'Быстрое управление VPN, маршрутами и локальными сетевыми модулями в одном аккуратном интерфейсе.':
+    'Quick control over VPN, routing and local network modules in one tidy interface.',
+  'Установленная версия модуля': 'Installed module version',
+
+  'ЦЕНТР УПРАВЛЕНИЯ': 'CONTROL CENTER',
+  'РЕЕСТР МОДУЛЕЙ': 'MODULE REGISTRY',
+  'ПАРАМЕТРЫ NEXUS': 'NEXUS PREFERENCES',
+  'КОНСОЛЬ СОБЫТИЙ': 'RUNTIME CONSOLE',
+  'ВАШИ ИНСТРУМЕНТЫ': 'YOUR TOOLKIT',
+  'УПРАВЛЕНИЕ ЛОКАЛЬНОЙ СЕТЬЮ': 'LOCAL NETWORK ORCHESTRATOR',
+
   // --- Обновление ---------------------------------------------------------------
   'Проверить обновления': 'Check for updates',
   'Установить обновление': 'Install update',
