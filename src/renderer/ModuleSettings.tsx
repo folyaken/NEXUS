@@ -27,11 +27,34 @@ function previewHost(input: string): string {
   return value.replace(/:\d+$/, '').replace(/^\.+|\.+$/g, '').replace(/^www\./, '');
 }
 
+/**
+ * Сколько сайтов показывать на одной странице.
+ *
+ * Список задумывался коротким, но пользователи добавляют по десятку и больше:
+ * страница вытягивалась, и до кнопок под списком приходилось долго крутить.
+ */
+const PAGE_SIZE = 6;
+
+/** Склонение для счётчика: «1 сайт», «2 сайта», «5 сайтов». */
+function hostsWord(count: number): string {
+  const tail = count % 100;
+  if (tail >= 11 && tail <= 14) return 'сайтов';
+  switch (count % 10) {
+    case 1: return 'сайт';
+    case 2:
+    case 3:
+    case 4: return 'сайта';
+    default: return 'сайтов';
+  }
+}
+
 function DpiHostlistSection({ onToast }: { onToast: (message: string) => void }) {
   const [hosts, setHosts] = useState<string[]>([]);
   const [draft, setDraft] = useState('');
   const [busy, setBusy] = useState(false);
   const [loaded, setLoaded] = useState(false);
+  const [page, setPage] = useState(0);
+  const [query, setQuery] = useState('');
   const inputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -48,6 +71,21 @@ function DpiHostlistSection({ onToast }: { onToast: (message: string) => void })
 
   const normalized = useMemo(() => previewHost(draft), [draft]);
   const duplicate = Boolean(normalized) && hosts.includes(normalized);
+
+  const filtered = useMemo(() => {
+    const needle = query.trim().toLowerCase();
+    return needle ? hosts.filter((host) => host.includes(needle)) : hosts;
+  }, [hosts, query]);
+
+  const pageCount = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
+  // Страница могла исчезнуть после удаления сайтов или фильтрации: тогда
+  // показываем последнюю существующую, а не пустоту.
+  const safePage = Math.min(page, pageCount - 1);
+  const visible = filtered.slice(safePage * PAGE_SIZE, safePage * PAGE_SIZE + PAGE_SIZE);
+
+  useEffect(() => {
+    if (page !== safePage) setPage(safePage);
+  }, [page, safePage]);
 
   const addHost = async () => {
     const value = draft.trim();
@@ -122,8 +160,20 @@ function DpiHostlistSection({ onToast }: { onToast: (message: string) => void })
         : <p className="dpi-host-hint">Достаточно основного домена — можно вставить и полную ссылку.</p>}
 
     {!loaded ? <p className="dpi-host-hint">Загрузка списка…</p> : hosts.length ? <>
-      <ul className="dpi-host-list">
-        {hosts.map((host) => <li key={host}>
+      {/* Поиск появляется, когда список перестаёт помещаться на экран целиком:
+          на трёх сайтах он лишний, на тридцати — единственный способ найти нужный. */}
+      {hosts.length > PAGE_SIZE && <input
+        type="search"
+        className="dpi-host-search"
+        value={query}
+        spellCheck={false}
+        placeholder="Поиск по списку…"
+        aria-label="Поиск по добавленным сайтам"
+        onChange={(event) => { setQuery(event.target.value); setPage(0); }}
+      />}
+
+      {visible.length ? <ul className="dpi-host-list">
+        {visible.map((host) => <li key={host}>
           <span className="dpi-host-dot" aria-hidden="true" />
           <span className="dpi-host-name">{host}</span>
           <button
@@ -134,7 +184,29 @@ function DpiHostlistSection({ onToast }: { onToast: (message: string) => void })
             onClick={() => void removeHost(host)}
           >×</button>
         </li>)}
-      </ul>
+      </ul> : <p className="dpi-host-hint">По запросу «{query.trim()}» ничего не найдено.</p>}
+
+      {pageCount > 1 && <div className="dpi-host-pager">
+        <button
+          type="button"
+          className="dpi-host-pager-button"
+          disabled={safePage === 0}
+          aria-label="Предыдущая страница"
+          onClick={() => setPage(safePage - 1)}
+        >←</button>
+        <span className="dpi-host-pager-state">
+          Страница {safePage + 1} из {pageCount}
+          <em>{filtered.length} {hostsWord(filtered.length)}</em>
+        </span>
+        <button
+          type="button"
+          className="dpi-host-pager-button"
+          disabled={safePage >= pageCount - 1}
+          aria-label="Следующая страница"
+          onClick={() => setPage(safePage + 1)}
+        >→</button>
+      </div>}
+
       <p className="dpi-host-note">Если модуль запущен, он перезапускается автоматически — сайт начинает работать сразу.</p>
     </> : <div className="dpi-host-empty">
       <strong>Список пуст</strong>
@@ -546,13 +618,21 @@ export function ModuleSettings({ module, onClose, onToast, onStrategyChange }: {
     : strategies.includes(DEFAULT_STRATEGY) ? DEFAULT_STRATEGY : strategies[0] ?? '';
 
   return <section className="page-section module-settings-page">
-    <div className="page-heading">
+    <div className="page-heading module-settings-heading">
+      {/* Кнопка возврата стоит первой и слева: справа она соседствовала с
+          «свернуть панель», и рука тянулась не туда. Слева — там, где её ищут. */}
+      <button type="button" className="page-back-button" onClick={onClose} aria-label="Вернуться к модулям">
+        <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M15 5l-7 7 7 7" /></svg>
+        <span>К модулям</span>
+      </button>
       <div>
         <span className="section-kicker">НАСТРОЙКИ МОДУЛЯ</span>
         <h1>{module.name}</h1>
         <p>{module.description}</p>
+        {module.installed_version && <p className="module-settings-version">
+          Установленная версия модуля: <b>{module.installed_version}</b>
+        </p>}
       </div>
-      <button className="quiet-button" onClick={onClose}><span>←</span> К модулям</button>
     </div>
 
     {module.id === 'zapret' && elevated === false && <div className="module-settings-notice is-elevation">

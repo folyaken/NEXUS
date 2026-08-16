@@ -1531,3 +1531,50 @@ kbd { padding: 3px 5px; border: 1px solid rgba(255,255,255,.1); border-radius: 5
 .app-frame.motion-off .profile-chevron,
 .app-frame.motion-off .nx-select-caret,
 .app-frame.motion-off .module-card-inner { transition-duration: .01ms; }
+
+/* Кнопка возврата в заголовке раздела.
+   Стоит слева от заголовка: справа она соседствовала с кнопкой сворачивания
+   боковой панели, и пользователи путали их местами. */
+.module-settings-heading { display: flex; align-items: flex-start; gap: 16px; }
+.page-back-button {
+  display: inline-flex; align-items: center; gap: 8px; flex-shrink: 0;
+  margin-top: 4px; padding: 9px 15px 9px 11px;
+  border: 1px solid var(--line); border-radius: 12px;
+  background: rgba(255,255,255,.03); color: #c8d3e4;
+  font-family: inherit; font-size: 12.5px; font-weight: 600; cursor: pointer;
+  transition: background .18s ease, color .18s ease, border-color .18s ease;
+}
+.page-back-button svg { width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 2.1; stroke-linecap: round; stroke-linejoin: round; }
+.page-back-button:hover { background: rgba(255,255,255,.07); color: #fff; border-color: rgba(255,255,255,.2); }
+.page-back-button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+/* Версия модуля: спрашивают её редко, но найти должно быть можно сразу. */
+.module-settings-version { margin-top: 9px; color: #93a1b8; font-size: 12px; }
+.module-settings-version b { color: #d7e2f2; font-weight: 600; }
+.module-version {
+  margin-left: 9px; padding: 2px 7px; border-radius: 6px;
+  background: rgba(255,255,255,.05); color: #9fb0c8;
+  font-family: 'JetBrains Mono', monospace; font-size: 10.5px; font-style: normal;
+}
+
+/* Постраничный список сайтов обхода DPI. */
+.dpi-host-search {
+  width: 100%; margin-top: 13px; padding: 10px 13px;
+  border: 1px solid var(--line); border-radius: 11px;
+  background: rgba(255,255,255,.03); color: #e6edf7;
+  font-family: inherit; font-size: 13px;
+}
+.dpi-host-search::placeholder { color: #6f7f95; }
+.dpi-host-search:focus { outline: none; border-color: var(--accent); }
+.dpi-host-pager { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-top: 13px; }
+.dpi-host-pager-button {
+  width: 34px; height: 34px; flex-shrink: 0;
+  border: 1px solid var(--line); border-radius: 10px;
+  background: rgba(255,255,255,.03); color: #c8d3e4;
+  font-size: 15px; line-height: 1; cursor: pointer;
+  transition: background .18s ease, color .18s ease;
+}
+.dpi-host-pager-button:hover:not(:disabled) { background: rgba(255,255,255,.08); color: #fff; }
+.dpi-host-pager-button:disabled { opacity: .35; cursor: default; }
+.dpi-host-pager-state { display: flex; flex-direction: column; align-items: center; gap: 2px; color: #93a1b8; font-size: 12px; }
+.dpi-host-pager-state em { color: #6f7f95; font-size: 11px; font-style: normal; }

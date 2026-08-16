@@ -175,7 +175,9 @@ assert.match(app, /aria-label=\{sidebarCollapsed \? 'Развернуть бок
 // в разметке он записан вызовом словаря, а не строкой.
 assert.match(app, />\{t\('О программе'\)\}<\/span>/);
 assert.match(app, /<h1>О программе<\/h1>/);
-assert.match(app, /<span>Логи<\/span>/);
+// Кнопка быстрого перехода к логам осталась на месте; текст проходит через
+// словарь перевода, поэтому в разметке он записан вызовом, а не строкой.
+assert.match(app, /<span>\{t\('Логи'\)\}<\/span>/);
 assert.match(app, /<h1>Логи<\/h1>/);
 assert.match(app, /role="tablist" aria-label="Источники логов"/);
 assert.match(app, /Основной лог/);
