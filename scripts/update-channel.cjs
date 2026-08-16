@@ -42,13 +42,20 @@ function normalizeChannelUrl(raw) {
   return text.endsWith('/') ? text : `${text}/`;
 }
 
-/** Читает адрес канала: сначала переменная окружения, затем файл настройки. */
-function readChannelUrl(env = process.env) {
+/**
+ * Читает адрес канала: сначала переменная окружения, затем файл настройки.
+ *
+ * Путь к файлу настройки принимается отдельным доводом, а не берётся из
+ * глобальной переменной. Иначе поведение зависело бы от того, настроен ли
+ * канал на конкретной машине: у одного разработчика проверка проходила бы, у
+ * другого — нет, хотя код одинаковый.
+ */
+function readChannelUrl(env = process.env, configFile = CONFIG_FILE) {
   const fromEnv = normalizeChannelUrl(env.NEXUS_UPDATE_URL);
   if (fromEnv) return fromEnv;
   try {
-    if (!fs.existsSync(CONFIG_FILE)) return null;
-    const parsed = JSON.parse(fs.readFileSync(CONFIG_FILE, 'utf8'));
+    if (!fs.existsSync(configFile)) return null;
+    const parsed = JSON.parse(fs.readFileSync(configFile, 'utf8'));
     return normalizeChannelUrl(parsed && parsed.url);
   } catch {
     return null;
@@ -71,8 +78,8 @@ function writeChannelUrl(raw) {
  * файлов обновления. Это позволяет собирать программу на машине, где канал
  * не нужен.
  */
-function builderPublishArgs(env = process.env) {
-  const url = readChannelUrl(env);
+function builderPublishArgs(env = process.env, configFile = CONFIG_FILE) {
+  const url = readChannelUrl(env, configFile);
   if (!url) return [];
   return [
     '-c.publish.provider=generic',

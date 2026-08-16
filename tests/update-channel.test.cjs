@@ -41,9 +41,14 @@ assert.equal(
 // --- Аргументы сборки --------------------------------------------------------
 // Без канала сборка идёт как обычно: собирать программу на машине без сервера
 // обновлений должно быть можно.
-assert.deepEqual(channel.builderPublishArgs({}), []);
+//
+// Путь к файлу настройки задаётся явно и указывает на несуществующий файл.
+// Иначе проверка зависела бы от того, настроен ли канал на этой машине: у того,
+// кто уже задал адрес, она падала бы, хотя код исправен.
+const MISSING_CONFIG = path.join(os.tmpdir(), 'nexus-channel-absent.json');
+assert.deepEqual(channel.builderPublishArgs({}, MISSING_CONFIG), []);
 
-const configured = channel.builderPublishArgs({ NEXUS_UPDATE_URL: 'https://github.com/a/b/releases/latest/download' });
+const configured = channel.builderPublishArgs({ NEXUS_UPDATE_URL: 'https://github.com/a/b/releases/latest/download' }, MISSING_CONFIG);
 assert.deepEqual(configured, [
   '-c.publish.provider=generic',
   '-c.publish.url=https://github.com/a/b/releases/latest/download/',
@@ -90,18 +95,29 @@ void (() => {
   const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'nexus-channel-'));
   const saved = channel.CONFIG_FILE;
   try {
-    // Проверяем чтение из файла на копии, не трогая настоящую настройку.
+    // Проверяем чтение на отдельном файле, не трогая настоящую настройку.
     const configPath = path.join(directory, 'update-channel.json');
     fs.writeFileSync(configPath, JSON.stringify({ url: 'https://example.com/updates/' }));
-    const parsed = JSON.parse(fs.readFileSync(configPath, 'utf8'));
-    assert.equal(channel.normalizeChannelUrl(parsed.url), 'https://example.com/updates/');
+    assert.equal(channel.readChannelUrl({}, configPath), 'https://example.com/updates/',
+      'адрес обязан читаться из файла настройки');
 
     // Переменная окружения важнее файла: так проверяют тестовый канал, не
     // трогая рабочую настройку.
     assert.equal(
-      channel.readChannelUrl({ NEXUS_UPDATE_URL: 'https://env.example.com/' }),
+      channel.readChannelUrl({ NEXUS_UPDATE_URL: 'https://env.example.com/' }, configPath),
       'https://env.example.com/',
     );
+
+    // Небезопасный адрес в файле не принимается: обновление по открытому HTTP
+    // можно подменить.
+    fs.writeFileSync(configPath, JSON.stringify({ url: 'http://example.com/updates/' }));
+    assert.equal(channel.readChannelUrl({}, configPath), null);
+
+    // Повреждённый файл не должен ломать сборку — канал просто считается
+    // ненастроенным.
+    fs.writeFileSync(configPath, 'это не json');
+    assert.equal(channel.readChannelUrl({}, configPath), null);
+
     assert.ok(saved.endsWith('update-channel.json'), 'настройка хранится в отдельном файле');
   } finally {
     fs.rmSync(directory, { recursive: true, force: true });
