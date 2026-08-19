@@ -1,4 +1,4 @@
-import { app, BrowserWindow, clipboard, dialog, ipcMain, Menu, Notification, nativeImage, nativeTheme, Tray } from 'electron';
+import { app, BrowserWindow, clipboard, dialog, ipcMain, Menu, Notification, nativeImage, nativeTheme, shell, Tray } from 'electron';
 import path from 'node:path';
 import { createHash } from 'node:crypto';
 import { existsSync, mkdirSync, rmSync, writeFileSync } from 'node:fs';
@@ -7,6 +7,7 @@ import { execFile } from 'node:child_process';
 import os from 'node:os';
 import { isElevated, relaunchElevated } from './elevation';
 import { companionCount } from './dpi-companions';
+import { COMMUNITY_LINKS, TELEGRAM_CHANNEL, isAllowedCommunityUrl } from './community';
 import { addDpiHost, readDpiHostlist, removeDpiHost } from './dpi-hostlist';
 import { clearSystemProxySync } from './system-proxy';
 import { ModuleManager } from './module-manager';
@@ -443,6 +444,9 @@ function refreshTrayMenu(status: VpnStatus): void {
     { type: 'separator' },
     { label: 'Показать окно NEXUS', click: showWindow },
     { label: 'Скрыть окно', click: () => mainWindow?.hide() },
+    // Канал в трее: о выходе новой версии люди узнают там, а из свёрнутой
+    // программы до раздела «О программе» ещё нужно дойти.
+    { label: 'Новости и обновления в Telegram', click: () => { void shell.openExternal(TELEGRAM_CHANNEL); } },
     { type: 'separator' },
     { label: 'Выход', click: () => { void quitApp(); } },
   ];
@@ -768,6 +772,15 @@ function wireIpc(): void {
   ipcMain.handle('profile:get', () => readProfile());
   ipcMain.handle('profile:save', (_event, name: string) => saveProfile(typeof name === 'string' ? name : ''));
   ipcMain.handle('about:get-info', () => aboutSystemInfo());
+  ipcMain.handle('community:links', () => COMMUNITY_LINKS);
+  // Ссылка открывается в браузере, а не в окне программы. Окно NEXUS грузит
+  // только свои файлы: сторонняя страница внутри процесса с правами
+  // администратора — лишний риск. Список адресов закрытый (см. community.ts).
+  ipcMain.handle('community:open', async (_event, url: unknown) => {
+    if (!isAllowedCommunityUrl(url)) return false;
+    await shell.openExternal(String(url));
+    return true;
+  });
   ipcMain.handle('about:check-update', () => appUpdater.check());
   ipcMain.handle('about:download-update', () => appUpdater.download());
   ipcMain.handle('about:install-update', () => appUpdater.install(prepareForUpdateRestart));

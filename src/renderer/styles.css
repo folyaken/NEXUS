@@ -1396,6 +1396,24 @@ kbd { padding: 3px 5px; border: 1px solid rgba(255,255,255,.1); border-radius: 5
 @keyframes nx-skeleton { from { background-position: 200% 0; } to { background-position: -200% 0; } }
 @media (prefers-reduced-motion: reduce) { .app-frame:not(.motion-force) .skeleton-block { animation: none; } }
 
+/* Сообщество: канал с новостями и обновлениями */
+.about-community-card { margin-top: 15px; padding: 21px 22px; border: 1px solid var(--line); border-radius: 18px; background: linear-gradient(135deg, rgba(21,29,44,.96), rgba(24,30,52,.92)); }
+.about-community-lead { margin-top: 15px; color: #b9c5d6; font-size: 12px; line-height: 1.6; }
+.about-community-links { display: grid; grid-template-columns: repeat(auto-fit, minmax(230px, 1fr)); gap: 10px; margin-top: 15px; }
+.about-community-button { display: grid; gap: 3px; padding: 13px 15px; border: 1px solid rgba(140,161,255,.14); border-radius: 13px; background: rgba(255,255,255,.026); color: inherit; cursor: pointer; text-align: left; transition: border-color .18s ease, background .18s ease, transform .18s ease; }
+.about-community-button:hover { border-color: rgba(124,242,213,.28); background: rgba(124,242,213,.07); transform: translateY(-1px); }
+.about-community-button:focus-visible { outline: 2px solid var(--cyan); outline-offset: 2px; }
+.about-community-button strong { color: #e4ebf5; font-size: 12px; }
+.about-community-button span { color: #8c9ab0; font-size: 11px; line-height: 1.5; }
+.about-community-button em { color: var(--cyan); font-family: var(--font-data); font-size: 10px; font-style: normal; }
+.community-glyph { fill: none; stroke: currentColor; stroke-width: 1.6; stroke-linejoin: round; }
+.appearance-graphite .about-community-card { background: #161616; }
+.appearance-graphite .about-community-button:hover { border-color: rgba(214,214,214,.24); background: rgba(214,214,214,.06); }
+.appearance-graphite .about-community-button em { color: #d6d6d6; }
+/* Анимации подчиняются настройке движения: Windows умеет гасить их глобально,
+   и без защиты карточка выглядела бы застывшей. */
+@media (prefers-reduced-motion: reduce) { .app-frame:not(.motion-force) .about-community-button { transition: none; } }
+
 /* Правовая информация в разделе «О программе» */
 .about-license-card { margin-top: 15px; padding: 21px 22px; border: 1px solid var(--line); border-radius: 18px; background: #151d2c; }
 .about-license-lead { margin-top: 15px; color: #b9c5d6; font-size: 12px; line-height: 1.6; }

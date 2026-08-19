@@ -1,5 +1,6 @@
 import type { AboutSystemInfo, AppSettings, DpiExpertOptions, DpiHostlistResult, ModuleStatusReport, TgProxyOptions, ModuleLog, ModuleManifest, NexusUpdateCheck, UpdateInfo, UserProfile, VpnDiagnostics, VpnLatencySample, VpnProfile, VpnRuntime, VpnSplitApp } from '../main/types';
 import type { RunningApp } from '../main/running-apps';
+import type { CommunityLink } from '../main/community';
 
 declare global {
   /** Версия из package.json, подставляется на этапе сборки (см. vite.config.ts). */
@@ -26,6 +27,8 @@ declare global {
       getProfile(): Promise<UserProfile>;
       saveProfile(name: string): Promise<UserProfile>;
       getAboutInfo(): Promise<AboutSystemInfo>;
+      getCommunityLinks(): Promise<CommunityLink[]>;
+      openCommunityLink(url: string): Promise<boolean>;
       checkNexusUpdate(): Promise<NexusUpdateCheck>;
       downloadNexusUpdate(): Promise<NexusUpdateCheck>;
       installNexusUpdate(): Promise<NexusUpdateCheck>;

@@ -1,4 +1,5 @@
 import { contextBridge, ipcRenderer } from 'electron';
+import type { CommunityLink } from './community';
 import type { AboutSystemInfo, AppSettings, DpiExpertOptions, DpiHostlistResult, ModuleStatusReport, TgProxyOptions, ModuleLog, ModuleManifest, NexusUpdateCheck, UpdateInfo, UserProfile, VpnDiagnostics, VpnLatencySample, VpnProfile, VpnRuntime, VpnSplitApp } from './types';
 import type { RunningApp } from './running-apps';
 
@@ -22,6 +23,8 @@ contextBridge.exposeInMainWorld('nexus', {
   getProfile: (): Promise<UserProfile> => ipcRenderer.invoke('profile:get'),
   saveProfile: (name: string): Promise<UserProfile> => ipcRenderer.invoke('profile:save', name),
   getAboutInfo: (): Promise<AboutSystemInfo> => ipcRenderer.invoke('about:get-info'),
+  getCommunityLinks: (): Promise<CommunityLink[]> => ipcRenderer.invoke('community:links'),
+  openCommunityLink: (url: string): Promise<boolean> => ipcRenderer.invoke('community:open', url),
   checkNexusUpdate: (): Promise<NexusUpdateCheck> => ipcRenderer.invoke('about:check-update'),
   downloadNexusUpdate: (): Promise<NexusUpdateCheck> => ipcRenderer.invoke('about:download-update'),
   installNexusUpdate: (): Promise<NexusUpdateCheck> => ipcRenderer.invoke('about:install-update'),

@@ -310,6 +310,48 @@ function LogsPage({ logs, category, setCategory, onNotice, t }: { logs: ModuleLo
   </section>;
 }
 
+/**
+ * Карточка сообщества.
+ *
+ * Пользователю негде было узнать, что вышла новая версия или почему что-то не
+ * работает: он оставался один на один с программой. Кнопка ведёт в канал, где
+ * это публикуется. Ссылку открывает main-процесс: окно программы работает с
+ * правами администратора, и сторонняя страница внутри него — лишний риск.
+ */
+function CommunityCard({ t }: { t: (text: string) => string }) {
+  const [links, setLinks] = useState<{ id: string; title: string; description: string; url: string }[]>([]);
+
+  useEffect(() => {
+    let active = true;
+    void window.nexus?.getCommunityLinks().then((result) => { if (active) setLinks(result ?? []); }).catch(() => undefined);
+    return () => { active = false; };
+  }, []);
+
+  if (!links.length) return null;
+
+  return <article className="about-community-card">
+    <div className="about-panel-heading">
+      <div className="about-panel-icon">
+        <svg viewBox="0 0 24 24" aria-hidden="true" className="community-glyph"><path d="M3.6 11.4 20 5.2 17.1 19.4l-4.9-3.4-2.6 2.5-.5-4.1z" /><path d="m9.1 14.4 8-6.4-9.6 5.1" /></svg>
+      </div>
+      <div><span>{t('СООБЩЕСТВО')}</span><h3>{t('Канал NEXUS')}</h3></div>
+    </div>
+    <p className="about-community-lead">{t('Новости, разбор ошибок и сообщения о новых версиях. Подпишитесь, чтобы не пропустить обновление.')}</p>
+    <div className="about-community-links">
+      {links.map((link) => <button
+        key={link.id}
+        type="button"
+        className="about-community-button"
+        onClick={() => void window.nexus?.openCommunityLink(link.url)}
+      >
+        <strong>{t(link.title)}</strong>
+        <span>{t(link.description)}</span>
+        <em>{link.url.replace(/^https:\/\//, '')}</em>
+      </button>)}
+    </div>
+  </article>;
+}
+
 function AboutPage({ t }: { t: (text: string) => string }) {
   const [info, setInfo] = useState<AboutSystemInfo>({
     nexusVersion: __APP_VERSION__,
@@ -441,6 +483,8 @@ function AboutPage({ t }: { t: (text: string) => string }) {
         </div>
       </article>
     </div>
+
+    <CommunityCard t={t} />
 
     <article className="about-license-card">
       <div className="about-panel-heading"><div className="about-panel-icon"><NavGlyph name="about" /></div><div><span>ПРАВОВАЯ ИНФОРМАЦИЯ</span><h3>Лицензии</h3></div></div>
