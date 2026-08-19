@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { animated, config, useSpring } from '@react-spring/web';
 import type { AboutSystemInfo, AppSettings, ModuleLog, ModuleManifest, ModuleStatus, NexusUpdateCheck, UpdateInfo, UserProfile } from '../main/types';
 import { DEFAULT_SETTINGS } from '../main/types';
-import { createTranslator } from '../main/i18n';
+import { createTranslator, setInterfaceLanguage } from '../main/i18n';
 import { Jey2RayPage } from './Jey2RayPage';
 import { ModuleSettings } from './ModuleSettings';
 
@@ -482,7 +482,12 @@ function App() {
   const [toast, setToast] = useState('');
   const [settings, setSettings] = useState<AppSettings>(DEFAULT_SETTINGS);
   // Перевод интерфейса: словарь выбирается по языку из настроек.
-  const t = useMemo(() => createTranslator(settings.language), [settings.language]);
+  const t = useMemo(() => {
+    // Язык задаётся глобально: вложенные экраны берут перевод функцией t из
+    // модуля, без передачи через свойства — так его нельзя случайно потерять.
+    setInterfaceLanguage(settings.language);
+    return createTranslator(settings.language);
+  }, [settings.language]);
   // Найденное при запуске обновление: отмечается точкой у пункта «О программе».
   // Ничего не скачивается само — решение принимает пользователь.
   const [updateReady, setUpdateReady] = useState(false);

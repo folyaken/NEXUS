@@ -5,6 +5,7 @@ import { Flag } from './Flag';
 import { ConnectionDiagnostics } from './ConnectionDiagnostics';
 import { SubscriptionManager, type SubscriptionAction } from './SubscriptionManager';
 import AppPicker from './AppPicker';
+import { t } from '../main/i18n';
 
 function cleanError(error: unknown): string {
   const raw = error instanceof Error ? error.message : String(error);
@@ -101,10 +102,10 @@ function pickFastest(list: VpnProfile[]): VpnProfile | null {
 
 function Signal({ ms }: { ms?: number | null }) {
   if (ms == null) {
-    return <span className="server-ping off" title="Ещё не измеряли"><span className="server-signal off">{[1, 2, 3, 4].map((bar) => <i key={bar} />)}</span><em>—</em></span>;
+    return <span className="server-ping off" title={t('Ещё не измеряли')}><span className="server-signal off">{[1, 2, 3, 4].map((bar) => <i key={bar} />)}</span><em>—</em></span>;
   }
   if (ms < 0) {
-    return <span className="server-ping soft" title="Порт не отвечает на TCP, но узел рабочий (часто Reality / Hysteria)">
+    return <span className="server-ping soft" title={t('Порт не отвечает на TCP, но узел рабочий (часто Reality / Hysteria)')}>
       <span className="server-signal soft">{[1, 2, 3, 4].map((bar) => <i key={bar} className={bar <= 3 ? 'on' : ''} />)}</span>
       <em>ок</em>
     </span>;
@@ -556,13 +557,13 @@ export function Jey2RayPage({
 
   if (settingsOpen) return <section className="page-section jey-page app-settings-page">
     <div className="app-settings-toolbar">
-      <button type="button" className="app-settings-back" onClick={() => setSettingsOpen(false)} aria-label="Вернуться к серверам">
+      <button type="button" className="app-settings-back" onClick={() => setSettingsOpen(false)} aria-label={t('Вернуться к серверам')}>
         <svg viewBox="0 0 20 20" aria-hidden><path d="m12.5 4.5-5 5.5 5 5.5" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" /></svg>
         Серверы
       </button>
       <div>
         <span>Jey2Ray</span>
-        <h2>Настройки Jey2Ray</h2>
+        <h2>{t('Настройки Jey2Ray')}</h2>
       </div>
       <span className={`app-route-state ${settingsTab === 'applications' && appRoutingActive ? 'is-on' : ''}`}>
         <i />{settingsTab === 'applications'
@@ -571,7 +572,7 @@ export function Jey2RayPage({
       </span>
     </div>
 
-    <div className="app-settings-tabs" role="tablist" aria-label="Разделы настроек Jey2Ray">
+    <div className="app-settings-tabs" role="tablist" aria-label={t('Разделы настроек Jey2Ray')}>
       <button
         type="button"
         id="jey-settings-general-tab"
@@ -584,7 +585,7 @@ export function Jey2RayPage({
         <span className="app-settings-tab-icon">
           <svg viewBox="0 0 20 20" aria-hidden><path d="M4 5h12M6.5 10h7M8 15h4" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" /><circle cx="8" cy="5" r="1.5" /><circle cx="11.5" cy="10" r="1.5" /><circle cx="10" cy="15" r="1.5" /></svg>
         </span>
-        <span><strong>Общие</strong><small>Автоподключение и параметры модуля</small></span>
+        <span><strong>{t('Общие')}</strong><small>{t('Автоподключение и параметры модуля')}</small></span>
       </button>
       <button
         type="button"
@@ -598,7 +599,7 @@ export function Jey2RayPage({
         <span className="app-settings-tab-icon applications">
           <svg viewBox="0 0 20 20" aria-hidden><rect x="3" y="3.5" width="14" height="13" rx="2.5" fill="none" stroke="currentColor" strokeWidth="1.45" /><path d="M3.5 7.5h13M7 11h6M8.5 14h3" fill="none" stroke="currentColor" strokeWidth="1.45" strokeLinecap="round" /></svg>
         </span>
-        <span><strong>Настройка приложений</strong><small>Маршрутизация и выбранные программы</small></span>
+        <span><strong>{t('Настройка приложений')}</strong><small>{t('Маршрутизация и выбранные программы')}</small></span>
       </button>
     </div>
 
@@ -611,7 +612,7 @@ export function Jey2RayPage({
       {settingsTab === 'general' ? <>
         <section className="app-settings-card auto-settings-card">
           <div className="app-settings-card-head compact">
-            <div><span className="settings-step">01</span><div><h3>Автоподключение</h3><p>Запускать последний сервер вместе с NEXUS.</p></div></div>
+            <div><span className="settings-step">01</span><div><h3>{t('Автоподключение')}</h3><p>{t('Запускать последний сервер вместе с NEXUS.')}</p></div></div>
             <button
               type="button"
               className={`settings-toggle ${settings.autoConnectVpn ? 'is-on' : ''}`}
@@ -624,7 +625,7 @@ export function Jey2RayPage({
 
         <section className="app-settings-card fragmentation-settings-card">
           <div className="app-settings-card-head compact">
-            <div><span className="settings-step">02</span><div><h3>Включить фрагментацию</h3><p>Разделять TLS ClientHello на небольшие фрагменты, чтобы повысить устойчивость соединения при DPI-фильтрации.</p></div></div>
+            <div><span className="settings-step">02</span><div><h3>{t('Включить фрагментацию')}</h3><p>Разделять TLS ClientHello на небольшие фрагменты, чтобы повысить устойчивость соединения при DPI-фильтрации.</p></div></div>
             <button
               type="button"
               className={`settings-toggle ${settings.vpnFragmentation ? 'is-on' : ''}`}
@@ -643,7 +644,7 @@ export function Jey2RayPage({
 
         <section className="app-settings-card lan-share-card">
           <div className="app-settings-card-head compact">
-            <div><span className="settings-step">03</span><div><h3>Раздача в локальную сеть</h3><p>Открыть локальный SOCKS/HTTP для других устройств домашней сети: ТВ, консоли, телефона.</p></div></div>
+            <div><span className="settings-step">03</span><div><h3>{t('Раздача в локальную сеть')}</h3><p>Открыть локальный SOCKS/HTTP для других устройств домашней сети: ТВ, консоли, телефона.</p></div></div>
             <button
               type="button"
               className={`settings-toggle ${settings.vpnAllowLan ? 'is-on' : ''}`}
@@ -679,22 +680,22 @@ export function Jey2RayPage({
 
         <section className="app-settings-card routing-settings-card">
           <div className="app-settings-card-head">
-            <div><span className="settings-step">01</span><div><h3>Настройки прокси для приложений</h3><p>Выберите общую политику. Конкретные приложения можно добавить ниже.</p></div></div>
+            <div><span className="settings-step">01</span><div><h3>{t('Настройки прокси для приложений')}</h3><p>{t('Выберите общую политику. Конкретные приложения можно добавить ниже.')}</p></div></div>
           </div>
-          <div className="routing-choice-list" role="radiogroup" aria-label="Режим маршрутизации приложений">
+          <div className="routing-choice-list" role="radiogroup" aria-label={t('Режим маршрутизации приложений')}>
             <button type="button" role="radio" aria-checked={appRouting === 'system'} className={`routing-choice ${appRouting === 'system' ? 'is-active' : ''}`} disabled={routeSettingsLocked} onClick={() => selectAppRouting('system')}>
               <i className="settings-radio" />
-              <span><strong>Системные настройки</strong><small>Без отдельных правил. Используется общий режим {mode === 'tun' ? 'TUN' : 'Proxy'}.</small></span>
-              <em>По умолчанию</em>
+              <span><strong>{t('Системные настройки')}</strong><small>Без отдельных правил. Используется общий режим {mode === 'tun' ? 'TUN' : 'Proxy'}.</small></span>
+              <em>{t('По умолчанию')}</em>
             </button>
             <button type="button" role="radio" aria-checked={appRouting === 'exclude'} className={`routing-choice ${appRouting === 'exclude' ? 'is-active' : ''}`} disabled={routeSettingsLocked} onClick={() => selectAppRouting('exclude')}>
               <i className="settings-radio" />
-              <span><strong>Прямое подключение для выбранных приложений</strong><small>Выбранные приложения обходят VPN, все остальные идут через VPN.</small></span>
-              <em>Исключения</em>
+              <span><strong>{t('Прямое подключение для выбранных приложений')}</strong><small>{t('Выбранные приложения обходят VPN, все остальные идут через VPN.')}</small></span>
+              <em>{t('Исключения')}</em>
             </button>
             <button type="button" role="radio" aria-checked={appRouting === 'include'} className={`routing-choice ${appRouting === 'include' ? 'is-active' : ''}`} disabled={routeSettingsLocked} onClick={() => selectAppRouting('include')}>
               <i className="settings-radio" />
-              <span><strong>VPN только для выбранных приложений</strong><small>Выбранные приложения идут через VPN, все остальные — напрямую.</small></span>
+              <span><strong>VPN только для выбранных приложений</strong><small>{t('Выбранные приложения идут через VPN, все остальные — напрямую.')}</small></span>
               <em>Split Tunneling</em>
             </button>
           </div>
@@ -702,7 +703,7 @@ export function Jey2RayPage({
 
         <section className="app-settings-card selected-apps-card">
           <div className="app-settings-card-head selected-apps-head">
-            <div><span className="settings-step">02</span><div><h3>Выбранные приложения</h3><p>{splitApps.length ? `Добавлено: ${splitApps.length}` : 'Добавьте приложения Windows, для которых будут действовать правила выше.'}</p></div></div>
+            <div><span className="settings-step">02</span><div><h3>{t('Выбранные приложения')}</h3><p>{splitApps.length ? `Добавлено: ${splitApps.length}` : 'Добавьте приложения Windows, для которых будут действовать правила выше.'}</p></div></div>
             <button type="button" className="app-add-button" disabled={routeSettingsLocked} onClick={() => addSplitApps(appRouting)}>
               <svg viewBox="0 0 16 16" aria-hidden><path d="M8 3v10M3 8h10" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" /></svg>
               Добавить приложение
@@ -719,7 +720,7 @@ export function Jey2RayPage({
             </div>)}
           </div> : <div className="selected-app-empty">
             <span><svg viewBox="0 0 32 32" aria-hidden><rect x="7" y="5" width="18" height="22" rx="4" fill="none" stroke="currentColor" strokeWidth="1.5" /><path d="M12 12h8M12 17h6" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" /></svg></span>
-            <strong>Приложения ещё не выбраны</strong>
+            <strong>{t('Приложения ещё не выбраны')}</strong>
             <p>Нажмите «Добавить приложение» и отметьте нужные программы из списка открытых.</p>
           </div>}
         </section>
@@ -757,19 +758,19 @@ export function Jey2RayPage({
   return <section className="page-section jey-page server-shell">
     <div className="server-left">
       <div className="jey-toolbar tight">
-        <h2>Серверы</h2>
+        <h2>{t('Серверы')}</h2>
         <div className="jey-toolbar-actions">
-          <button type="button" className="ghost-action settings-gear-button" onClick={() => { setSettingsTab('general'); setSettingsOpen(true); }} title="Настройки Jey2Ray" aria-label="Открыть настройки Jey2Ray">
+          <button type="button" className="ghost-action settings-gear-button" onClick={() => { setSettingsTab('general'); setSettingsOpen(true); }} title={t('Настройки Jey2Ray')} aria-label={t('Открыть настройки Jey2Ray')}>
             <svg className="ico" viewBox="0 0 20 20" aria-hidden>
               <path d="M7.9 2.7h4.2l.45 1.75c.4.17.78.39 1.13.65l1.72-.5 2.1 3.65-1.27 1.25c.03.2.04.42.04.64s-.01.43-.04.64l1.27 1.25-2.1 3.65-1.72-.5c-.35.26-.73.48-1.13.65l-.45 1.75H7.9l-.45-1.75a6.4 6.4 0 0 1-1.13-.65l-1.72.5-2.1-3.65 1.27-1.25a4.7 4.7 0 0 1 0-1.28L2.5 8.25 4.6 4.6l1.72.5c.35-.26.73-.48 1.13-.65L7.9 2.7Z" fill="none" stroke="currentColor" strokeWidth="1.35" strokeLinejoin="round" />
               <circle cx="10" cy="10.15" r="2.35" fill="none" stroke="currentColor" strokeWidth="1.35" />
             </svg>
           </button>
-          <button type="button" className="ghost-action subscription-manager-button" disabled={busy || Boolean(action)} onClick={() => setSubscriptionsOpen(true)} title="Управление подписками">
+          <button type="button" className="ghost-action subscription-manager-button" disabled={busy || Boolean(action)} onClick={() => setSubscriptionsOpen(true)} title={t('Управление подписками')}>
             <svg className="ico" viewBox="0 0 20 20" aria-hidden><path d="M4 5.25h12M4 10h12M4 14.75h12" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" /><circle cx="6" cy="5.25" r="1" fill="currentColor" /><circle cx="6" cy="10" r="1" fill="currentColor" /><circle cx="6" cy="14.75" r="1" fill="currentColor" /></svg>
             Подписки <span>{runtime.subscriptions?.length ?? 0}</span>
           </button>
-          <button className="ghost-action" onClick={() => setImportOpen((value) => !value)} title="Добавить подписку или отдельную ссылку">
+          <button className="ghost-action" onClick={() => setImportOpen((value) => !value)} title={t('Добавить подписку или отдельную ссылку')}>
             <svg className="ico" viewBox="0 0 16 16" aria-hidden><path d="M8 3v10M3 8h10" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" /></svg>
             Добавить
           </button>
@@ -779,7 +780,7 @@ export function Jey2RayPage({
             </svg>
             Обновить
           </button>
-          <button className={`ghost-action ${action === 'ping' ? 'is-rev' : ''}`} disabled={busy || Boolean(action)} onClick={() => void ping()} title="Проверить задержку всех серверов">
+          <button className={`ghost-action ${action === 'ping' ? 'is-rev' : ''}`} disabled={busy || Boolean(action)} onClick={() => void ping()} title={t('Проверить задержку всех серверов')}>
             <svg className="ico gauge-ico" viewBox="0 0 20 14" aria-hidden>
               <path d="M2.3 11.6a7.7 7.7 0 0 1 15.4 0" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" />
               <path className="gauge-needle" d="M10 11.55 5.35 6.55" fill="none" stroke="currentColor" strokeWidth="1.65" strokeLinecap="round" />
@@ -792,10 +793,10 @@ export function Jey2RayPage({
       </div>
 
       {importOpen && <div className="jey-import compact slide-in">
-        <textarea className="jey-link" rows={2} value={link} onChange={(event) => setLink(event.target.value)} placeholder="Подписка https://… или vless:// hy2://" />
+        <textarea className="jey-link" rows={2} value={link} onChange={(event) => setLink(event.target.value)} placeholder={t('Подписка https://… или vless:// hy2://')} />
         <div className="jey-import-row">
-          <input className="jey-name" value={name} onChange={(event) => setName(event.target.value)} placeholder="Имя (необязательно)" />
-          <button className="primary-button small" disabled={busy || !link.trim()} onClick={() => void importLink()}>Добавить</button>
+          <input className="jey-name" value={name} onChange={(event) => setName(event.target.value)} placeholder={t('Имя (необязательно)')} />
+          <button className="primary-button small" disabled={busy || !link.trim()} onClick={() => void importLink()}>{t('Добавить')}</button>
         </div>
       </div>}
 
@@ -825,7 +826,7 @@ export function Jey2RayPage({
           </div>
         </div>
         <div className="server-card-metrics">
-          <span><small>Серверов</small><strong>{visible.length}</strong></span>
+          <span><small>{t('Серверов')}</small><strong>{visible.length}</strong></span>
           <span><small>{info ? 'Трафик' : 'Подписок'}</small><strong>{info ? `${formatBytes(used)} / ${quota}` : runtime.subscriptions?.length ?? 0}</strong></span>
         </div>
         {info && <div className="server-card-details">
@@ -846,7 +847,7 @@ export function Jey2RayPage({
               <strong>{displayName(profile)}</strong>
               <small>{blocked || stackOf(profile)}</small>
             </span>
-            {live ? <em className="server-on">ВКЛ</em> : <Signal ms={profile.pingMs} />}
+            {live ? <em className="server-on">{t('ВКЛ')}</em> : <Signal ms={profile.pingMs} />}
             <span className="server-go">›</span>
           </button>;
         })}
@@ -856,7 +857,7 @@ export function Jey2RayPage({
     <aside className="server-right">
       {runtime.status === 'connected' && <span className="tunnel-session-counter" aria-label={`Время подключения ${sessionDuration}`}>{sessionDuration}</span>}
       {runtime.status === 'connected' && panelProfile && <div className="tunnel-route" aria-label={`Защищённый маршрут к серверу ${panelLocation.detail}`}>
-        <span className="tunnel-route-device" title="Это устройство">
+        <span className="tunnel-route-device" title={t('Это устройство')}>
           <svg viewBox="0 0 24 24" aria-hidden><rect x="4" y="3.5" width="16" height="12" rx="2" /><path d="M8 20h8M10 15.5 9 20m5-4.5 1 4.5" /></svg>
         </span>
         <span className="tunnel-route-track" aria-hidden><i /></span>
@@ -880,7 +881,7 @@ export function Jey2RayPage({
           ? <span className={`power-connected ${latencyUnavailable ? 'is-unavailable' : ''}`}><i />Подключено {latencyMs != null ? <>· <b>{latencyMs} мс</b></> : latencyUnavailable ? '· пинг недоступен' : '· замеряем…'}</span>
           : <span className={`power-state ${runtime.status === 'error' ? 'is-error' : ''}`}>{powerState}</span>}
       </div>
-      <div className="mode-switch" aria-label="Режим подключения">
+      <div className="mode-switch" aria-label={t('Режим подключения')}>
         <div className="mode-switch-options">
           <button
             type="button"
@@ -900,12 +901,12 @@ export function Jey2RayPage({
       </div>
       <button type="button" className="diagnostics-entry" onClick={() => setDiagnosticsOpen(true)}>
         <span className="diagnostics-entry-icon"><svg viewBox="0 0 24 24" aria-hidden><path d="M4 13h3l2-6 4 11 2-5h5" /><circle cx="12" cy="12" r="9" /></svg></span>
-        <span><strong>Диагностика</strong><small>Ядро, процесс и порты</small></span>
+        <span><strong>{t('Диагностика')}</strong><small>{t('Ядро, процесс и порты')}</small></span>
         <b>→</b>
       </button>
       <div className={`auto-connect-summary ${settings.autoConnectVpn ? 'is-on' : ''}`}><i /><span>Автоподключение {settings.autoConnectVpn ? 'включено' : 'выключено'}</span></div>
       {runtime.lanShared && <div className="auto-connect-summary is-on lan-share-summary"><i /><span>Раздача в сеть{lanEndpoints.length ? ` · ${lanEndpoints[0].socks}` : ''}</span></div>}
-      {!runtime.xrayReady && <div className="jey-note"><span>i</span><div><strong>Подготовка VPN-ядра</strong><p>{xrayUpdate?.error || 'Выполняется загрузка Xray / sing-box. Кнопка подключения станет доступна после установки.'}</p></div></div>}
+      {!runtime.xrayReady && <div className="jey-note"><span>i</span><div><strong>{t('Подготовка VPN-ядра')}</strong><p>{xrayUpdate?.error || 'Выполняется загрузка Xray / sing-box. Кнопка подключения станет доступна после установки.'}</p></div></div>}
     </aside>
   </section>;
 }

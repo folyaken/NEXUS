@@ -1,5 +1,6 @@
 import { useMemo, useState } from 'react';
 import type { VpnProfile, VpnSubscriptionInfo } from '../main/types';
+import { t } from '../main/i18n';
 
 export type SubscriptionAction = {
   kind: 'add' | 'refresh' | 'refresh-all' | 'remove';
@@ -106,13 +107,13 @@ export function SubscriptionManager({
 
   return <section className="page-section jey-page subscriptions-page">
     <div className="subscriptions-toolbar">
-      <button type="button" className="app-settings-back" onClick={onBack} aria-label="Вернуться к серверам">
+      <button type="button" className="app-settings-back" onClick={onBack} aria-label={t('Вернуться к серверам')}>
         <svg viewBox="0 0 20 20" aria-hidden><path d="m12.5 4.5-5 5.5 5 5.5" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" /></svg>
         Серверы
       </button>
       <div className="subscriptions-heading">
         <span>Jey2Ray</span>
-        <h2>Управление подписками</h2>
+        <h2>{t('Управление подписками')}</h2>
         <p>Добавляй источники, обновляй их по отдельности и контролируй срок действия.</p>
       </div>
       <div className="subscriptions-toolbar-actions">
@@ -133,7 +134,7 @@ export function SubscriptionManager({
           <span className="subscription-source-icon">
             <svg viewBox="0 0 24 24" aria-hidden><path d="M9.5 14.5 14.5 9M7.2 16.8l-1 1a3.5 3.5 0 0 1-5-5l4-4a3.5 3.5 0 0 1 5 0M16.8 7.2l1-1a3.5 3.5 0 0 1 5 5l-4 4a3.5 3.5 0 0 1-5 0" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" /></svg>
           </span>
-          <div><strong>Новая подписка</strong><p>Вставьте полный HTTPS-адрес, выданный провайдером. Адрес и его секретный токен не показываются в списке.</p></div>
+          <div><strong>{t('Новая подписка')}</strong><p>Вставьте полный HTTPS-адрес, выданный провайдером. Адрес и его секретный токен не показываются в списке.</p></div>
         </div>
         <div className="subscription-add-form">
           <input
@@ -143,7 +144,7 @@ export function SubscriptionManager({
             onChange={(event) => setUrl(event.target.value)}
             onKeyDown={(event) => { if (event.key === 'Enter') void submit(); }}
             placeholder="https://provider.example.com/sub/…"
-            aria-label="Адрес новой подписки"
+            aria-label={t('Адрес новой подписки')}
             autoComplete="off"
             spellCheck={false}
           />
@@ -152,8 +153,8 @@ export function SubscriptionManager({
       </section>}
 
       <div className="subscriptions-summary">
-        <div><span>Источников</span><strong>{subscriptions.length}</strong></div>
-        <div><span>Серверов в подписках</span><strong>{[...nodeCounts.values()].reduce((sum, count) => sum + count, 0)}</strong></div>
+        <div><span>{t('Источников')}</span><strong>{subscriptions.length}</strong></div>
+        <div><span>{t('Серверов в подписках')}</span><strong>{[...nodeCounts.values()].reduce((sum, count) => sum + count, 0)}</strong></div>
         <p>Удаление источника удалит и его серверы. Если один из них подключён, VPN будет сначала безопасно отключён.</p>
       </div>
 
@@ -181,15 +182,15 @@ export function SubscriptionManager({
               <div className="subscription-title">
                 <span className={`subscription-state ${state.tone}`}><i /> {state.label}</span>
                 <h3>{info.title || sourceHost(info.url)}</h3>
-                <p title="Секретная часть адреса скрыта">{sourceHost(info.url)} · адрес скрыт</p>
+                <p title={t('Секретная часть адреса скрыта')}>{sourceHost(info.url)} · адрес скрыт</p>
               </div>
-              <span className="subscription-node-count"><strong>{nodes}</strong><small>серверов</small></span>
+              <span className="subscription-node-count"><strong>{nodes}</strong><small>{t('серверов')}</small></span>
             </div>
 
             <div className="subscription-metrics">
-              <div><span>Трафик</span><strong>{formatBytes(used)} <em>/ {total ? formatBytes(total) : 'без лимита'}</em></strong></div>
-              <div><span>Последнее обновление</span><strong>{formatWhen(info.lastSync)}</strong></div>
-              <div><span>Интервал панели</span><strong>{info.updateHours ? `каждые ${info.updateHours} ч.` : 'не указан'}</strong></div>
+              <div><span>{t('Трафик')}</span><strong>{formatBytes(used)} <em>/ {total ? formatBytes(total) : 'без лимита'}</em></strong></div>
+              <div><span>{t('Последнее обновление')}</span><strong>{formatWhen(info.lastSync)}</strong></div>
+              <div><span>{t('Интервал панели')}</span><strong>{info.updateHours ? `каждые ${info.updateHours} ч.` : 'не указан'}</strong></div>
             </div>
             {total > 0 && <div className="subscription-quota" title={`Использовано ${progress.toFixed(1)}%`}><i style={{ width: `${progress}%` }} /></div>}
             <div className="subscription-card-foot">
@@ -199,13 +200,13 @@ export function SubscriptionManager({
                   <svg viewBox="0 0 24 24" aria-hidden><path fill="currentColor" d="M11.2 3.15A8.85 8.85 0 1 0 19 7.55l-1.95 1.15A6.55 6.55 0 1 1 11.2 5.45v2.7L17.45 5 11.2.65z" /></svg>
                   {isRefreshing ? 'Обновляем…' : 'Обновить'}
                 </button>
-                <button type="button" className="subscription-delete" disabled={busy} onClick={() => setConfirmUrl(info.url)}>Удалить</button>
+                <button type="button" className="subscription-delete" disabled={busy} onClick={() => setConfirmUrl(info.url)}>{t('Удалить')}</button>
               </div>
             </div>
 
             {confirming && <div className="subscription-confirm">
-              <div><strong>Удалить подписку?</strong><p>Будут удалены все её серверы: {nodes}. Это действие нельзя отменить.</p></div>
-              <div><button type="button" disabled={busy} onClick={() => setConfirmUrl(null)}>Отмена</button><button type="button" className="danger" disabled={busy} onClick={() => void remove(info.url)}>{isRemoving ? 'Удаляем…' : 'Удалить'}</button></div>
+              <div><strong>{t('Удалить подписку?')}</strong><p>Будут удалены все её серверы: {nodes}. Это действие нельзя отменить.</p></div>
+              <div><button type="button" disabled={busy} onClick={() => setConfirmUrl(null)}>{t('Отмена')}</button><button type="button" className="danger" disabled={busy} onClick={() => void remove(info.url)}>{isRemoving ? 'Удаляем…' : 'Удалить'}</button></div>
             </div>}
           </article>;
         })}
@@ -213,9 +214,9 @@ export function SubscriptionManager({
         <span className="subscription-source-icon">
           <svg viewBox="0 0 24 24" aria-hidden><path d="M9.5 14.5 14.5 9M7.2 16.8l-1 1a3.5 3.5 0 0 1-5-5l4-4a3.5 3.5 0 0 1 5 0M16.8 7.2l1-1a3.5 3.5 0 0 1 5 5l-4 4a3.5 3.5 0 0 1-5 0" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" /></svg>
         </span>
-        <strong>Подписок пока нет</strong>
+        <strong>{t('Подписок пока нет')}</strong>
         <p>Добавьте HTTPS-ссылку провайдера — серверы появятся в общем списке автоматически.</p>
-        <button type="button" onClick={() => setAddOpen(true)}>Добавить первую подписку</button>
+        <button type="button" onClick={() => setAddOpen(true)}>{t('Добавить первую подписку')}</button>
       </div>}
     </div>
   </section>;

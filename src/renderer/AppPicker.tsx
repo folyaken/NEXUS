@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import type { RunningApp } from '../main/running-apps';
 import type { VpnSplitApp } from '../main/types';
+import { t } from '../main/i18n';
 
 /**
  * Выбор приложений для правил маршрутизации.
@@ -119,10 +120,10 @@ export default function AppPicker({ selected, onClose, onConfirm, onBrowse }: Pr
     <div className="app-picker" role="dialog" aria-modal="true" aria-labelledby="app-picker-title" ref={dialogRef}>
       <header className="app-picker-head">
         <div>
-          <h3 id="app-picker-title">Выберите приложение</h3>
-          <p>Отметьте программы из списка открытых или укажите файл вручную.</p>
+          <h3 id="app-picker-title">{t('Выберите приложение')}</h3>
+          <p>{t('Отметьте программы из списка открытых или укажите файл вручную.')}</p>
         </div>
-        <button type="button" className="app-picker-close" onClick={onClose} aria-label="Закрыть">
+        <button type="button" className="app-picker-close" onClick={onClose} aria-label={t('Закрыть')}>
           <svg viewBox="0 0 16 16" aria-hidden><path d="M4 4l8 8M12 4l-8 8" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" /></svg>
         </button>
       </header>
@@ -133,30 +134,30 @@ export default function AppPicker({ selected, onClose, onConfirm, onBrowse }: Pr
           ref={searchRef}
           type="text"
           value={query}
-          placeholder="Поиск по названию или пути…"
-          aria-label="Поиск приложения"
+          placeholder={t('Поиск по названию или пути…')}
+          aria-label={t('Поиск приложения')}
           onChange={(event) => setQuery(event.target.value.slice(0, 120))}
         />
-        {query && <button type="button" className="app-picker-search-clear" onClick={() => setQuery('')} aria-label="Очистить поиск">×</button>}
+        {query && <button type="button" className="app-picker-search-clear" onClick={() => setQuery('')} aria-label={t('Очистить поиск')}>×</button>}
       </div>
 
       <div className="app-picker-body">
         {state === 'loading' && <div className="app-picker-state">
           <span className="app-picker-spinner" aria-hidden />
-          <strong>Читаем список открытых программ…</strong>
-          <p>Это занимает несколько секунд.</p>
+          <strong>{t('Читаем список открытых программ…')}</strong>
+          <p>{t('Это занимает несколько секунд.')}</p>
         </div>}
 
         {state === 'unavailable' && <div className="app-picker-state">
-          <strong>Список открытых программ недоступен</strong>
+          <strong>{t('Список открытых программ недоступен')}</strong>
           <p>Такое бывает, если Windows ограничила доступ к сведениям о процессах. Добавьте программу файлом — результат будет тот же.</p>
-          <button type="button" className="app-picker-secondary" onClick={onBrowse}>Выбрать файл…</button>
+          <button type="button" className="app-picker-secondary" onClick={onBrowse}>{t('Выбрать файл…')}</button>
         </div>}
 
         {state === 'empty' && <div className="app-picker-state">
-          <strong>Открытых программ не найдено</strong>
+          <strong>{t('Открытых программ не найдено')}</strong>
           <p>Запустите нужную программу и обновите список либо укажите её файл вручную.</p>
-          <button type="button" className="app-picker-secondary" onClick={() => void load()}>Обновить список</button>
+          <button type="button" className="app-picker-secondary" onClick={() => void load()}>{t('Обновить список')}</button>
         </div>}
 
         {state === 'ready' && (visible.length ? <div className="app-picker-list" role="listbox" aria-multiselectable="true">
@@ -183,15 +184,15 @@ export default function AppPicker({ selected, onClose, onConfirm, onBrowse }: Pr
                 <small>{app.path}</small>
               </span>
               {added
-                ? <span className="app-picker-added">Уже добавлено</span>
+                ? <span className="app-picker-added">{t('Уже добавлено')}</span>
                 : <span className="app-picker-check" aria-hidden>
                   <svg viewBox="0 0 16 16"><path d="M3.5 8.5l3 3 6-7" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" /></svg>
                 </span>}
             </button>;
           })}
         </div> : <div className="app-picker-state">
-          <strong>Ничего не найдено</strong>
-          <p>Попробуйте другое название или добавьте программу файлом.</p>
+          <strong>{t('Ничего не найдено')}</strong>
+          <p>{t('Попробуйте другое название или добавьте программу файлом.')}</p>
         </div>)}
       </div>
 
@@ -201,8 +202,8 @@ export default function AppPicker({ selected, onClose, onConfirm, onBrowse }: Pr
           Выбрать файл…
         </button>
         <div className="app-picker-actions">
-          {state === 'ready' && <button type="button" className="app-picker-refresh" onClick={() => void load()}>Обновить</button>}
-          <button type="button" className="app-picker-cancel" onClick={onClose}>Отмена</button>
+          {state === 'ready' && <button type="button" className="app-picker-refresh" onClick={() => void load()}>{t('Обновить')}</button>}
+          <button type="button" className="app-picker-cancel" onClick={onClose}>{t('Отмена')}</button>
           <button type="button" className="app-picker-confirm" disabled={!picked.size} onClick={confirm}>
             {picked.size ? `Добавить · ${picked.size}` : 'Добавить'}
           </button>

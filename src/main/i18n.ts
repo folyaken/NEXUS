@@ -188,6 +188,147 @@ const EN: Record<string, string> = {
   'ВАШИ ИНСТРУМЕНТЫ': 'YOUR TOOLKIT',
   'УПРАВЛЕНИЕ ЛОКАЛЬНОЙ СЕТЬЮ': 'LOCAL NETWORK ORCHESTRATOR',
 
+
+  // --- Страницы Jey2Ray, модулей и диалогов -------------------------------------
+  'Автоподключение': 'Auto-connect',
+  'Автоподключение и параметры модуля': 'Auto-connect and module options',
+  'Адрес новой подписки': 'New subscription address',
+  'Анимации интерфейса': 'Interface animations',
+  'БЫСТРАЯ ПРОВЕРКА': 'QUICK CHECK',
+  'Будет добавлен как': 'Will be added as',
+  'ВКЛ': 'ON',
+  'Ваше имя': 'Your name',
+  'Введите имя': 'Enter a name',
+  'Вернуться к серверам': 'Back to servers',
+  'Версия NEXUS': 'NEXUS version',
+  'Версия Xray Core': 'Xray Core version',
+  'Версия sing-box': 'sing-box version',
+  'Включить hostcase': 'Enable hostcase',
+  'Включить hostdot': 'Enable hostdot',
+  'Включить фрагментацию': 'Enable fragmentation',
+  'Все прокси-запросы': 'All proxy requests',
+  'Выберите общую политику. Конкретные приложения можно добавить ниже.': 'Choose the general policy. Specific applications can be added below.',
+  'Выбранные приложения': 'Selected applications',
+  'Выбранные приложения идут через VPN, все остальные — напрямую.': 'Selected applications go through the VPN, everything else connects directly.',
+  'Выбранные приложения обходят VPN, все остальные идут через VPN.': 'Selected applications bypass the VPN, everything else goes through it.',
+  'Выбрать файл…': 'Choose a file…',
+  'Диагностика подключения': 'Connection diagnostics',
+  'Добавить первую подписку': 'Add your first subscription',
+  'Добавить подписку или отдельную ссылку': 'Add a subscription or a single link',
+  'Дополнительные аргументы': 'Extra arguments',
+  'Ещё не измеряли': 'Not measured yet',
+  'Запускать последний сервер вместе с NEXUS.': 'Connect to the last server when NEXUS starts.',
+  'Интервал панели': 'Panel interval',
+  'Интерфейс NEXUS': 'NEXUS interface',
+  'Исключения': 'Exceptions',
+  'Источники логов': 'Log sources',
+  'Источников': 'Sources',
+  'КАНАЛ': 'CHANNEL',
+  'Компьютер / ОС': 'Computer / OS',
+  'Короткая проверка ядра, процесса, маршрутизации и портов.': 'A quick check of the core, process, routing and ports.',
+  'ЛОКАЛЬНЫЙ ПРОФИЛЬ': 'LOCAL PROFILE',
+  'Лицензии': 'Licenses',
+  'Локальные порты': 'Local ports',
+  'Локальный порт, который слушает модуль': 'Local port the module listens on',
+  'Локальный профиль': 'Local profile',
+  'Маршрутизация и выбранные программы': 'Routing and selected applications',
+  'Модуль перезапустится автоматически': 'The module will restart automatically',
+  'Модуль сейчас работает': 'The module is running',
+  'Нажмите': 'Press',
+  'Настроек пока нет': 'No settings yet',
+  'Настройка приложений': 'Application setup',
+  'Настройки Jey2Ray': 'Jey2Ray settings',
+  'Настройки прокси для приложений': 'Proxy settings for applications',
+  'Настройки сохраняются локально и привязаны к этому устройству.': 'Settings are stored locally and belong to this device.',
+  'Новая подписка': 'New subscription',
+  'Новые записи появятся здесь автоматически.': 'New entries will appear here automatically.',
+  'Новые настройки вступят в силу после перезапуска модуля.': 'New settings take effect after the module restarts.',
+  'ОБНОВЛЕНИЕ NEXUS': 'NEXUS UPDATE',
+  'ОБЩИЕ НАСТРОЙКИ': 'GENERAL SETTINGS',
+  'Обновить список': 'Refresh the list',
+  'Обновление сетевых модулей': 'Network module updates',
+  'Общие': 'General',
+  'Основные параметры': 'Main options',
+  'Остановите модуль, чтобы сменить профиль.': 'Stop the module to change the profile.',
+  'Открытых программ не найдено': 'No running applications found',
+  'Открыть настройки Jey2Ray': 'Open Jey2Ray settings',
+  'Отменить': 'Cancel',
+  'Отметьте программы из списка открытых или укажите файл вручную.': 'Pick applications from the running list or choose a file manually.',
+  'Отчёт для поддержки': 'Support report',
+  'Оформление NEXUS': 'NEXUS appearance',
+  'Очистить поиск': 'Clear the search',
+  'ПРАВОВАЯ ИНФОРМАЦИЯ': 'LEGAL INFORMATION',
+  'По умолчанию': 'Default',
+  'Повторить': 'Retry',
+  'Повторы': 'Repeats',
+  'Подготовка VPN-ядра': 'Preparing the VPN core',
+  'Подписка https://… или vless:// hy2://': 'Subscription https://… or vless:// hy2://',
+  'Подписок пока нет': 'No subscriptions yet',
+  'Поиск по добавленным сайтам': 'Search added sites',
+  'Поиск по названию или пути…': 'Search by name or path…',
+  'Поиск приложения': 'Find an application',
+  'Попробуйте другое название или добавьте программу файлом.': 'Try another name or add the application from a file.',
+  'Порт не отвечает на TCP, но узел рабочий (часто Reality / Hysteria)': 'The port does not answer TCP, but the node works (common with Reality / Hysteria)',
+  'Порт прокси': 'Proxy port',
+  'Порт, на котором работает прокси, и набор обслуживаемых запросов.': 'The port the proxy runs on and the requests it serves.',
+  'Последнее обновление': 'Last update',
+  'Посмотреть текст': 'View the text',
+  'Предыдущая страница': 'Previous page',
+  'Приложения ещё не выбраны': 'No applications selected yet',
+  'Проверенные репозитории GitHub': 'Verified GitHub repositories',
+  'Проверить задержку всех серверов': 'Measure latency for all servers',
+  'Проверка не выполнена': 'Check not performed',
+  'Профили загружаются из релиза Zapret — доступны все, что в нём есть.': 'Profiles come from the Zapret release — every profile it ships is available.',
+  'Профиль обхода': 'Bypass profile',
+  'Процесс': 'Process',
+  'Прямое подключение для выбранных приложений': 'Direct connection for selected applications',
+  'РЕЖИМ': 'MODE',
+  'Раздача в локальную сеть': 'Share with the local network',
+  'Разделы настроек Jey2Ray': 'Jey2Ray settings sections',
+  'Размер фрагмента': 'Fragment size',
+  'Разработано для безопасной локальной работы': 'Built for safe local operation',
+  'Режим маршрутизации приложений': 'Application routing mode',
+  'Режим подключения': 'Connection mode',
+  'Режим работы': 'Operating mode',
+  'Русский': 'Russian',
+  'СИСТЕМА': 'SYSTEM',
+  'Свернуть': 'Collapse',
+  'Секретная часть адреса скрыта': 'The secret part of the address is hidden',
+  'Секреты скрыты': 'Secrets hidden',
+  'Сервер': 'Server',
+  'Серверов': 'Servers',
+  'Серверов в подписках': 'Servers in subscriptions',
+  'Системные настройки': 'System settings',
+  'Следующая страница': 'Next page',
+  'Событий пока нет': 'No events yet',
+  'Сохранить профиль': 'Save profile',
+  'Список открытых программ недоступен': 'The list of running applications is unavailable',
+  'Стандартный режим. Через прокси идёт только Telegram.': 'Standard mode. Only Telegram goes through the proxy.',
+  'Техническая информация': 'Technical information',
+  'Только Telegram': 'Telegram only',
+  'Только на устройстве': 'On this device only',
+  'Тонкая настройка обхода для опытных пользователей': 'Fine-tuning the bypass for advanced users',
+  'Трафик': 'Traffic',
+  'Тёмная тема': 'Dark theme',
+  'У этого модуля нет параметров — он работает сразу после запуска.': 'This module has no options — it works as soon as it starts.',
+  'Удалить подписку?': 'Delete this subscription?',
+  'Универсальный прокси: подойдёт для браузера и других программ.': 'Universal proxy: works for the browser and other applications.',
+  'Управление подписками': 'Manage subscriptions',
+  'Установить': 'Install',
+  'ХРАНЕНИЕ': 'STORAGE',
+  'Число повторов': 'Repeat count',
+  'Читаем список открытых программ…': 'Reading the list of running applications…',
+  'Что работает': 'What works',
+  'Экспертные параметры': 'Expert options',
+  'Это занимает несколько секунд.': 'This takes a few seconds.',
+  'Это устройство': 'This device',
+  'Ядро': 'Core',
+  'активен': 'active',
+  'без данных доступа': 'no access data',
+  'включены': 'enabled',
+  'локальный runtime': 'local runtime',
+  'серверов': 'servers',
+
   // --- Обновление ---------------------------------------------------------------
   'Проверить обновления': 'Check for updates',
   'Установить обновление': 'Install update',
@@ -200,6 +341,31 @@ const DICTIONARIES: Record<AppLanguage, Record<string, string>> = {
   ru: {},
   en: EN,
 };
+
+/**
+ * Общий переводчик для интерфейса.
+ *
+ * Язык хранится в одном месте, а экраны берут перевод функцией `t`. Так сделано
+ * намеренно: передавать переводчик через свойства десятков вложенных
+ * компонентов легко забыть, и один пропуск роняет всю страницу с ошибкой
+ * «t is not defined» — так уже случалось с журналом событий.
+ */
+let activeLanguage: AppLanguage = 'ru';
+let activeDictionary: Record<string, string> = {};
+
+export function setInterfaceLanguage(language: AppLanguage): void {
+  activeLanguage = language === 'en' ? 'en' : 'ru';
+  activeDictionary = DICTIONARIES[activeLanguage] ?? {};
+}
+
+export function interfaceLanguage(): AppLanguage {
+  return activeLanguage;
+}
+
+/** Перевод строки на выбранный язык. Неизвестная строка возвращается как есть. */
+export function t(text: string): string {
+  return activeDictionary[text] ?? text;
+}
 
 /**
  * Возвращает функцию перевода для выбранного языка.

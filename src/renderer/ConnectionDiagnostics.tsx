@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
 import type { VpnDiagnostics, VpnDiagnosticTone, VpnStatus } from '../main/types';
+import { t } from '../main/i18n';
 
 type Props = {
   profileId: string | null;
@@ -86,8 +87,8 @@ export function ConnectionDiagnostics({ profileId, onBack, onToast }: Props) {
       </button>
       <div className="diagnostics-heading">
         <span>CONNECTION HEALTH</span>
-        <h2>Диагностика подключения</h2>
-        <p>Короткая проверка ядра, процесса, маршрутизации и портов.</p>
+        <h2>{t('Диагностика подключения')}</h2>
+        <p>{t('Короткая проверка ядра, процесса, маршрутизации и портов.')}</p>
       </div>
       <button type="button" className={`diagnostics-refresh ${loading ? 'is-loading' : ''}`} disabled={loading} onClick={() => void load()}>
         <svg viewBox="0 0 24 24" aria-hidden><path d="M19 8V4l-2 2a8 8 0 1 0 2.2 8" /><path d="M19 4h-4" /></svg>
@@ -96,7 +97,7 @@ export function ConnectionDiagnostics({ profileId, onBack, onToast }: Props) {
     </div>
 
     <div className="diagnostics-content">
-      {error && <div className="diagnostics-error"><StatusIcon tone="error" /><div><strong>Проверка не выполнена</strong><p>{error}</p></div><button type="button" onClick={() => void load()}>Повторить</button></div>}
+      {error && <div className="diagnostics-error"><StatusIcon tone="error" /><div><strong>{t('Проверка не выполнена')}</strong><p>{error}</p></div><button type="button" onClick={() => void load()}>{t('Повторить')}</button></div>}
 
       {snapshot && <>
         <div className={`diagnostics-overview ${snapshot.overall}`}>
@@ -107,20 +108,20 @@ export function ConnectionDiagnostics({ profileId, onBack, onToast }: Props) {
             <p>{issueCount ? `Требуют внимания: ${issueCount}` : 'Все доступные проверки пройдены'}</p>
           </div>
           <div className="diagnostics-overview-meta">
-            <span>РЕЖИМ</span><strong>{snapshot.mode.toUpperCase()}</strong>
+            <span>{t('РЕЖИМ')}</span><strong>{snapshot.mode.toUpperCase()}</strong>
           </div>
         </div>
 
         <div className="diagnostics-facts">
-          <div><span>Ядро</span><strong>{snapshot.engine}</strong><small>локальный runtime</small></div>
-          <div><span>Профиль</span><strong title={snapshot.profileName ?? undefined}>{snapshot.profileName ?? 'Не выбран'}</strong><small>{snapshot.protocol?.toUpperCase() ?? 'нет протокола'}</small></div>
-          <div><span>Сервер</span><strong title={snapshot.endpoint ?? undefined}>{snapshot.endpoint ?? '—'}</strong><small>без данных доступа</small></div>
-          <div><span>Локальные порты</span><strong>{snapshot.localSocks.replace('127.0.0.1:', '')} / {snapshot.localHttp.replace('127.0.0.1:', '')}</strong><small>SOCKS / HTTP</small></div>
+          <div><span>{t('Ядро')}</span><strong>{snapshot.engine}</strong><small>{t('локальный runtime')}</small></div>
+          <div><span>{t('Профиль')}</span><strong title={snapshot.profileName ?? undefined}>{snapshot.profileName ?? 'Не выбран'}</strong><small>{snapshot.protocol?.toUpperCase() ?? 'нет протокола'}</small></div>
+          <div><span>{t('Сервер')}</span><strong title={snapshot.endpoint ?? undefined}>{snapshot.endpoint ?? '—'}</strong><small>{t('без данных доступа')}</small></div>
+          <div><span>{t('Локальные порты')}</span><strong>{snapshot.localSocks.replace('127.0.0.1:', '')} / {snapshot.localHttp.replace('127.0.0.1:', '')}</strong><small>SOCKS / HTTP</small></div>
         </div>
 
         <div className="diagnostics-grid">
           <section className="diagnostics-checks-card">
-            <div className="diagnostics-section-head"><div><span>БЫСТРАЯ ПРОВЕРКА</span><h3>Что работает</h3></div><small>{snapshot.checks.length} пунктов</small></div>
+            <div className="diagnostics-section-head"><div><span>{t('БЫСТРАЯ ПРОВЕРКА')}</span><h3>{t('Что работает')}</h3></div><small>{snapshot.checks.length} пунктов</small></div>
             <div className="diagnostics-check-list">
               {snapshot.checks.map((check) => <div className={`diagnostics-check ${check.tone}`} key={check.id}>
                 <span className="diagnostics-check-icon"><StatusIcon tone={check.tone} /></span>
@@ -133,14 +134,14 @@ export function ConnectionDiagnostics({ profileId, onBack, onToast }: Props) {
           <aside className="diagnostics-report-card">
             <div className="diagnostics-report-icon"><svg viewBox="0 0 24 24" aria-hidden><path d="M7 3h7l4 4v14H7z" /><path d="M14 3v5h5M10 12h5M10 16h5" /></svg></div>
             <span>SAFE SUPPORT REPORT</span>
-            <h3>Отчёт для поддержки</h3>
+            <h3>{t('Отчёт для поддержки')}</h3>
             <p>Можно отправить этот текст при обращении за помощью. В нём нет ссылок подписок и ключей подключения.</p>
             <button type="button" onClick={() => void copyReport()}>
               <svg viewBox="0 0 24 24" aria-hidden><rect x="8" y="8" width="11" height="11" rx="2" /><path d="M16 8V6a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v8a2 2 0 0 0 2 2h2" /></svg>
               Скопировать отчёт
             </button>
-            <details><summary>Посмотреть текст</summary><pre>{snapshot.report}</pre></details>
-            <div className="diagnostics-privacy"><i>✓</i><span><strong>Секреты скрыты</strong><small>UUID, пароли, токены, URL и локальное имя пользователя удаляются до показа.</small></span></div>
+            <details><summary>{t('Посмотреть текст')}</summary><pre>{snapshot.report}</pre></details>
+            <div className="diagnostics-privacy"><i>✓</i><span><strong>{t('Секреты скрыты')}</strong><small>UUID, пароли, токены, URL и локальное имя пользователя удаляются до показа.</small></span></div>
           </aside>
         </div>
       </>}

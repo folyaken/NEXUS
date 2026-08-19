@@ -102,4 +102,42 @@ const keys = [...fs.readFileSync(path.join(root, 'src', 'main', 'i18n.ts'), 'utf
   .matchAll(/^\s*'([^']+)':\s*'/gm)].map((match) => match[1]);
 assert.equal(new Set(keys).size, keys.length, 'в словаре есть повторяющиеся ключи');
 
+// --- Перевод покрывает весь интерфейс -----------------------------------------
+// Раньше при переключении на английский большая часть текста оставалась
+// русской. Проверка обходит все экраны и требует перевода для каждой видимой
+// строки: новая непереведённая строка сразу заметна здесь, а не у пользователя.
+const screens = [
+  'App.tsx', 'Jey2RayPage.tsx', 'ModuleSettings.tsx',
+  'SubscriptionManager.tsx', 'AppPicker.tsx', 'ConnectionDiagnostics.tsx',
+];
+const untranslated = [];
+for (const screen of screens) {
+  const text = fs.readFileSync(path.join(root, 'src', 'renderer', screen), 'utf8');
+  const seen = new Set();
+  for (const match of text.matchAll(/>([А-ЯЁа-яё][^<>{}]{2,70})</g)) seen.add(match[1].trim());
+  for (const match of text.matchAll(/(?:placeholder|title|aria-label|label)="([А-ЯЁа-яё][^"]{2,70})"/g)) {
+    seen.add(match[1].trim());
+  }
+  for (const phrase of seen) {
+    if (!hasTranslation('en', phrase)) untranslated.push(`${screen}: ${phrase}`);
+  }
+}
+assert.deepEqual(untranslated, [], `без перевода осталось: ${untranslated.join(' | ')}`);
+
+// Словарь заметно вырос: интерфейс переведён целиком, а не выборочно.
+assert.ok(translationKeys('en').length >= 280, `в словаре только ${translationKeys('en').length} фраз`);
+
+// Язык задаётся глобально: передавать переводчик через свойства десятков
+// вложенных экранов легко забыть, и один пропуск роняет страницу целиком —
+// так уже случалось с журналом событий.
+const i18nSource = fs.readFileSync(path.join(root, 'src', 'main', 'i18n.ts'), 'utf8');
+assert.match(i18nSource, /export function setInterfaceLanguage/);
+assert.match(i18nSource, /export function t\(text: string\)/);
+assert.match(app, /setInterfaceLanguage\(settings\.language\)/);
+
+// Русский остаётся исходным текстом: при неизвестной строке показывается он,
+// а не пустое место.
+assert.equal(createTranslator('ru')('Только Telegram'), 'Только Telegram');
+assert.equal(createTranslator('en')('Только Telegram'), 'Telegram only');
+
 console.log('Settings usability and translation checks passed.');

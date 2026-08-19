@@ -3,6 +3,7 @@ import type React from 'react';
 import { readDpiExpertOptions } from '../main/dpi-arguments';
 import { readTgProxyOptions } from '../main/tg-proxy-options';
 import type { DpiExpertOptions, ModuleManifest, ModuleStatusReport, TgProxyOptions } from '../main/types';
+import { t } from '../main/i18n';
 
 /**
  * Панель настроек одного модуля.
@@ -125,7 +126,7 @@ function DpiHostlistSection({ onToast }: { onToast: (message: string) => void })
   return <section className="module-settings-card">
     <div className="module-settings-card-head">
       <div>
-        <h3>Свои сайты</h3>
+        <h3>{t('Свои сайты')}</h3>
         <p>Добавьте сайты, которые нужно открывать в обход блокировок. Поддомены и служебные адреса сервиса подключаются автоматически. Встроенный список YouTube и Discord продолжает работать.</p>
       </div>
       <span className="module-settings-count">{hosts.length}</span>
@@ -145,21 +146,21 @@ function DpiHostlistSection({ onToast }: { onToast: (message: string) => void })
         spellCheck={false}
         autoComplete="off"
         placeholder="instagram.com"
-        aria-label="Адрес сайта"
+        aria-label={t('Адрес сайта')}
         onChange={(event) => setDraft(event.target.value)}
       />
       <button type="submit" className="primary-button small" disabled={!draft.trim() || busy || duplicate}>
-        <b>Добавить</b>
+        <b>{t('Добавить')}</b>
       </button>
     </form>
 
     {duplicate
       ? <p className="dpi-host-hint is-warning">{normalized} уже есть в списке</p>
       : normalized && normalized !== draft.trim().toLowerCase()
-        ? <p className="dpi-host-hint">Будет добавлен как <b>{normalized}</b></p>
-        : <p className="dpi-host-hint">Достаточно основного домена — можно вставить и полную ссылку.</p>}
+        ? <p className="dpi-host-hint">{t('Будет добавлен как')} <b>{normalized}</b></p>
+        : <p className="dpi-host-hint">{t('Достаточно основного домена — можно вставить и полную ссылку.')}</p>}
 
-    {!loaded ? <p className="dpi-host-hint">Загрузка списка…</p> : hosts.length ? <>
+    {!loaded ? <p className="dpi-host-hint">{t('Загрузка списка…')}</p> : hosts.length ? <>
       {/* Поиск появляется, когда список перестаёт помещаться на экран целиком:
           на трёх сайтах он лишний, на тридцати — единственный способ найти нужный. */}
       {hosts.length > PAGE_SIZE && <input
@@ -167,8 +168,8 @@ function DpiHostlistSection({ onToast }: { onToast: (message: string) => void })
         className="dpi-host-search"
         value={query}
         spellCheck={false}
-        placeholder="Поиск по списку…"
-        aria-label="Поиск по добавленным сайтам"
+        placeholder={t('Поиск по списку…')}
+        aria-label={t('Поиск по добавленным сайтам')}
         onChange={(event) => { setQuery(event.target.value); setPage(0); }}
       />}
 
@@ -191,7 +192,7 @@ function DpiHostlistSection({ onToast }: { onToast: (message: string) => void })
           type="button"
           className="dpi-host-pager-button"
           disabled={safePage === 0}
-          aria-label="Предыдущая страница"
+          aria-label={t('Предыдущая страница')}
           onClick={() => setPage(safePage - 1)}
         >
           <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M15 5l-7 7 7 7" /></svg>
@@ -213,7 +214,7 @@ function DpiHostlistSection({ onToast }: { onToast: (message: string) => void })
           type="button"
           className="dpi-host-pager-button"
           disabled={safePage >= pageCount - 1}
-          aria-label="Следующая страница"
+          aria-label={t('Следующая страница')}
           onClick={() => setPage(safePage + 1)}
         >
           <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M9 5l7 7-7 7" /></svg>
@@ -222,8 +223,8 @@ function DpiHostlistSection({ onToast }: { onToast: (message: string) => void })
 
       <p className="dpi-host-note">Если модуль запущен, он перезапускается автоматически — сайт начинает работать сразу.</p>
     </> : <div className="dpi-host-empty">
-      <strong>Список пуст</strong>
-      <p>Добавьте первый сайт, например instagram.com.</p>
+      <strong>{t('Список пуст')}</strong>
+      <p>{t('Добавьте первый сайт, например instagram.com.')}</p>
     </div>}
   </section>;
 }
@@ -280,11 +281,11 @@ function DpiExpertSection({ module, onToast }: { module: ModuleManifest; onToast
         <svg viewBox="0 0 20 20"><path d="m7.5 5.5 5 4.5-5 4.5" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" /></svg>
       </span>
       <span className="expert-toggle-copy">
-        <strong>Экспертные параметры</strong>
-        <small>Тонкая настройка обхода для опытных пользователей</small>
+        <strong>{t('Экспертные параметры')}</strong>
+        <small>{t('Тонкая настройка обхода для опытных пользователей')}</small>
       </span>
       {saved.hostcase || saved.hostdot || saved.wssize !== null || saved.desyncRepeats !== null || saved.custom
-        ? <span className="expert-active-badge">включены</span>
+        ? <span className="expert-active-badge">{t('включены')}</span>
         : null}
     </button>
 
@@ -296,12 +297,12 @@ function DpiExpertSection({ module, onToast }: { module: ModuleManifest; onToast
 
       <label className="expert-check">
         <input type="checkbox" checked={options.hostcase} onChange={(event) => patch({ hostcase: event.target.checked })} />
-        <span><strong>Включить hostcase</strong><small>--hostcase</small></span>
+        <span><strong>{t('Включить hostcase')}</strong><small>--hostcase</small></span>
       </label>
 
       <label className="expert-check">
         <input type="checkbox" checked={options.hostdot} onChange={(event) => patch({ hostdot: event.target.checked })} />
-        <span><strong>Включить hostdot</strong><small>--hostdot</small></span>
+        <span><strong>{t('Включить hostdot')}</strong><small>--hostdot</small></span>
       </label>
 
       <label className="expert-check">
@@ -310,7 +311,7 @@ function DpiExpertSection({ module, onToast }: { module: ModuleManifest; onToast
           checked={options.wssize !== null}
           onChange={(event) => patch({ wssize: event.target.checked ? 4 : null })}
         />
-        <span><strong>Размер фрагмента</strong><small>--wssize</small></span>
+        <span><strong>{t('Размер фрагмента')}</strong><small>--wssize</small></span>
         <input
           type="number"
           className="expert-number"
@@ -318,7 +319,7 @@ function DpiExpertSection({ module, onToast }: { module: ModuleManifest; onToast
           max={65535}
           disabled={options.wssize === null}
           value={numberValue(options.wssize)}
-          aria-label="Размер фрагмента"
+          aria-label={t('Размер фрагмента')}
           onChange={(event) => patch({ wssize: parseNumber(event.target.value) })}
         />
       </label>
@@ -329,7 +330,7 @@ function DpiExpertSection({ module, onToast }: { module: ModuleManifest; onToast
           checked={options.desyncRepeats !== null}
           onChange={(event) => patch({ desyncRepeats: event.target.checked ? 6 : null })}
         />
-        <span><strong>Повторы</strong><small>--dpi-desync-repeats</small></span>
+        <span><strong>{t('Повторы')}</strong><small>--dpi-desync-repeats</small></span>
         <input
           type="number"
           className="expert-number"
@@ -337,13 +338,13 @@ function DpiExpertSection({ module, onToast }: { module: ModuleManifest; onToast
           max={50}
           disabled={options.desyncRepeats === null}
           value={numberValue(options.desyncRepeats)}
-          aria-label="Число повторов"
+          aria-label={t('Число повторов')}
           onChange={(event) => patch({ desyncRepeats: parseNumber(event.target.value) })}
         />
       </label>
 
       <div className="expert-custom">
-        <label htmlFor="dpi-custom-args">Дополнительные аргументы</label>
+        <label htmlFor="dpi-custom-args">{t('Дополнительные аргументы')}</label>
         <input
           id="dpi-custom-args"
           type="text"
@@ -360,8 +361,8 @@ function DpiExpertSection({ module, onToast }: { module: ModuleManifest; onToast
         <button type="button" className="primary-button small" disabled={!dirty || busy} onClick={() => void save()}>
           <b>{busy ? 'Сохранение…' : 'Сохранить'}</b>
         </button>
-        <button type="button" className="quiet-button" disabled={!dirty || busy} onClick={reset}>Отменить</button>
-        {isRunning && <span className="expert-restart-note">Модуль перезапустится автоматически</span>}
+        <button type="button" className="quiet-button" disabled={!dirty || busy} onClick={reset}>{t('Отменить')}</button>
+        {isRunning && <span className="expert-restart-note">{t('Модуль перезапустится автоматически')}</span>}
       </div>
     </div>}
   </section>;
@@ -411,15 +412,15 @@ function TgProxySection({ module, onToast }: { module: ModuleManifest; onToast: 
   return <section className="module-settings-card">
     <div className="module-settings-card-head">
       <div>
-        <h3>Основные параметры</h3>
-        <p>Порт, на котором работает прокси, и набор обслуживаемых запросов.</p>
+        <h3>{t('Основные параметры')}</h3>
+        <p>{t('Порт, на котором работает прокси, и набор обслуживаемых запросов.')}</p>
       </div>
     </div>
 
     <div className="tg-option-row">
       <label htmlFor="tg-proxy-port">
-        <strong>Порт прокси</strong>
-        <small>Локальный порт, который слушает модуль</small>
+        <strong>{t('Порт прокси')}</strong>
+        <small>{t('Локальный порт, который слушает модуль')}</small>
       </label>
       <input
         id="tg-proxy-port"
@@ -432,7 +433,7 @@ function TgProxySection({ module, onToast }: { module: ModuleManifest; onToast: 
       />
     </div>
 
-    <div className="tg-mode-list" role="radiogroup" aria-label="Режим работы">
+    <div className="tg-mode-list" role="radiogroup" aria-label={t('Режим работы')}>
       <button
         type="button"
         role="radio"
@@ -441,7 +442,7 @@ function TgProxySection({ module, onToast }: { module: ModuleManifest; onToast: 
         onClick={() => setOptions((current) => ({ ...current, mode: 'telegram' }))}
       >
         <i className="settings-radio" />
-        <span><strong>Только Telegram</strong><small>Стандартный режим. Через прокси идёт только Telegram.</small></span>
+        <span><strong>{t('Только Telegram')}</strong><small>{t('Стандартный режим. Через прокси идёт только Telegram.')}</small></span>
       </button>
       <button
         type="button"
@@ -451,7 +452,7 @@ function TgProxySection({ module, onToast }: { module: ModuleManifest; onToast: 
         onClick={() => setOptions((current) => ({ ...current, mode: 'universal' }))}
       >
         <i className="settings-radio" />
-        <span><strong>Все прокси-запросы</strong><small>Универсальный прокси: подойдёт для браузера и других программ.</small></span>
+        <span><strong>{t('Все прокси-запросы')}</strong><small>{t('Универсальный прокси: подойдёт для браузера и других программ.')}</small></span>
       </button>
     </div>
 
@@ -459,8 +460,8 @@ function TgProxySection({ module, onToast }: { module: ModuleManifest; onToast: 
       <button type="button" className="primary-button small" disabled={!dirty || busy} onClick={() => void save()}>
         <b>{busy ? 'Сохранение…' : 'Сохранить'}</b>
       </button>
-      <button type="button" className="quiet-button" disabled={!dirty || busy} onClick={() => setOptions(saved)}>Отменить</button>
-      {dirty && isRunning && <span className="expert-restart-note">Модуль перезапустится автоматически</span>}
+      <button type="button" className="quiet-button" disabled={!dirty || busy} onClick={() => setOptions(saved)}>{t('Отменить')}</button>
+      {dirty && isRunning && <span className="expert-restart-note">{t('Модуль перезапустится автоматически')}</span>}
     </div>
 
     <div className="tg-status-block">
@@ -471,7 +472,7 @@ function TgProxySection({ module, onToast }: { module: ModuleManifest; onToast: 
       {status && <div className={`tg-status-report ${status.running && status.portListening ? 'is-ok' : status.running ? 'is-warning' : ''}`}>
         <strong>{status.summary}</strong>
         <ul>
-          <li><span>Процесс</span><b>{status.running ? 'активен' : 'не запущен'}</b></li>
+          <li><span>{t('Процесс')}</span><b>{status.running ? 'активен' : 'не запущен'}</b></li>
           <li><span>PID</span><b>{status.pid ?? '—'}</b></li>
           <li><span>Порт {status.host}:{status.port}</span><b>{status.portListening ? 'прослушивается' : 'не отвечает'}</b></li>
         </ul>
@@ -563,7 +564,7 @@ function StrategySelect({ options, value, disabled, onSelect }: {
       className="nx-select-trigger"
       aria-haspopup="listbox"
       aria-expanded={open}
-      aria-label="Профиль обхода"
+      aria-label={t('Профиль обхода')}
       disabled={disabled}
       onClick={() => setOpen((current) => !current)}
     >
@@ -573,7 +574,7 @@ function StrategySelect({ options, value, disabled, onSelect }: {
       </span>
     </button>
 
-    {open && <div className="nx-select-list" role="listbox" aria-label="Профиль обхода" ref={listRef} tabIndex={-1}>
+    {open && <div className="nx-select-list" role="listbox" aria-label={t('Профиль обхода')} ref={listRef} tabIndex={-1}>
       {options.map((option, index) => {
         const selected = option === value;
         return <button
@@ -588,7 +589,7 @@ function StrategySelect({ options, value, disabled, onSelect }: {
         >
           <span className="nx-select-mark" aria-hidden="true" />
           <span className="nx-select-label">{option}</span>
-          {selected && <span className="nx-select-current">активен</span>}
+          {selected && <span className="nx-select-current">{t('активен')}</span>}
         </button>;
       })}
     </div>}
@@ -634,12 +635,12 @@ export function ModuleSettings({ module, onClose, onToast, onStrategyChange }: {
     <div className="page-heading module-settings-heading">
       {/* Кнопка возврата стоит первой и слева: справа она соседствовала с
           «свернуть панель», и рука тянулась не туда. Слева — там, где её ищут. */}
-      <button type="button" className="page-back-button" onClick={onClose} aria-label="Вернуться к модулям">
+      <button type="button" className="page-back-button" onClick={onClose} aria-label={t('Вернуться к модулям')}>
         <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M15 5l-7 7 7 7" /></svg>
-        <span>К модулям</span>
+        <span>{t('К модулям')}</span>
       </button>
       <div>
-        <span className="section-kicker">НАСТРОЙКИ МОДУЛЯ</span>
+        <span className="section-kicker">{t('НАСТРОЙКИ МОДУЛЯ')}</span>
         <h1>{module.name}</h1>
         <p>{module.description}</p>
         {module.installed_version && <p className="module-settings-version">
@@ -651,14 +652,14 @@ export function ModuleSettings({ module, onClose, onToast, onStrategyChange }: {
     {module.id === 'zapret' && elevated === false && <div className="module-settings-notice is-elevation">
       <span aria-hidden="true">!</span>
       <div>
-        <strong>Нужны права администратора</strong>
+        <strong>{t('Нужны права администратора')}</strong>
         <p>Модуль изменяет сетевые настройки Windows. Установленная версия запрашивает права сама — запустите NEXUS через ярлык. Это сообщение видно при запуске из папки разработки.</p>
       </div>
     </div>}
 
     {isRunning && <div className="module-settings-notice">
       <span aria-hidden="true">i</span>
-      <div><strong>Модуль сейчас работает</strong><p>Новые настройки вступят в силу после перезапуска модуля.</p></div>
+      <div><strong>{t('Модуль сейчас работает')}</strong><p>{t('Новые настройки вступят в силу после перезапуска модуля.')}</p></div>
     </div>}
 
     {module.id === 'zapret' && <DpiHostlistSection onToast={onToast} />}
@@ -666,7 +667,7 @@ export function ModuleSettings({ module, onClose, onToast, onStrategyChange }: {
     {module.id === 'zapret' && strategies.length === 0 && <section className="module-settings-card">
       <div className="module-settings-card-head">
         <div>
-          <h3>Профиль обхода</h3>
+          <h3>{t('Профиль обхода')}</h3>
           <p>Профили ещё не загружены из релиза Zapret. Нажмите кнопку ниже — NEXUS найдёт их в установленном модуле.</p>
         </div>
       </div>
@@ -681,7 +682,7 @@ export function ModuleSettings({ module, onClose, onToast, onStrategyChange }: {
     {strategies.length > 0 && <section className="module-settings-card">
       <div className="module-settings-card-head">
         <div>
-          <h3>Профиль обхода</h3>
+          <h3>{t('Профиль обхода')}</h3>
           <p>Если какой-то сайт не открывается, попробуйте другой профиль. По умолчанию используется {DEFAULT_STRATEGY}.</p>
         </div>
         <span className="module-settings-count">{strategies.length}</span>
@@ -695,8 +696,8 @@ export function ModuleSettings({ module, onClose, onToast, onStrategyChange }: {
         />
       </div>
       {isRunning
-        ? <p className="dpi-host-hint">Остановите модуль, чтобы сменить профиль.</p>
-        : <p className="dpi-host-hint">Профили загружаются из релиза Zapret — доступны все, что в нём есть.</p>}
+        ? <p className="dpi-host-hint">{t('Остановите модуль, чтобы сменить профиль.')}</p>
+        : <p className="dpi-host-hint">{t('Профили загружаются из релиза Zapret — доступны все, что в нём есть.')}</p>}
       <div className="expert-actions">
         <button type="button" className="quiet-button" disabled={scanning || isRunning} onClick={() => void scanStrategies()}>
           {scanning ? 'Поиск…' : 'Обновить список профилей'}
@@ -710,8 +711,8 @@ export function ModuleSettings({ module, onClose, onToast, onStrategyChange }: {
 
     {module.id !== 'zapret' && !strategies.length && <div className="empty-state">
       <span>⚙</span>
-      <h3>Настроек пока нет</h3>
-      <p>У этого модуля нет параметров — он работает сразу после запуска.</p>
+      <h3>{t('Настроек пока нет')}</h3>
+      <p>{t('У этого модуля нет параметров — он работает сразу после запуска.')}</p>
     </div>}
   </section>;
 }
