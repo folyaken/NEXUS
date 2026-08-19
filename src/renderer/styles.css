@@ -932,7 +932,7 @@ kbd { padding: 3px 5px; border: 1px solid rgba(255,255,255,.1); border-radius: 5
 .app-shell.is-sidebar-collapsed .brand { justify-content: center; padding-right: 0; padding-left: 0; }
 .app-shell.is-sidebar-collapsed .workspace-selector { justify-content: center; gap: 0; margin-right: 2px; margin-left: 2px; padding-right: 0; padding-left: 0; }
 .app-shell.is-sidebar-collapsed .workspace-badge,
-.app-shell.is-sidebar-collapsed .nav-item em { display: none; }
+.app-shell.is-sidebar-collapsed .nav-item em:not(.nav-update-dot) { display: none; }
 .app-shell.is-sidebar-collapsed .nav-label { height: 10px; padding: 0; }
 .app-shell.is-sidebar-collapsed .nav-item { justify-content: center; gap: 0; padding-right: 0; padding-left: 0; }
 .app-shell.is-sidebar-collapsed .nav-item.active:before { left: -12px; }
@@ -1635,13 +1635,50 @@ kbd { padding: 3px 5px; border: 1px solid rgba(255,255,255,.1); border-radius: 5
 /* Отметка о доступном обновлении рядом с пунктом «О программе».
    Намеренно скромная: точка вместо окна поверх интерфейса. Программа не должна
    прерывать работу ради сообщения, которое можно прочитать позже. */
+/* Метка была квадратной не из-за своих правил, а из-за общего `.nav-item em`:
+   оно задаёт min-width 21px и border-radius 7px, и ширина 7px не применялась —
+   получался скруглённый прямоугольник. Поэтому размеры задаются жёстко, а не
+   в надежде переопределить соседнее правило. */
 .nav-update-dot {
-  width: 7px; height: 7px; margin-left: auto; flex: 0 0 auto;
-  border-radius: 50%; background: var(--mint);
-  box-shadow: 0 0 8px rgba(113,244,184,.65);
-  animation: nav-update-pulse 2.4s ease-in-out infinite;
+  position: relative; display: grid; flex: 0 0 auto;
+  width: 20px; min-width: 20px; height: 20px; margin-left: auto;
+  place-items: center;
+  border: 0; border-radius: 50%;
+  background: linear-gradient(145deg, #7cf2d5, #4bc79f);
+  box-shadow: 0 0 0 3px rgba(113,244,184,.14), 0 4px 12px rgba(60,190,150,.35);
+  color: #06231c;
+  cursor: pointer;
 }
-.appearance-graphite .nav-update-dot { background: #d6d6d6; box-shadow: 0 0 8px rgba(214,214,214,.5); }
-@keyframes nav-update-pulse { 0%, 100% { opacity: 1; } 50% { opacity: .45; } }
-@media (prefers-reduced-motion: reduce) { .app-frame:not(.motion-force) .nav-update-dot { animation: none; } }
-.app-frame.motion-off .nav-update-dot { animation: none; }
+/* Стрелка вниз внутри кружка: без неё точка не читается как «нажми и обнови» —
+   выглядит просто индикатором вроде «что-то произошло». */
+.nav-update-dot svg { width: 11px; height: 11px; fill: none; stroke: currentColor; stroke-linecap: round; stroke-linejoin: round; stroke-width: 2.4; }
+/* Расходящееся кольцо: взгляд цепляется за движение, а не за цвет. */
+.nav-update-dot:after {
+  position: absolute; inset: -3px; border: 1px solid rgba(113,244,184,.6);
+  border-radius: 50%; content: '';
+  animation: nav-update-ring 2.2s ease-out infinite;
+}
+.nav-item:hover .nav-update-dot { box-shadow: 0 0 0 4px rgba(113,244,184,.2), 0 6px 16px rgba(60,190,150,.45); transform: scale(1.06); }
+.nav-update-dot { transition: transform .18s ease, box-shadow .18s ease; }
+/* Сам пункт «О программе» подсвечивается, пока обновление не установлено:
+   одной точки мало — её легко не заметить в углу окна. */
+.nav-item.has-update { color: #e9fff9; background: rgba(113,244,184,.06); box-shadow: inset 0 0 0 1px rgba(113,244,184,.14); }
+.nav-item.has-update .nav-glyph { color: var(--mint); }
+.appearance-graphite .nav-update-dot { background: linear-gradient(145deg, #e6e6e6, #b4b4b4); box-shadow: 0 0 0 3px rgba(214,214,214,.13), 0 4px 12px rgba(0,0,0,.4); color: #161616; }
+.appearance-graphite .nav-update-dot:after { border-color: rgba(226,226,226,.5); }
+.appearance-graphite .nav-item.has-update { background: rgba(226,226,226,.05); box-shadow: inset 0 0 0 1px rgba(226,226,226,.12); }
+/* В свёрнутой панели подписи скрыты, и `.nav-item em` прячется целиком.
+   Метка обновления — не подпись, а единственный признак новой версии, поэтому
+   она остаётся видимой, но переезжает в угол значка. */
+.app-shell.is-sidebar-collapsed .nav-update-dot {
+  position: absolute; top: 7px; right: 7px;
+  display: grid; width: 12px; min-width: 12px; height: 12px; margin: 0;
+}
+.app-shell.is-sidebar-collapsed .nav-update-dot svg { width: 7px; height: 7px; }
+@keyframes nav-update-ring { 0% { opacity: .85; transform: scale(1); } 70% { opacity: 0; transform: scale(1.55); } 100% { opacity: 0; transform: scale(1.55); } }
+@media (prefers-reduced-motion: reduce) {
+  .app-frame:not(.motion-force) .nav-update-dot:after { animation: none; }
+  .app-frame:not(.motion-force) .nav-update-dot { transition: none; }
+}
+.app-frame.motion-off .nav-update-dot:after { animation: none; }
+.app-frame.motion-off .nav-update-dot { transition: none; }

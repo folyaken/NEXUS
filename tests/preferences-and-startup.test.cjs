@@ -20,10 +20,20 @@ assert.match(styles, /@media \(prefers-reduced-motion: reduce\)[\s\S]*?\.app-fra
 assert.match(styles, /\.app-frame\.motion-off[\s\S]*?animation: none;/);
 assert.match(app, /motion === 'full' \? 'motion-force'/);
 assert.match(app, /motion === 'reduced' \? 'motion-off'/);
-// Три понятных варианта вместо одного «как в системе».
-for (const option of ['Включены', 'Как в Windows', 'Выключены']) {
+// Два варианта, а не три. Пункт «Как в Windows» убран: человек видел
+// застывший интерфейс, шёл в настройки, а там уже было написано «включены»
+// (по системе) — и он не понимал, что нажимать. Анимации либо работают, либо
+// нет, третьего состояния у настройки быть не должно.
+for (const option of ['Включены', 'Выключены']) {
   assert.ok(app.includes(option), `нужен вариант «${option}»`);
 }
+assert.ok(!app.includes('Как в Windows'), 'вариант «Как в Windows» должен быть убран');
+assert.ok(!/'system'/.test(main.slice(main.indexOf('motion:'), main.indexOf('motion:') + 400)),
+  'режим system больше не сохраняется');
+// Старое значение из уже сохранённых настроек приводится к «включены»:
+// иначе у этих пользователей анимаций не будет, а переключателя в таком
+// положении в интерфейсе уже нет.
+assert.match(main, /motion: raw\.motion === 'reduced' \? 'reduced' : 'full'/);
 
 // --- Запуск вместе с Windows -------------------------------------------------
 assert.equal(DEFAULT_SETTINGS.launchAtLogin, false, 'без спроса в автозапуск не добавляемся');

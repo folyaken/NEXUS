@@ -22,7 +22,7 @@ function sourceHost(value: string): string {
   try {
     return new URL(value).host.replace(/^www\./i, '');
   } catch {
-    return 'Адрес подписки';
+    return t('Адрес подписки');
   }
 }
 
@@ -36,9 +36,9 @@ function formatBytes(value?: number): string {
 }
 
 function formatWhen(value?: string): string {
-  if (!value) return 'Ещё не обновлялась';
+  if (!value) return t('Ещё не обновлялась');
   const date = new Date(value);
-  if (!Number.isFinite(date.getTime())) return 'Время неизвестно';
+  if (!Number.isFinite(date.getTime())) return t('Время неизвестно');
   return new Intl.DateTimeFormat('ru-RU', {
     day: '2-digit',
     month: '2-digit',
@@ -49,9 +49,9 @@ function formatWhen(value?: string): string {
 }
 
 function expiration(value?: string): { label: string; tone: 'normal' | 'soon' | 'expired' } {
-  if (!value) return { label: 'Без ограничения срока', tone: 'normal' };
+  if (!value) return { label: t('Без ограничения срока'), tone: 'normal' };
   const date = new Date(value);
-  if (!Number.isFinite(date.getTime())) return { label: 'Срок не указан', tone: 'normal' };
+  if (!Number.isFinite(date.getTime())) return { label: t('Срок не указан'), tone: 'normal' };
   const days = Math.ceil((date.getTime() - Date.now()) / 86_400_000);
   const stamp = new Intl.DateTimeFormat('ru-RU', { day: '2-digit', month: '2-digit', year: 'numeric' }).format(date);
   if (days < 0) return { label: `Истекла ${stamp}`, tone: 'expired' };
@@ -148,7 +148,7 @@ export function SubscriptionManager({
             autoComplete="off"
             spellCheck={false}
           />
-          <button type="button" disabled={busy || !url.trim()} onClick={() => void submit()}>{action?.kind === 'add' ? 'Добавляем…' : 'Добавить подписку'}</button>
+          <button type="button" disabled={busy || !url.trim()} onClick={() => void submit()}>{action?.kind === 'add' ? t('Добавляем…') : t('Добавить подписку')}</button>
         </div>
       </section>}
 
@@ -167,10 +167,10 @@ export function SubscriptionManager({
           const progress = total ? Math.min(100, used / total * 100) : 0;
           const expires = expiration(info.expireAt);
           const state = expires.tone === 'expired'
-            ? { tone: 'expired', label: 'Срок истёк' }
+            ? { tone: 'expired', label: t('Срок истёк') }
             : nodes > 0
-              ? { tone: 'healthy', label: 'Исправна' }
-              : { tone: 'empty', label: 'Нет серверов' };
+              ? { tone: 'healthy', label: t('Исправна') }
+              : { tone: 'empty', label: t('Нет серверов') };
           const isRefreshing = action?.kind === 'refresh' && action.url === info.url;
           const isRemoving = action?.kind === 'remove' && action.url === info.url;
           const confirming = confirmUrl === info.url;
@@ -188,9 +188,9 @@ export function SubscriptionManager({
             </div>
 
             <div className="subscription-metrics">
-              <div><span>{t('Трафик')}</span><strong>{formatBytes(used)} <em>/ {total ? formatBytes(total) : 'без лимита'}</em></strong></div>
+              <div><span>{t('Трафик')}</span><strong>{formatBytes(used)} <em>/ {total ? formatBytes(total) : t('без лимита')}</em></strong></div>
               <div><span>{t('Последнее обновление')}</span><strong>{formatWhen(info.lastSync)}</strong></div>
-              <div><span>{t('Интервал панели')}</span><strong>{info.updateHours ? `каждые ${info.updateHours} ч.` : 'не указан'}</strong></div>
+              <div><span>{t('Интервал панели')}</span><strong>{info.updateHours ? `каждые ${info.updateHours} ч.` : t('не указан')}</strong></div>
             </div>
             {total > 0 && <div className="subscription-quota" title={`Использовано ${progress.toFixed(1)}%`}><i style={{ width: `${progress}%` }} /></div>}
             <div className="subscription-card-foot">
@@ -198,7 +198,7 @@ export function SubscriptionManager({
               <div className="subscription-card-actions">
                 <button type="button" className={`subscription-refresh ${isRefreshing ? 'is-loading' : ''}`} disabled={busy} onClick={() => void onRefresh(info.url)}>
                   <svg viewBox="0 0 24 24" aria-hidden><path fill="currentColor" d="M11.2 3.15A8.85 8.85 0 1 0 19 7.55l-1.95 1.15A6.55 6.55 0 1 1 11.2 5.45v2.7L17.45 5 11.2.65z" /></svg>
-                  {isRefreshing ? 'Обновляем…' : 'Обновить'}
+                  {isRefreshing ? t('Обновляем…') : t('Обновить')}
                 </button>
                 <button type="button" className="subscription-delete" disabled={busy} onClick={() => setConfirmUrl(info.url)}>{t('Удалить')}</button>
               </div>
@@ -206,7 +206,7 @@ export function SubscriptionManager({
 
             {confirming && <div className="subscription-confirm">
               <div><strong>{t('Удалить подписку?')}</strong><p>Будут удалены все её серверы: {nodes}. Это действие нельзя отменить.</p></div>
-              <div><button type="button" disabled={busy} onClick={() => setConfirmUrl(null)}>{t('Отмена')}</button><button type="button" className="danger" disabled={busy} onClick={() => void remove(info.url)}>{isRemoving ? 'Удаляем…' : 'Удалить'}</button></div>
+              <div><button type="button" disabled={busy} onClick={() => setConfirmUrl(null)}>{t('Отмена')}</button><button type="button" className="danger" disabled={busy} onClick={() => void remove(info.url)}>{isRemoving ? t('Удаляем…') : t('Удалить')}</button></div>
             </div>}
           </article>;
         })}

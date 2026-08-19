@@ -66,9 +66,10 @@ const { hostsWord } = (() => {
   // Функция не экспортируется (она нужна только этому экрану), поэтому
   // проверяется её поведение по исходному тексту.
   const body = moduleSettings.slice(moduleSettings.indexOf('function hostsWord'));
-  assert.ok(body.includes("return 'сайтов'"), 'нужна форма «сайтов»');
-  assert.ok(body.includes("return 'сайт'"), 'нужна форма «сайт»');
-  assert.ok(body.includes("return 'сайта'"), 'нужна форма «сайта»');
+  // Формы обёрнуты в t(): в английском режиме здесь показывалось русское «сайта».
+  assert.ok(body.includes("return t('сайтов')"), 'нужна форма «сайтов»');
+  assert.ok(body.includes("return t('сайт')"), 'нужна форма «сайт»');
+  assert.ok(body.includes("return t('сайта')"), 'нужна форма «сайта»');
   // Исключение для 11–14: «11 сайтов», а не «11 сайт».
   assert.ok(body.includes('tail >= 11 && tail <= 14'), 'нужно исключение для 11–14');
   return { hostsWord: null };

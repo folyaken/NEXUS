@@ -1,7 +1,7 @@
 {
   "name": "nexus-network-tools",
-  "version": "1.2.0",
-  "patchLevel": 70,
+  "version": "1.2.1",
+  "patchLevel": 71,
   "private": true,
   "description": "NEXUS — локальная Electron-обёртка для сетевых инструментов",
   "license": "SEE LICENSE IN LICENSE",

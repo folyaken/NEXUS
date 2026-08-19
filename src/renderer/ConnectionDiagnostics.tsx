@@ -8,12 +8,21 @@ type Props = {
   onToast: (message: string) => void;
 };
 
-const runtimeLabels: Record<VpnStatus, string> = {
-  disconnected: 'VPN выключен',
-  connecting: 'Подключение…',
-  connected: 'VPN подключён',
-  error: 'Ошибка VPN',
-};
+/**
+ * Подпись состояния VPN.
+ *
+ * Намеренно функция, а не готовый объект: объект уровня модуля вычисляется один
+ * раз при загрузке файла — раньше, чем приложение прочитает настройки и выберет
+ * язык. Английский интерфейс показывал бы здесь русские подписи до перезапуска.
+ */
+function runtimeLabel(status: VpnStatus): string {
+  return ({
+    disconnected: t('VPN выключен'),
+    connecting: t('Подключение…'),
+    connected: t('VPN подключён'),
+    error: t('Ошибка VPN'),
+  } as Record<VpnStatus, string>)[status];
+}
 
 function StatusIcon({ tone }: { tone: VpnDiagnosticTone }) {
   if (tone === 'ok') return <svg viewBox="0 0 24 24" aria-hidden><path d="m5 12.5 4.2 4L19 7" /></svg>;
@@ -40,7 +49,7 @@ async function writeClipboard(text: string): Promise<void> {
   field.select();
   const copied = document.execCommand('copy');
   field.remove();
-  if (!copied) throw new Error('Буфер обмена недоступен');
+  if (!copied) throw new Error(t('Буфер обмена недоступен'));
 }
 
 export function ConnectionDiagnostics({ profileId, onBack, onToast }: Props) {
@@ -53,10 +62,10 @@ export function ConnectionDiagnostics({ profileId, onBack, onToast }: Props) {
     setError('');
     try {
       const api = window.nexus;
-      if (!api) throw new Error('Диагностика доступна в приложении NEXUS');
+      if (!api) throw new Error(t('Диагностика доступна в приложении NEXUS'));
       setSnapshot(await api.getVpnDiagnostics(profileId));
     } catch (reason) {
-      setError(reason instanceof Error ? reason.message : 'Не удалось выполнить диагностику');
+      setError(reason instanceof Error ? reason.message : t('Не удалось выполнить диагностику'));
     } finally {
       setLoading(false);
     }
@@ -72,9 +81,9 @@ export function ConnectionDiagnostics({ profileId, onBack, onToast }: Props) {
     if (!snapshot) return;
     try {
       await writeClipboard(snapshot.report);
-      onToast('Безопасный отчёт скопирован');
+      onToast(t('Безопасный отчёт скопирован'));
     } catch (reason) {
-      onToast(reason instanceof Error ? reason.message : 'Не удалось скопировать отчёт');
+      onToast(reason instanceof Error ? reason.message : t('Не удалось скопировать отчёт'));
     }
   };
 
@@ -92,7 +101,7 @@ export function ConnectionDiagnostics({ profileId, onBack, onToast }: Props) {
       </div>
       <button type="button" className={`diagnostics-refresh ${loading ? 'is-loading' : ''}`} disabled={loading} onClick={() => void load()}>
         <svg viewBox="0 0 24 24" aria-hidden><path d="M19 8V4l-2 2a8 8 0 1 0 2.2 8" /><path d="M19 4h-4" /></svg>
-        {loading ? 'Проверяем…' : 'Проверить снова'}
+        {loading ? t('Проверяем…') : t('Проверить снова')}
       </button>
     </div>
 
@@ -103,9 +112,9 @@ export function ConnectionDiagnostics({ profileId, onBack, onToast }: Props) {
         <div className={`diagnostics-overview ${snapshot.overall}`}>
           <span className="diagnostics-overview-icon"><StatusIcon tone={snapshot.overall} /></span>
           <div>
-            <span>{runtimeLabels[snapshot.runtimeStatus]}</span>
+            <span>{runtimeLabel(snapshot.runtimeStatus)}</span>
             <h3>{snapshot.headline}</h3>
-            <p>{issueCount ? `Требуют внимания: ${issueCount}` : 'Все доступные проверки пройдены'}</p>
+            <p>{issueCount ? `Требуют внимания: ${issueCount}` : t('Все доступные проверки пройдены')}</p>
           </div>
           <div className="diagnostics-overview-meta">
             <span>{t('РЕЖИМ')}</span><strong>{snapshot.mode.toUpperCase()}</strong>
@@ -114,7 +123,7 @@ export function ConnectionDiagnostics({ profileId, onBack, onToast }: Props) {
 
         <div className="diagnostics-facts">
           <div><span>{t('Ядро')}</span><strong>{snapshot.engine}</strong><small>{t('локальный runtime')}</small></div>
-          <div><span>{t('Профиль')}</span><strong title={snapshot.profileName ?? undefined}>{snapshot.profileName ?? 'Не выбран'}</strong><small>{snapshot.protocol?.toUpperCase() ?? 'нет протокола'}</small></div>
+          <div><span>{t('Профиль')}</span><strong title={snapshot.profileName ?? undefined}>{snapshot.profileName ?? t('Не выбран')}</strong><small>{snapshot.protocol?.toUpperCase() ?? t('нет протокола')}</small></div>
           <div><span>{t('Сервер')}</span><strong title={snapshot.endpoint ?? undefined}>{snapshot.endpoint ?? '—'}</strong><small>{t('без данных доступа')}</small></div>
           <div><span>{t('Локальные порты')}</span><strong>{snapshot.localSocks.replace('127.0.0.1:', '')} / {snapshot.localHttp.replace('127.0.0.1:', '')}</strong><small>SOCKS / HTTP</small></div>
         </div>
@@ -126,7 +135,7 @@ export function ConnectionDiagnostics({ profileId, onBack, onToast }: Props) {
               {snapshot.checks.map((check) => <div className={`diagnostics-check ${check.tone}`} key={check.id}>
                 <span className="diagnostics-check-icon"><StatusIcon tone={check.tone} /></span>
                 <div><strong>{check.title}</strong><p>{check.summary}</p>{check.detail && <small>{check.detail}</small>}</div>
-                <em>{check.tone === 'ok' ? 'ГОТОВО' : check.tone === 'error' ? 'ОШИБКА' : check.tone === 'warning' ? 'ВНИМАНИЕ' : 'ИНФО'}</em>
+                <em>{check.tone === 'ok' ? t('ГОТОВО') : check.tone === 'error' ? t('ОШИБКА') : check.tone === 'warning' ? t('ВНИМАНИЕ') : t('ИНФО')}</em>
               </div>)}
             </div>
           </section>

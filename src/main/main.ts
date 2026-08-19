@@ -103,7 +103,11 @@ function normalizeSettings(raw: Partial<AppSettings>): AppSettings {
     appearance: raw.appearance === 'graphite' ? 'graphite' : 'indigo',
     // Полное движение по умолчанию: у части пользователей Windows глобально
     // гасит анимации, и интерфейс выглядел сломанным, хотя работал верно.
-    motion: raw.motion === 'system' || raw.motion === 'reduced' ? raw.motion : 'full',
+    // Значение 'system' осталось от прежней настройки «как в Windows». Пункт
+    // убран, но в сохранённых настройках оно ещё встречается — приводим его к
+    // «включены», иначе у этих пользователей анимаций не будет, а переключателя
+    // в таком положении в интерфейсе уже нет.
+    motion: raw.motion === 'reduced' ? 'reduced' : 'full',
     launchAtLogin: Boolean(raw.launchAtLogin),
     autoStart: Boolean(raw.autoStart),
     notifications: raw.notifications !== false,

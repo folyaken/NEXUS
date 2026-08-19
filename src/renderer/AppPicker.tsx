@@ -205,7 +205,7 @@ export default function AppPicker({ selected, onClose, onConfirm, onBrowse }: Pr
           {state === 'ready' && <button type="button" className="app-picker-refresh" onClick={() => void load()}>{t('Обновить')}</button>}
           <button type="button" className="app-picker-cancel" onClick={onClose}>{t('Отмена')}</button>
           <button type="button" className="app-picker-confirm" disabled={!picked.size} onClick={confirm}>
-            {picked.size ? `Добавить · ${picked.size}` : 'Добавить'}
+            {picked.size ? `Добавить · ${picked.size}` : t('Добавить')}
           </button>
         </div>
       </footer>

@@ -39,13 +39,13 @@ const PAGE_SIZE = 6;
 /** Склонение для счётчика: «1 сайт», «2 сайта», «5 сайтов». */
 function hostsWord(count: number): string {
   const tail = count % 100;
-  if (tail >= 11 && tail <= 14) return 'сайтов';
+  if (tail >= 11 && tail <= 14) return t('сайтов');
   switch (count % 10) {
-    case 1: return 'сайт';
+    case 1: return t('сайт');
     case 2:
     case 3:
-    case 4: return 'сайта';
-    default: return 'сайтов';
+    case 4: return t('сайта');
+    default: return t('сайтов');
   }
 }
 
@@ -260,7 +260,7 @@ function DpiExpertSection({ module, onToast }: { module: ModuleManifest; onToast
     setBusy(true);
     try {
       await window.nexus?.setModuleExtraArgs(module.id, options);
-      onToast(isRunning ? 'Параметры сохранены, модуль перезапущен' : 'Параметры сохранены');
+      onToast(isRunning ? t('Параметры сохранены, модуль перезапущен') : t('Параметры сохранены'));
     } catch (error) {
       onToast(cleanError(error));
     } finally {
@@ -359,7 +359,7 @@ function DpiExpertSection({ module, onToast }: { module: ModuleManifest; onToast
 
       <div className="expert-actions">
         <button type="button" className="primary-button small" disabled={!dirty || busy} onClick={() => void save()}>
-          <b>{busy ? 'Сохранение…' : 'Сохранить'}</b>
+          <b>{busy ? t('Сохранение…') : t('Сохранить')}</b>
         </button>
         <button type="button" className="quiet-button" disabled={!dirty || busy} onClick={reset}>{t('Отменить')}</button>
         {isRunning && <span className="expert-restart-note">{t('Модуль перезапустится автоматически')}</span>}
@@ -388,7 +388,7 @@ function TgProxySection({ module, onToast }: { module: ModuleManifest; onToast: 
     try {
       await window.nexus?.setTgProxyOptions(module.id, options);
       setStatus(null);
-      onToast(isRunning ? 'Параметры сохранены, модуль перезапущен' : 'Параметры сохранены');
+      onToast(isRunning ? t('Параметры сохранены, модуль перезапущен') : t('Параметры сохранены'));
     } catch (error) {
       onToast(cleanError(error));
     } finally {
@@ -458,7 +458,7 @@ function TgProxySection({ module, onToast }: { module: ModuleManifest; onToast: 
 
     <div className="expert-actions">
       <button type="button" className="primary-button small" disabled={!dirty || busy} onClick={() => void save()}>
-        <b>{busy ? 'Сохранение…' : 'Сохранить'}</b>
+        <b>{busy ? t('Сохранение…') : t('Сохранить')}</b>
       </button>
       <button type="button" className="quiet-button" disabled={!dirty || busy} onClick={() => setOptions(saved)}>{t('Отменить')}</button>
       {dirty && isRunning && <span className="expert-restart-note">{t('Модуль перезапустится автоматически')}</span>}
@@ -466,15 +466,15 @@ function TgProxySection({ module, onToast }: { module: ModuleManifest; onToast: 
 
     <div className="tg-status-block">
       <button type="button" className="quiet-button" disabled={checking} onClick={() => void checkStatus()}>
-        {checking ? 'Проверяем…' : 'Проверить статус'}
+        {checking ? t('Проверяем…') : t('Проверить статус')}
       </button>
 
       {status && <div className={`tg-status-report ${status.running && status.portListening ? 'is-ok' : status.running ? 'is-warning' : ''}`}>
         <strong>{status.summary}</strong>
         <ul>
-          <li><span>{t('Процесс')}</span><b>{status.running ? 'активен' : 'не запущен'}</b></li>
+          <li><span>{t('Процесс')}</span><b>{status.running ? t('активен') : t('не запущен')}</b></li>
           <li><span>PID</span><b>{status.pid ?? '—'}</b></li>
-          <li><span>Порт {status.host}:{status.port}</span><b>{status.portListening ? 'прослушивается' : 'не отвечает'}</b></li>
+          <li><span>Порт {status.host}:{status.port}</span><b>{status.portListening ? t('прослушивается') : t('не отвечает')}</b></li>
         </ul>
       </div>}
     </div>
@@ -568,7 +568,7 @@ function StrategySelect({ options, value, disabled, onSelect }: {
       disabled={disabled}
       onClick={() => setOpen((current) => !current)}
     >
-      <span className="nx-select-value">{value || 'Профиль не выбран'}</span>
+      <span className="nx-select-value">{value || t('Профиль не выбран')}</span>
       <span className="nx-select-caret" aria-hidden="true">
         <svg viewBox="0 0 20 20"><path d="m5.5 8 4.5 4.5L14.5 8" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" /></svg>
       </span>
@@ -619,7 +619,7 @@ export function ModuleSettings({ module, onClose, onToast, onStrategyChange }: {
     setScanning(true);
     try {
       const next = await window.nexus?.refreshModuleStrategies(module.id);
-      onToast(next ? `Найдено профилей: ${Object.keys(next.strategies ?? {}).length}` : 'Профили не найдены');
+      onToast(next ? `Найдено профилей: ${Object.keys(next.strategies ?? {}).length}` : t('Профили не найдены'));
     } catch (error) {
       onToast(cleanError(error));
     } finally {
@@ -673,7 +673,7 @@ export function ModuleSettings({ module, onClose, onToast, onStrategyChange }: {
       </div>
       <div className="expert-actions">
         <button type="button" className="primary-button small" disabled={scanning} onClick={() => void scanStrategies()}>
-          <b>{scanning ? 'Поиск…' : 'Найти профили'}</b>
+          <b>{scanning ? t('Поиск…') : t('Найти профили')}</b>
         </button>
       </div>
       <p className="dpi-host-hint">Если профили не найдены, откройте «Модули» и нажмите «Проверить обновления».</p>
@@ -700,7 +700,7 @@ export function ModuleSettings({ module, onClose, onToast, onStrategyChange }: {
         : <p className="dpi-host-hint">{t('Профили загружаются из релиза Zapret — доступны все, что в нём есть.')}</p>}
       <div className="expert-actions">
         <button type="button" className="quiet-button" disabled={scanning || isRunning} onClick={() => void scanStrategies()}>
-          {scanning ? 'Поиск…' : 'Обновить список профилей'}
+          {scanning ? t('Поиск…') : t('Обновить список профилей')}
         </button>
       </div>
     </section>}

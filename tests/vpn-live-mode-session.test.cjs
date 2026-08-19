@@ -159,7 +159,9 @@ assert.match(app, /profileWrapRef\.current\?\.contains\(target\)/);
 assert.match(app, /window\.addEventListener\('blur', closeOnWindowBlur\)/);
 assert.match(app, /useEffect\(\(\) => \{ setProfileOpen\(false\); \}, \[page\]\)/);
 assert.match(app, /className="about-nav-dot"/);
-assert.match(app, /role="dialog" aria-label="Локальный профиль" aria-hidden=\{!open\}/);
+// Подпись для чтения с экрана берётся из словаря: с жёстким русским текстом
+// английский интерфейс объявлял бы окно по-русски.
+assert.match(app, /role="dialog" aria-label=\{translate\('Локальный профиль'\)\} aria-hidden=\{!open\}/);
 assert.match(app, /function WindowBar\(\{ maximized \}/);
 assert.match(app, /window\.nexus\?\.toggleMaximize\(\)/);
 assert.doesNotMatch(app, /toggleFullscreen|isFullscreen|onFullscreen/);
@@ -170,7 +172,7 @@ assert.match(app, /Оформление/);
 assert.match(app, /appearance-options/);
 assert.match(app, /if \(name === 'settings'\) return <GearIcon \/>/);
 assert.match(app, /nexus-sidebar-collapsed/);
-assert.match(app, /aria-label=\{sidebarCollapsed \? 'Развернуть боковую панель' : 'Свернуть боковую панель'\}/);
+assert.match(app, /aria-label=\{sidebarCollapsed \? t\('Развернуть боковую панель'\) : t\('Свернуть боковую панель'\)\}/);
 // Пункт «О программе» остаётся на месте; текст проходит через перевод, поэтому
 // в разметке он записан вызовом словаря, а не строкой.
 assert.match(app, />\{t\('О программе'\)\}<\/span>/);
@@ -179,7 +181,7 @@ assert.match(app, /<h1>\{t\('О программе'\)\}<\/h1>/);
 // словарь перевода, поэтому в разметке он записан вызовом, а не строкой.
 assert.match(app, /<span>\{t\('Логи'\)\}<\/span>/);
 assert.match(app, /<h1>Логи<\/h1>/);
-assert.match(app, /role="tablist" aria-label="Источники логов"/);
+assert.match(app, /role="tablist" aria-label=\{t\('Источники логов'\)\}/);
 assert.match(app, /Основной лог/);
 assert.match(app, /Лог туннеля/);
 assert.match(app, /log-console-line/);
