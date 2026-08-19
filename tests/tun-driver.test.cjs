@@ -30,13 +30,27 @@ assert.equal(
 assert.match(bootstrapSource, /parsed\.protocol !== 'https:'/, 'только защищённое соединение');
 assert.match(bootstrapSource, /!ALLOWED_HOSTS\.has\(parsed\.hostname\.toLowerCase\(\)\)/, 'только доверенные узлы');
 
-// Сайт разработчика доступен не из всех сетей. Без запасного источника сборка
-// молча уходила без драйвера, и TUN не работал уже у пользователя.
-assert.ok(bootstrap.WINTUN_SOURCES.length >= 2, 'нужен запасной источник загрузки');
+// Сайт разработчика блокируется частью провайдеров: соединение обрывается, и
+// сборка уходила без драйвера. GitHub при этом доступен — оттуда уже
+// загружаются ядра, поэтому запасной источник размещён там.
 for (const source of bootstrap.WINTUN_SOURCES) {
   assert.match(source.url, /^https:\/\//, 'только защищённое соединение');
-  assert.ok(source.url.includes(bootstrap.WINTUN_VERSION), 'источники обязаны давать одну версию');
+  assert.ok(source.url.includes(bootstrap.WINTUN_VERSION), 'основной источник обязан давать нужную версию');
 }
+assert.match(bootstrap.GITHUB_FALLBACK.url, /^https:\/\/raw\.githubusercontent\.com\//, 'запасной источник — GitHub');
+
+// Запасной путь скачивает отдельную библиотеку, поэтому сверяется её
+// собственная сумма — именно официальной подписанной версии 0.14.1.
+assert.equal(
+  bootstrap.DLL_SHA256.amd64,
+  'e5da8447dc2c320edc0fc52fa01885c103de8c118481f683643cacc3220dafce',
+);
+assert.match(bootstrapSource, /libraryDigest !== DLL_SHA256\[arch\]/, 'запасной файл обязан проверяться');
+
+// Для разрядностей, где опубликованной суммы нет, запасной путь не работает:
+// подсовывать непроверенный драйвер нельзя.
+assert.match(bootstrapSource, /arch !== GITHUB_FALLBACK\.arch/);
+assert.deepEqual(Object.keys(bootstrap.DLL_SHA256), ['amd64']);
 // Обоим источникам — одна контрольная сумма: запасной путь не ослабляет проверку.
 assert.match(bootstrapSource, /digest !== WINTUN_SHA256/);
 

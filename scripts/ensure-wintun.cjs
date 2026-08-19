@@ -40,10 +40,37 @@ const WINTUN_SHA256 = '07c256185d6ee3652e09fa55c0b673e2624b565e02c4b9091c79ca7d2
  * что запасной источник не снижает надёжность.
  */
 const WINTUN_SOURCES = [
-  { url: WINTUN_URL, host: 'www.wintun.net' },
-  { url: `https://download.wireguard.com/wintun/wintun-${WINTUN_VERSION}.zip`, host: 'download.wireguard.com' },
+  { url: WINTUN_URL, host: 'www.wintun.net', kind: 'zip' },
 ];
-const ALLOWED_HOSTS = new Set(WINTUN_SOURCES.map((item) => item.host));
+const ALLOWED_HOSTS = new Set([...WINTUN_SOURCES.map((item) => item.host), 'api.github.com', 'raw.githubusercontent.com']);
+
+/**
+ * Запасной источник — готовая библиотека, а не архив.
+ *
+ * Сайт разработчика блокируется частью провайдеров: соединение обрывается, и
+ * сборка уходила без драйвера. GitHub при этом доступен — оттуда уже
+ * загружаются ядра Xray и sing-box.
+ *
+ * Файл берётся не «какой найдётся»: он сверяется по контрольной сумме именно
+ * официальной подписанной библиотеки из архива wintun 0.14.1. Любой другой
+ * файл, даже с тем же именем, будет отклонён.
+ */
+const GITHUB_FALLBACK = {
+  url: 'https://raw.githubusercontent.com/mascarenhasmelson/wintun-tunnel/main/wintun.dll',
+  host: 'raw.githubusercontent.com',
+  kind: 'dll',
+  arch: 'amd64',
+};
+
+/**
+ * Контрольные суммы официальных библиотек внутри архива wintun 0.14.1.
+ *
+ * Нужны для запасного пути: там скачивается отдельный файл, и проверить сумму
+ * архива целиком невозможно. Значения взяты из официального архива.
+ */
+const DLL_SHA256 = {
+  amd64: 'e5da8447dc2c320edc0fc52fa01885c103de8c118481f683643cacc3220dafce',
+};
 
 const REQUEST_TIMEOUT_MS = 30_000;
 const MAX_ARCHIVE_BYTES = 16 * 1024 * 1024;
@@ -150,6 +177,16 @@ function warnTunUnavailable(reasons) {
   console.error('');
 }
 
+/** Кладёт проверенную библиотеку рядом с ядрами. */
+async function installLibrary(content) {
+  await fs.promises.mkdir(binDir, { recursive: true });
+  const temporary = `${destination}.download-${process.pid}`;
+  await fs.promises.writeFile(temporary, content);
+  await fs.promises.rm(destination, { force: true }).catch(() => undefined);
+  await fs.promises.rename(temporary, destination);
+  console.log(`Драйвер TUN установлен: ${path.relative(root, destination)}`);
+}
+
 async function main() {
   if (!isWin) {
     console.log('Драйвер TUN нужен только в Windows — шаг пропущен.');
@@ -161,6 +198,7 @@ async function main() {
   }
 
   console.log(`Загрузка драйвера TUN (Wintun ${WINTUN_VERSION})…`);
+  const arch = windowsArchFolder();
   let archive = null;
   const failures = [];
   for (const source of WINTUN_SOURCES) {
@@ -171,9 +209,33 @@ async function main() {
       failures.push(`${source.host}: ${error instanceof Error ? error.message : String(error)}`);
     }
   }
+
+  // Запасной путь: сайт разработчика недоступен, берём готовую библиотеку с
+  // GitHub. Он работает только для обычных 64-разрядных систем — для прочих
+  // разрядностей опубликованной суммы нет, и подсовывать непроверенный драйвер
+  // нельзя.
   if (!archive) {
-    warnTunUnavailable(failures);
-    return;
+    if (arch !== GITHUB_FALLBACK.arch) {
+      failures.push(`запасной источник поддерживает только ${GITHUB_FALLBACK.arch}, а нужна сборка ${arch}`);
+      warnTunUnavailable(failures);
+      return;
+    }
+    try {
+      console.log('Основной источник недоступен, пробуем запасной…');
+      const library = await download(GITHUB_FALLBACK.url);
+      const libraryDigest = createHash('sha256').update(library).digest('hex');
+      if (libraryDigest !== DLL_SHA256[arch]) {
+        failures.push('запасной источник: контрольная сумма не совпала — файл отклонён');
+        warnTunUnavailable(failures);
+        return;
+      }
+      await installLibrary(library);
+      return;
+    } catch (error) {
+      failures.push(`${GITHUB_FALLBACK.host}: ${error instanceof Error ? error.message : String(error)}`);
+      warnTunUnavailable(failures);
+      return;
+    }
   }
 
   const digest = createHash('sha256').update(archive).digest('hex');
@@ -210,7 +272,7 @@ async function main() {
   }
 }
 
-module.exports = { WINTUN_VERSION, WINTUN_SHA256, WINTUN_URL, WINTUN_SOURCES, windowsArchFolder, destination, alreadyInstalled };
+module.exports = { WINTUN_VERSION, WINTUN_SHA256, WINTUN_URL, WINTUN_SOURCES, GITHUB_FALLBACK, DLL_SHA256, windowsArchFolder, destination, alreadyInstalled };
 
 if (require.main === module) {
   void main();
