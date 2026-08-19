@@ -78,6 +78,14 @@ function cleanError(error: unknown): string {
   return translate(text);
 }
 
+/** Размер файла обновления: гигабайты для «весит 1.2 GB», мегабайты для остального. */
+function formatBytes(value?: number): string {
+  if (!value) return '0 MB';
+  const mb = value / (1024 * 1024);
+  if (mb < 1024) return `${mb < 10 ? mb.toFixed(1) : Math.round(mb)} MB`;
+  return `${(mb / 1024).toFixed(1)} GB`;
+}
+
 function IconMark({ children }: { children: string }) {
   return <span className="icon-mark" aria-hidden="true">{children}</span>;
 }
@@ -543,9 +551,35 @@ function AboutPage({ t }: { t: (text: string) => string }) {
           <svg viewBox="0 0 96 96"><rect x="20" y="22" width="56" height="42" rx="8" /><path d="M38 75h20M48 64v11" /><path className="about-update-arrow" d="M35 42a15 15 0 0 1 25-8l4 5m0-10v10H54M61 47a15 15 0 0 1-25 8l-4-5m0 10V50h10" /></svg>
         </div>
         <div className="about-update-copy"><span>{t('ОБНОВЛЕНИЕ NEXUS')}</span><h3>{updateHeadline}</h3><p>{(updateCheck?.message && t(updateCheck.message)) || `Текущая версия ${info.nexusVersion}. Нажмите «Проверить», чтобы узнать о новой.`}</p></div>
-        {updateStatus === 'downloading' && <div className="about-update-progress"><div className="about-update-progress-bar" style={{ width: `${updateCheck?.percent ?? 0}%` }} /></div>}
+        {updateStatus === 'downloading' && <div className="about-update-progress-block">
+          <div className="about-update-progress"><div className="about-update-progress-bar" style={{ width: `${Math.round(updateCheck?.percent ?? 0)}%` }} /></div>
+          <div className="about-update-progress-meta">
+            <strong>{Math.round(updateCheck?.percent ?? 0)}%</strong>
+            {updateCheck?.totalBytes ? <span>{formatBytes(updateCheck.downloadedBytes ?? 0)} / {formatBytes(updateCheck.totalBytes)}</span> : null}
+          </div>
+        </div>}
         {updateCheck?.releaseNotes && <p className="about-update-notes">{updateCheck.releaseNotes}</p>}
         {checkedAt && <div className="about-update-checked"><i /> {t('Проверено в')} {checkedAt}</div>}
+        {/* Три шага показывают весь путь целиком. Раньше состояние читалось
+            только по подписи кнопки, и было неясно, что произойдёт после
+            нажатия — особенно на шаге установки. */}
+        <ol className="about-update-steps" aria-hidden="true">
+          {([
+            ['check', t('Проверка')],
+            ['download', t('Загрузка')],
+            ['install', t('Установка')],
+          ] as const).map(([step, label]) => {
+            const order = { check: 0, download: 1, install: 2 }[step];
+            const current = updateStatus === 'downloading' ? 1
+              : updateStatus === 'downloaded' ? 2
+              : updateStatus === 'available' ? 1
+              : 0;
+            const done = order < current || (updateStatus === 'downloaded' && order <= 1);
+            return <li key={step} className={`${done ? 'is-done' : ''} ${order === current ? 'is-current' : ''}`}>
+              <i />{label}
+            </li>;
+          })}
+        </ol>
         <div className="about-update-actions">
           <button type="button" className="about-check-button" disabled={checkingUpdate || updateStatus === 'downloading'} onClick={() => void runUpdateAction('check')}>{checkingUpdate && updateStatus !== 'downloading' ? t('Проверяем…') : updateCheck ? t('Проверить снова') : t('Проверить')}</button>
           {updateStatus === 'available' && <button type="button" className="about-install-button is-ready" disabled={checkingUpdate} onClick={() => void runUpdateAction('download')}>{t('Скачать')}</button>}

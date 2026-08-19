@@ -105,8 +105,57 @@ const rule = textButton.slice(0, textButton.indexOf('}'));
 assert.match(rule, /font-size: 11px/, 'подпись должна быть мельче заголовка');
 assert.match(rule, /font-weight: 500/, 'жирное начертание выглядело тяжело');
 assert.match(rule, /padding: 5px 8px 5px 10px/);
-// Стрелки нарисованы тонкой линией: жирная смотрелась грубо.
+// Стрелка «Все модули» нарисована линией — она должна быть тонкой.
 assert.match(styles, /\.text-button-arrow svg \{[^}]*stroke-width: 1\.6/);
-assert.match(styles, /\.quiet-button-icon svg \{[^}]*stroke-width: 1\.6/);
+
+// Значок обновления рисуется сплошной заливкой (fill), как в Jey2Ray.
+// Общее правило .quiet-button-icon svg навязывало ему ещё и обводку поверх
+// заливки: контур наращивался с обеих сторон, и стрелка выглядела жирной.
+// Обводка нужна только контурным значкам, поэтому правило исключает .spin-ico.
+assert.match(styles, /\.quiet-button-icon svg:not\(\.spin-ico\) \{[^}]*stroke-width: 1\.6/,
+  'обводка должна применяться только к контурным значкам');
+assert.match(styles, /\.quiet-button-icon \.spin-ico \{[^}]*stroke: none/,
+  'у заливочного значка не должно быть обводки');
+assert.match(styles, /\.github-button-icon \.spin-ico \{[^}]*stroke: none/);
+// Общее правило не должно задавать обводку всем значкам подряд.
+assert.doesNotMatch(styles, /\.quiet-button-icon svg \{[^}]*stroke-width/,
+  'обводка в общем правиле снова утолщает заливочный значок');
+
+// --- Страница «Готово» пропускается при обновлении -------------------------------
+// Тихий режим ставит обновление без окон, но шаблон electron-builder всё равно
+// добавляет финальную страницу с кнопкой «Готово» — на ней установка и
+// останавливалась. Пропуск сделан в самом установщике намеренно: команду на
+// установку отдаёт УЖЕ УСТАНОВЛЕННАЯ (старая) копия программы, поэтому правка
+// в коде приложения на текущее обновление не повлияла бы.
+const nsh = fs.readFileSync(path.join(root, 'build', 'installer.nsh'), 'utf8');
+assert.match(nsh, /!macro customFinishPage/, 'нужна своя финальная страница');
+assert.match(nsh, /Function NexusSkipFinishPage/);
+assert.match(nsh, /\$\{if\} \$\{isUpdated\}[\s\S]{0,120}Call NexusLaunchAfterInstall[\s\S]{0,40}Abort/,
+  'при обновлении страница обязана пропускаться, а программа — запускаться');
+assert.match(nsh, /MUI_PAGE_CUSTOMFUNCTION_PRE NexusSkipFinishPage/);
+// Запуск от имени пользователя: NEXUS работает с правами администратора, и без
+// этого окно открылось бы в чужом сеансе.
+assert.match(nsh, /StdUtils\.ExecShellAsUser/);
+// Макрос StartApp объявляет Var /GLOBAL startAppArgs, а его уже объявляет
+// installSection — повторное объявление обрывает сборку установщика.
+assert.doesNotMatch(nsh, /!insertmacro StartApp/, 'повторное объявление переменной сломает сборку');
+// Весь блок объявлен только для установщика: при сборке деинсталлятора страниц
+// нет, и ссылка на функции оборвалась бы.
+const finishBlock = nsh.slice(nsh.indexOf('!macro customFinishPage'), nsh.indexOf('!macroend', nsh.indexOf('!macro customFinishPage')));
+assert.match(finishBlock, /!ifndef BUILD_UNINSTALLER/);
+
+// --- Окно обновления показывает ход дела ------------------------------------------
+// Была только полоска без единой цифры: при файле на 90 МБ непонятно, сколько
+// ждать и идёт ли загрузка вообще.
+assert.match(app, /className="about-update-progress-meta"/);
+assert.match(app, /formatBytes\(updateCheck\.totalBytes\)/, 'нужен размер файла');
+assert.match(app, /Math\.round\(updateCheck\?\.percent \?\? 0\)\}%/, 'нужен процент цифрой');
+assert.match(app, /className="about-update-steps"/, 'нужны шаги обновления');
+assert.match(styles, /\.about-update-steps li\.is-current/);
+assert.match(styles, /\.about-update-steps li\.is-done/);
+// Бегущий блик показывает, что процесс не замер, и подчиняется настройке движения.
+assert.match(styles, /@keyframes update-sheen/);
+assert.ok(styles.includes('.app-frame:not(.motion-force) .about-update-progress-bar:after'));
+assert.ok(styles.includes('.app-frame.motion-off .about-update-progress-bar:after'));
 
 console.log('Installer art and update flow checks passed.');

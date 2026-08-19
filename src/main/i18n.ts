@@ -341,6 +341,9 @@ const EN: Record<string, string> = {
   'Доступно обновление': 'An update is available',
 
   // --- Добавлено при доведении английского до конца ------------------------------
+  'Проверка': 'Checking',
+  'Загрузка': 'Downloading',
+  'Установка': 'Installing',
   // Сообщения об обновлении: приходят из main-процесса и переводятся при показе.
   'Загрузка обновления…': 'Downloading the update…',
   'Компонент обновления недоступен в этой сборке.': 'The update component is unavailable in this build.',
