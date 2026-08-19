@@ -1,9 +1,9 @@
 {
   "name": "nexus-network-tools",
-  "version": "1.2.1",
-  "patchLevel": 71,
+  "version": "1.2.2",
+  "patchLevel": 72,
   "private": true,
-  "description": "NEXUS — локальная Electron-обёртка для сетевых инструментов",
+  "description": "NEXUS - network tools for Windows",
   "license": "SEE LICENSE IN LICENSE",
   "author": "NEXUS",
   "main": "dist-electron/main.js",
@@ -11,7 +11,7 @@
     "dev": "node scripts/ensure-xray.cjs && node scripts/ensure-singbox.cjs && node scripts/ensure-wintun.cjs && npm run build:main && concurrently -k \"vite --host 0.0.0.0\" \"wait-on http://localhost:5173 && electron .\"",
     "start": "npm run start:standalone",
     "start:standalone": "node scripts/ensure-xray.cjs && node scripts/ensure-singbox.cjs && npm run build && node scripts/launch-standalone.cjs",
-    "package:win": "node scripts/ensure-xray.cjs && node scripts/ensure-singbox.cjs && node scripts/ensure-wintun.cjs && node scripts/prepare-wincodesign.cjs && node scripts/prepare-license.cjs && npm run build && electron-builder --win --x64",
+    "package:win": "node scripts/check-build-config.cjs && node scripts/ensure-xray.cjs && node scripts/ensure-singbox.cjs && node scripts/ensure-wintun.cjs && node scripts/prepare-wincodesign.cjs && node scripts/prepare-license.cjs && npm run build && electron-builder --win --x64",
     "postinstall": "node scripts/ensure-xray.cjs && node scripts/ensure-singbox.cjs",
     "dev:web": "vite --host 0.0.0.0",
     "build": "npm run build:main && vite build",
@@ -97,7 +97,9 @@
       ],
       "icon": "assets/nexus.ico",
       "requestedExecutionLevel": "requireAdministrator",
-      "sign": "./build/no-sign.cjs"
+      "signtoolOptions": {
+        "sign": "./build/no-sign.cjs"
+      }
     },
     "nsis": {
       "oneClick": false,
@@ -114,6 +116,7 @@
         "ru_RU"
       ],
       "unicode": true,
+      "warningsAsErrors": false,
       "include": "build/installer.nsh",
       "deleteAppDataOnUninstall": false
     },

@@ -32,6 +32,50 @@ function run(command, args, useShell = false) {
   if (result.status !== 0) process.exit(result.status ?? 1);
 }
 
+/**
+ * Запускает сборку установщика, сохраняя весь вывод в файл.
+ *
+ * Когда makensis падает, он печатает сотню строк «Command line defined», и
+ * сама причина уезжает за край окна консоли — в терминале её уже не прочитать.
+ * Поэтому вывод пишется и на экран, и в release/build-log.txt, а при ошибке
+ * последние строки печатаются ещё раз, отдельным блоком.
+ */
+function runBuilder(args) {
+  fs.mkdirSync(path.join(root, 'release'), { recursive: true });
+  const logPath = path.join(root, 'release', 'build-log.txt');
+  const log = fs.createWriteStream(logPath, { flags: 'w' });
+
+  const result = spawnSync('npx', args, {
+    cwd: root,
+    shell: process.platform === 'win32',
+    encoding: 'utf8',
+    maxBuffer: 64 * 1024 * 1024,
+  });
+
+  const output = `${result.stdout ?? ''}${result.stderr ?? ''}`;
+  process.stdout.write(output);
+  log.write(output);
+  log.end();
+
+  if (result.status === 0) return;
+
+  // Полезные строки — те, где есть слово «error» или «warning», плюс хвост
+  // вывода. Их печатаем повторно: в общем потоке они теряются.
+  const lines = output.split(/\r?\n/);
+  const meaningful = lines.filter((line) => /error|warning|!include|!insertmacro|\.nsh|\.nsi/i.test(line));
+  console.error('');
+  console.error('─────────────────────────────────────────────');
+  console.error('Сборка установщика не удалась.');
+  console.error(`Полный вывод сохранён: ${path.relative(root, logPath)}`);
+  if (meaningful.length) {
+    console.error('');
+    console.error('Строки, в которых обычно указана причина:');
+    for (const line of meaningful.slice(-25)) console.error(`  ${line}`);
+  }
+  console.error('─────────────────────────────────────────────');
+  process.exit(result.status ?? 1);
+}
+
 function main() {
   const channel = readChannelUrl();
   if (!channel) {
@@ -47,6 +91,11 @@ function main() {
 
   console.log(`Канал обновлений: ${channel}`);
 
+  // Настройки проверяются до сборки: часть причин падения makensis видна прямо
+  // в package.json, а по выводу NSIS их не разобрать — он обрывается кодом 1
+  // после сотни строк «Command line defined».
+  run(process.execPath, [path.join('scripts', 'check-build-config.cjs')]);
+
   // Ядра и текст лицензии готовятся так же, как при обычной сборке.
   run(process.execPath, [path.join('scripts', 'ensure-xray.cjs')]);
   run(process.execPath, [path.join('scripts', 'ensure-singbox.cjs')]);
@@ -59,7 +108,7 @@ function main() {
 
   // `--publish never` означает «собрать файлы, но никуда не загружать»:
   // готовые файлы выкладываются вручную. Токен GitHub в сборке не участвует.
-  run('npx', ['electron-builder', '--win', '--x64', '--publish', 'never', ...builderPublishArgs()], true);
+  runBuilder(['electron-builder', '--win', '--x64', '--publish', 'never', ...builderPublishArgs()]);
 
   const releaseDir = path.join(root, 'release');
   const version = JSON.parse(fs.readFileSync(path.join(root, 'package.json'), 'utf8')).version;

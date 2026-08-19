@@ -98,7 +98,9 @@ assert.ok(!('signExecutable' in build.win),
 // пакета, не находит, и electron-builder молча идёт обычным путём: качает
 // winCodeSign и падает на символических ссылках macOS. Установщик при этом
 // не создаётся, а в release остаётся только win-unpacked.
-assert.match(build.win.sign, /^\.\//, 'путь к заглушке должен быть относительным (./)');
+// Поле переехало в signtoolOptions: в electron-builder 25 старое win.sign
+// объявлено устаревшим и печатает предупреждение при каждой сборке.
+assert.match(build.win.signtoolOptions.sign, /^\.\//, 'путь к заглушке должен быть относительным (./)');
 assert.ok(fs.existsSync(path.join(root, 'build', 'no-sign.cjs')), 'файл заглушки должен существовать');
 assert.ok(build.files.includes('build/no-sign.cjs'), 'заглушка обязана попадать в сборку');
 
@@ -108,7 +110,7 @@ assert.equal(typeof noSign.default, 'function', 'electron-builder ожидает
 // Проверка тем же кодом, которым пользуется сборщик: если заглушка не
 // загрузится, подпись пойдёт через signtool со всеми последствиями.
 const { resolveFunction } = require(path.join(root, 'node_modules', 'app-builder-lib', 'out', 'util', 'resolve.js'));
-void resolveFunction('commonjs', build.win.sign, 'sign').then((resolved) => {
+void resolveFunction('commonjs', build.win.signtoolOptions.sign, 'sign').then((resolved) => {
   assert.equal(typeof resolved, 'function', 'electron-builder должен загрузить заглушку подписи');
 });
 
@@ -206,3 +208,36 @@ assert.ok(
   packageWin.indexOf('prepare-wincodesign.cjs') < packageWin.indexOf('electron-builder'),
   'кеш готовится до запуска сборщика, иначе он скачает пакет сам',
 );
+
+// --- Настройки, из-за которых падал makensis (сборка 1.2.1) -------------------
+// Сборка обрывалась на makensis с ERR_ELECTRON_BUILDER_CANNOT_EXECUTE, а в
+// выводе не было ничего, кроме сотни строк «Command line defined». Причины
+// оказались в конфигурации, поэтому они закреплены проверками.
+
+// Описание уходит в APP_DESCRIPTION и в свойства .exe. NSIS читает определения
+// в кодировке системы, а не UTF-8: кириллица превращалась в «◆◆◆◆◆◆◆◆» —
+// это было видно прямо в выводе сборки.
+assert.match(manifest.description, /^[\x20-\x7e]*$/, 'в description не должно быть кириллицы: NSIS её ломает');
+
+// Поле win.sign устарело в electron-builder 25. Пока оно только предупреждает,
+// но когда перестанет читаться, заглушка подписи не подключится и сборка
+// начнёт качать winCodeSign с ошибками про символические ссылки.
+assert.ok(!Object.prototype.hasOwnProperty.call(build.win, 'sign'),
+  'win.sign устарел — используйте win.signtoolOptions.sign');
+assert.equal(build.win.signtoolOptions.sign, './build/no-sign.cjs');
+assert.ok(fs.existsSync(path.join(root, 'build', 'no-sign.cjs')), 'заглушка подписи обязана существовать');
+
+// Предупреждения NSIS по умолчанию считаются ошибками (ключ -WX): одно
+// безобидное замечание останавливает сборку, а причину в выводе не видно.
+assert.equal(build.nsis.warningsAsErrors, false, 'предупреждения NSIS не должны рушить выпуск');
+
+// Проверка настроек выполняется до запуска electron-builder: разобрать вывод
+// makensis почти невозможно, а эти ошибки видны заранее.
+const releaseScript = fs.readFileSync(path.join(root, 'scripts', 'build-release.cjs'), 'utf8');
+assert.match(releaseScript, /check-build-config\.cjs/, 'проверка настроек обязана идти до сборки');
+assert.match(manifest.scripts['package:win'], /check-build-config\.cjs/);
+assert.ok(fs.existsSync(path.join(root, 'scripts', 'check-build-config.cjs')));
+
+// Вывод сборки сохраняется в файл: причина падения уезжает за край окна консоли.
+assert.match(releaseScript, /build-log\.txt/, 'полный вывод сборки обязан сохраняться в файл');
+assert.match(releaseScript, /function runBuilder/);
