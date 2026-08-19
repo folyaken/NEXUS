@@ -96,6 +96,9 @@ function main() {
   // после сотни строк «Command line defined».
   run(process.execPath, [path.join('scripts', 'check-build-config.cjs')]);
 
+  // Оформление окна установщика: без него NSIS подставит стандартную заставку.
+  run(process.execPath, [path.join('scripts', 'make-installer-art.cjs')]);
+
   // Ядра и текст лицензии готовятся так же, как при обычной сборке.
   run(process.execPath, [path.join('scripts', 'ensure-xray.cjs')]);
   run(process.execPath, [path.join('scripts', 'ensure-singbox.cjs')]);

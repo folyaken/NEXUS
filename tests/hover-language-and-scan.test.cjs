@@ -29,8 +29,18 @@ assert.match(styles, /\.stat-card-shell:hover \.stat-card \{/);
 assert.match(styles, /\.stat-card-shell:hover \.stat-icon \{/);
 assert.doesNotMatch(styles, /\n\.stat-card:hover \{/, 'наведение обязано читаться с обёртки');
 // Уход и возврат идут одной кривой — иначе движение выглядит несимметричным.
-assert.match(styles, /\.stat-card \{[^}]*transition: transform \.26s cubic-bezier\(\.22,\.61,\.36,1\)/);
-assert.match(styles, /\.stat-icon \{[^}]*transition: transform \.26s cubic-bezier\(\.22,\.61,\.36,1\)/);
+assert.match(styles, /\.stat-card \{[^}]*transition: transform \.32s cubic-bezier\(\.22,\.61,\.36,1\)/);
+assert.match(styles, /\.stat-icon \{[^}]*transition: transform \.32s cubic-bezier\(\.22,\.61,\.36,1\)/);
+
+// Исходное значение transform обязано быть задано явно.
+// Браузер запускает переход, только когда заданы оба состояния. Пока у значка
+// исходного transform не было, уход курсора менял scale(1.07) rotate(-4deg)
+// на «ничего» — и это применялось мгновенно, рывком. Наведение работало
+// плавно, а возврат нет; правка длительности тут не помогала вовсе.
+assert.match(styles, /\.stat-icon \{[^}]*transform: scale\(1\) rotate\(0deg\)/,
+  'без исходного transform возврат значка происходит рывком');
+assert.match(styles, /\.stat-card \{[^}]*transform: translateY\(0\)/,
+  'без исходного transform возврат карточки происходит рывком');
 
 // --- Кнопки сканирования крутятся при нажатии ------------------------------------
 // Значок вращался по loadingModules — а тот описывает только первую загрузку

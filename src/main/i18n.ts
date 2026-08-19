@@ -341,6 +341,20 @@ const EN: Record<string, string> = {
   'Доступно обновление': 'An update is available',
 
   // --- Добавлено при доведении английского до конца ------------------------------
+  // Сообщения об обновлении: приходят из main-процесса и переводятся при показе.
+  'Загрузка обновления…': 'Downloading the update…',
+  'Компонент обновления недоступен в этой сборке.': 'The update component is unavailable in this build.',
+  'Нажмите «Проверить», чтобы узнать о новой версии.': 'Press “Check” to look for a new version.',
+  'Обновление загружено. Нажмите «Перезапустить и установить» — NEXUS обновится и откроется сам.': 'Update downloaded. Press “Restart and install” — NEXUS will update and reopen on its own.',
+  'Проверяем наличие новой версии…': 'Checking for a new version…',
+  'На сервере обновлений нет сведений о новой версии.': 'The update server has no information about a new version.',
+  'Не удалось проверить обновления. Повторите попытку позже.': 'Could not check for updates. Try again later.',
+  'Недостаточно прав для установки обновления. Запустите NEXUS от имени администратора.': 'Not enough rights to install the update. Run NEXUS as administrator.',
+  'Проверка подлинности обновления не пройдена. Файл повреждён или подменён — установка отменена.': 'The update failed its authenticity check. The file is damaged or replaced — installation cancelled.',
+  'Сервер обновлений недоступен. Проверьте подключение к интернету и повторите попытку.': 'The update server is unavailable. Check your internet connection and try again.',
+  'Добавить приложение': 'Add app',
+  'Назад': 'Back',
+  'Обновить все': 'Refresh all',
   // Сообщения об ошибках из main-процесса: они приходят готовой строкой и
   // переводятся в cleanError() при показе.
   'GitHub API: лимит запросов (HTTP 403). Повторите позже.': 'GitHub API: rate limit reached (HTTP 403). Try again later.',

@@ -199,7 +199,7 @@ export default function AppPicker({ selected, onClose, onConfirm, onBrowse }: Pr
       <footer className="app-picker-foot">
         <button type="button" className="app-picker-secondary" onClick={onBrowse}>
           <svg viewBox="0 0 16 16" aria-hidden><path d="M2 4.5h4l1.2 1.5H14v6a1 1 0 0 1-1 1H3a1 1 0 0 1-1-1z" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinejoin="round" /></svg>
-          Выбрать файл…
+          {t('Выбрать файл…')}
         </button>
         <div className="app-picker-actions">
           {state === 'ready' && <button type="button" className="app-picker-refresh" onClick={() => void load()}>{t('Обновить')}</button>}

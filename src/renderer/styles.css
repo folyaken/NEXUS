@@ -1693,7 +1693,7 @@ kbd { padding: 3px 5px; border: 1px solid rgba(255,255,255,.1); border-radius: 5
    Теперь это SVG — они одинаковы везде и остаются чёткими при любом масштабе. */
 .stat-icon svg { width: 21px; height: 21px; fill: none; stroke: currentColor; stroke-linecap: round; stroke-linejoin: round; stroke-width: 1.7; }
 .stat-icon .glyph-soft { opacity: .45; stroke-width: 1.3; }
-.stat-icon { position: relative; overflow: hidden; border: 1px solid transparent; transition: transform .26s cubic-bezier(.22,.61,.36,1), box-shadow .26s ease; }
+.stat-icon { position: relative; overflow: hidden; border: 1px solid transparent; transform: scale(1) rotate(0deg); transition: transform .32s cubic-bezier(.22,.61,.36,1), box-shadow .32s ease; will-change: transform; }
 /* Мягкий блик внутри плитки: плоская заливка выглядела дёшево. */
 .stat-icon:after { position: absolute; top: -55%; left: -25%; width: 90%; height: 150%; background: linear-gradient(115deg, rgba(255,255,255,.16), transparent 62%); content: ''; pointer-events: none; }
 .stat-icon.cyan { border-color: rgba(124,242,213,.22); background: linear-gradient(150deg, rgba(124,242,213,.2), rgba(124,242,213,.05)); box-shadow: inset 0 1px rgba(255,255,255,.1), 0 6px 16px rgba(60,190,170,.16); }
@@ -1711,11 +1711,11 @@ kbd { padding: 3px 5px; border: 1px solid rgba(255,255,255,.1); border-radius: 5
    возвращалась рывком. Теперь пружина двигает обёртку, а наведение — плитку,
    и они больше не спорят за одно свойство. */
 .stat-card-shell { min-width: 0; }
-.stat-card { position: relative; height: 100%; overflow: hidden; transition: transform .26s cubic-bezier(.22,.61,.36,1), border-color .26s ease, box-shadow .26s ease; }
+.stat-card { position: relative; height: 100%; overflow: hidden; transform: translateY(0); transition: transform .32s cubic-bezier(.22,.61,.36,1), border-color .32s ease, box-shadow .32s ease; }
 .stat-card:before { position: absolute; top: 0; left: 0; width: 100%; height: 2px; background: linear-gradient(90deg, transparent, rgba(124,242,213,.5), transparent); content: ''; opacity: 0; transition: opacity .26s ease; }
 .stat-card-shell:hover .stat-card { border-color: rgba(140,161,255,.2); box-shadow: inset 0 1px rgba(255,255,255,.06), 0 20px 44px rgba(0,0,0,.22); transform: translateY(-3px); }
 .stat-card-shell:hover .stat-card:before { opacity: 1; }
-.stat-card-shell:hover .stat-icon { transform: scale(1.06) rotate(-3deg); }
+.stat-card-shell:hover .stat-icon { transform: scale(1.07) rotate(-4deg); }
 .stat-body { min-width: 0; flex: 1; }
 
 /* Полоска под числом: «73%» само по себе не с чем сравнить, а заполненность
@@ -1740,17 +1740,17 @@ kbd { padding: 3px 5px; border: 1px solid rgba(255,255,255,.1); border-radius: 5
 .quiet-button { padding: 9px 12px; border: 1px solid transparent; border-radius: 11px; transition: border-color .2s ease, background .2s ease, color .2s ease; }
 .quiet-button:hover { border-color: rgba(124,242,213,.2); background: rgba(124,242,213,.07); color: #e9fff9; }
 .quiet-button-icon { display: grid; width: 16px; height: 16px; place-items: center; color: var(--cyan); }
-.quiet-button-icon svg { width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-linecap: round; stroke-linejoin: round; stroke-width: 2; }
+.quiet-button-icon svg { width: 15px; height: 15px; fill: none; stroke: currentColor; stroke-linecap: round; stroke-linejoin: round; stroke-width: 1.6; }
 @keyframes nx-spin { to { transform: rotate(360deg); } }
 
 /* «Все модули»: раньше это был просто текст со стрелкой — он терялся рядом с
    заголовком и не выглядел нажимаемым. */
-.text-button { display: inline-flex; align-items: center; gap: 9px; padding: 8px 10px 8px 13px; border: 1px solid rgba(255,255,255,.07); border-radius: 11px; background: rgba(255,255,255,.025); transition: border-color .2s ease, background .2s ease, color .2s ease, transform .2s ease; }
+.text-button { display: inline-flex; align-items: center; gap: 7px; padding: 5px 8px 5px 10px; border: 1px solid rgba(255,255,255,.06); border-radius: 9px; background: rgba(255,255,255,.02); font-size: 11px; font-weight: 500; transition: border-color .2s ease, background .2s ease, color .2s ease, transform .2s ease; }
 .text-button:hover { border-color: rgba(124,242,213,.24); background: rgba(124,242,213,.07); color: #e9fff9; transform: translateY(-1px); }
 .text-button:focus-visible { outline: 2px solid var(--cyan); outline-offset: 2px; }
-.text-button-count { display: grid; min-width: 20px; height: 20px; padding: 0 5px; place-items: center; border-radius: 6px; background: rgba(124,242,213,.12); color: var(--cyan); font-family: var(--font-data); font-size: 10px; font-style: normal; }
+.text-button-count { display: grid; min-width: 16px; height: 16px; padding: 0 4px; place-items: center; border-radius: 5px; background: rgba(124,242,213,.1); color: var(--cyan); font-family: var(--font-data); font-size: 9px; font-style: normal; opacity: .85; }
 .text-button-arrow { display: grid; place-items: center; color: var(--cyan); transition: transform .2s ease; }
-.text-button-arrow svg { width: 15px; height: 15px; fill: none; stroke: currentColor; stroke-linecap: round; stroke-linejoin: round; stroke-width: 2; }
+.text-button-arrow svg { width: 13px; height: 13px; fill: none; stroke: currentColor; stroke-linecap: round; stroke-linejoin: round; stroke-width: 1.6; }
 .text-button:hover .text-button-arrow { transform: translateX(3px); }
 
 /* Графит остаётся строго серым: цветные акценты в нём выглядят инородно. */
@@ -1796,7 +1796,7 @@ kbd { padding: 3px 5px; border: 1px solid rgba(255,255,255,.1); border-radius: 5
 /* Кнопки сканирования: тот же оборот значка, что у кнопки «Обновить» в Jey2Ray.
    Раньше значок вращался по флагу первой загрузки списка, который при нажатии
    уже сброшен, — то есть не вращался вообще. */
-.quiet-button-icon .spin-ico { width: 16px; height: 16px; transform-origin: 50% 50%; }
+.quiet-button-icon .spin-ico { width: 14px; height: 14px; transform-origin: 50% 50%; }
 .quiet-button.is-spin,
 .primary-button.small.is-spin { color: var(--cyan); }
 .primary-button.small.is-spin { color: #121827; }
@@ -1823,3 +1823,29 @@ kbd { padding: 3px 5px; border: 1px solid rgba(255,255,255,.1); border-radius: 5
 .app-frame.motion-off .quiet-button .spin-ico,
 .app-frame.motion-off .primary-button.small .spin-ico { transition: none; }
 .app-frame.motion-off .stat-card-shell:hover .stat-icon { transform: none; }
+
+/* Кнопка «Проверить обновления» в списке модулей.
+   Была плоской подписью с символом ↗: во время проверки она просто гасла, и
+   пользователь не понимал, идёт работа илипрограмма зависла. Теперь значок вращается,
+   а ход загрузки показывает полоска по нижней кромке. */
+.github-button { position: relative; display: inline-flex; align-items: center; gap: 7px; overflow: hidden; transition: border-color .2s ease, background .2s ease, color .2s ease, transform .2s ease; }
+.github-button:hover:not(:disabled) { border-color: rgba(124,242,213,.32); background: rgba(124,242,213,.14); transform: translateY(-1px); }
+.github-button:disabled { cursor: default; opacity: .78; }
+.github-button-icon { display: grid; place-items: center; }
+.github-button-icon .spin-ico { width: 13px; height: 13px; transform-origin: 50% 50%; transition: transform .3s cubic-bezier(.22,.61,.36,1); }
+.github-button:hover:not(:disabled) .github-button-icon .spin-ico { transform: rotate(-38deg); }
+.github-button.is-busy .github-button-icon .spin-ico { animation: refresh-turn 1.1s cubic-bezier(.4,.05,.15,1) infinite; }
+.github-button-progress { position: absolute; bottom: 0; left: 0; height: 2px; border-radius: 2px; background: var(--cyan); box-shadow: 0 0 8px rgba(124,242,213,.6); transition: width .3s ease; }
+.appearance-graphite .github-button:hover:not(:disabled) { border-color: rgba(226,226,226,.22); background: rgba(226,226,226,.08); }
+.appearance-graphite .github-button-progress { background: #d6d6d6; box-shadow: 0 0 8px rgba(214,214,214,.4); }
+
+@media (prefers-reduced-motion: reduce) {
+  .app-frame:not(.motion-force) .github-button,
+  .app-frame:not(.motion-force) .github-button-icon .spin-ico,
+  .app-frame:not(.motion-force) .github-button-progress { transition: none; }
+  .app-frame:not(.motion-force) .github-button.is-busy .github-button-icon .spin-ico { animation: none; }
+}
+.app-frame.motion-off .github-button,
+.app-frame.motion-off .github-button-icon .spin-ico,
+.app-frame.motion-off .github-button-progress { transition: none; }
+.app-frame.motion-off .github-button.is-busy .github-button-icon .spin-ico { animation: none; }

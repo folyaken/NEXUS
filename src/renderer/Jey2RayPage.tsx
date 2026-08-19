@@ -583,7 +583,7 @@ export function Jey2RayPage({
     <div className="app-settings-toolbar">
       <button type="button" className="app-settings-back" onClick={() => setSettingsOpen(false)} aria-label={t('Вернуться к серверам')}>
         <svg viewBox="0 0 20 20" aria-hidden><path d="m12.5 4.5-5 5.5 5 5.5" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" /></svg>
-        Серверы
+        {t('Серверы')}
       </button>
       <div>
         <span>Jey2Ray</span>
@@ -730,7 +730,7 @@ export function Jey2RayPage({
             <div><span className="settings-step">02</span><div><h3>{t('Выбранные приложения')}</h3><p>{splitApps.length ? `${t('Добавлено:')} ${splitApps.length}` : t('Добавьте приложения Windows, для которых будут действовать правила выше.')}</p></div></div>
             <button type="button" className="app-add-button" disabled={routeSettingsLocked} onClick={() => addSplitApps(appRouting)}>
               <svg viewBox="0 0 16 16" aria-hidden><path d="M8 3v10M3 8h10" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" /></svg>
-              Добавить приложение
+              {t('Добавить приложение')}
             </button>
           </div>
           {splitApps.length ? <div className="selected-app-list">
@@ -792,17 +792,17 @@ export function Jey2RayPage({
           </button>
           <button type="button" className="ghost-action subscription-manager-button" disabled={busy || Boolean(action)} onClick={() => setSubscriptionsOpen(true)} title={t('Управление подписками')}>
             <svg className="ico" viewBox="0 0 20 20" aria-hidden><path d="M4 5.25h12M4 10h12M4 14.75h12" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" /><circle cx="6" cy="5.25" r="1" fill="currentColor" /><circle cx="6" cy="10" r="1" fill="currentColor" /><circle cx="6" cy="14.75" r="1" fill="currentColor" /></svg>
-            Подписки <span>{runtime.subscriptions?.length ?? 0}</span>
+            {t('Подписки')} <span>{runtime.subscriptions?.length ?? 0}</span>
           </button>
           <button className="ghost-action" onClick={() => setImportOpen((value) => !value)} title={t('Добавить подписку или отдельную ссылку')}>
             <svg className="ico" viewBox="0 0 16 16" aria-hidden><path d="M8 3v10M3 8h10" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" /></svg>
-            Добавить
+            {t('Добавить')}
           </button>
           <button className={`ghost-action ${action === 'refresh' ? 'is-spin' : ''}`} disabled={busy || Boolean(action)} onClick={() => void refresh()}>
             <svg className="ico spin-ico" viewBox="0 0 24 24" aria-hidden>
               <path fill="currentColor" d="M11.2 3.15A8.85 8.85 0 1 0 19 7.55l-1.95 1.15A6.55 6.55 0 1 1 11.2 5.45v2.7L17.45 5 11.2.65z" />
             </svg>
-            Обновить
+            {t('Обновить')}
           </button>
           <button className={`ghost-action ${action === 'ping' ? 'is-rev' : ''}`} disabled={busy || Boolean(action)} onClick={() => void ping()} title={t('Проверить задержку всех серверов')}>
             <svg className="ico gauge-ico" viewBox="0 0 20 14" aria-hidden>
@@ -810,7 +810,7 @@ export function Jey2RayPage({
               <path className="gauge-needle" d="M10 11.55 5.35 6.55" fill="none" stroke="currentColor" strokeWidth="1.65" strokeLinecap="round" />
               <circle cx="10" cy="11.55" r="1.15" fill="currentColor" />
             </svg>
-            Пинг
+            {t('Пинг')}
           </button>
           {!runtime.xrayReady && <button className="ghost-action core-download-action" disabled={syncing} onClick={onSync}>{t('Скачать ядро')} {xrayUpdate?.latestVersion ?? ''}</button>}
         </div>

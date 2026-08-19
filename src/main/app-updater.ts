@@ -247,7 +247,7 @@ export class AppUpdater extends EventEmitter {
       return this.setState('downloaded', {
         canInstall: true,
         percent: 100,
-        message: 'Обновление загружено. Оно установится при перезапуске NEXUS.',
+        message: 'Обновление загружено. Нажмите «Перезапустить и установить» — NEXUS обновится и откроется сам.',
       });
     } catch (error) {
       return this.setState('error', { canInstall: false, message: this.userFacingError(error) });
@@ -272,7 +272,19 @@ export class AppUpdater extends EventEmitter {
       // Даже если остановить что-то не удалось, установку продолжаем:
       // прерывать её на этом шаге хуже, чем оставить процесс.
     }
-    updater.quitAndInstall(false, true);
+    // Тихая установка (isSilent = true) — самое важное здесь.
+    //
+    // При isSilent = false установщик открывает мастер: пользователь видит
+    // выбор папки, лицензию и в конце обязан нажать «Готово». Для обновления
+    // уже установленной программы это лишние пять шагов — человек только что
+    // нажал «Перезапустить и установить» и ждёт, что дальше всё произойдёт
+    // само. В тихом режиме окон нет вовсе, а второй аргумент (isForceRunAfter)
+    // передаёт установщику ключ --force-run: NEXUS запустится сразу после
+    // распаковки, нажимать ничего не нужно.
+    //
+    // Выбор папки при этом не теряется: тихий режим ставит обновление в тот
+    // каталог, где программа уже стоит.
+    updater.quitAndInstall(true, true);
     return this.snapshot();
   }
 }

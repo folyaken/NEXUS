@@ -92,7 +92,7 @@ export function ConnectionDiagnostics({ profileId, onBack, onToast }: Props) {
     <div className="diagnostics-toolbar">
       <button type="button" className="diagnostics-back" onClick={onBack}>
         <svg viewBox="0 0 24 24" aria-hidden><path d="m15 5-7 7 7 7" /></svg>
-        Назад
+        {t('Назад')}
       </button>
       <div className="diagnostics-heading">
         <span>CONNECTION HEALTH</span>
@@ -147,7 +147,7 @@ export function ConnectionDiagnostics({ profileId, onBack, onToast }: Props) {
             <p>{t('Можно отправить этот текст при обращении за помощью. В нём нет ссылок подписок и ключей подключения.')}</p>
             <button type="button" onClick={() => void copyReport()}>
               <svg viewBox="0 0 24 24" aria-hidden><rect x="8" y="8" width="11" height="11" rx="2" /><path d="M16 8V6a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v8a2 2 0 0 0 2 2h2" /></svg>
-              Скопировать отчёт
+              {t('Скопировать отчёт')}
             </button>
             <details><summary>{t('Посмотреть текст')}</summary><pre>{snapshot.report}</pre></details>
             <div className="diagnostics-privacy"><i>✓</i><span><strong>{t('Секреты скрыты')}</strong><small>{t('UUID, пароли, токены, URL и локальное имя пользователя удаляются до показа.')}</small></span></div>

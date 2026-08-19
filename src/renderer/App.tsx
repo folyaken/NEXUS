@@ -274,7 +274,15 @@ function GithubUpdateStrip({ updates, syncing, onSync }: { updates: UpdateInfo[]
   const downloading = updates.find((item) => item.status === 'downloading');
   const progress = downloading && downloading.totalBytes ? Math.round(((downloading.downloadedBytes ?? 0) / downloading.totalBytes) * 100) : null;
   const failed = updates.find((item) => item.status === 'error');
-  return <div className="github-strip"><div className="github-logo"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 7.5A7 7 0 0 1 18.2 6L20 8M20 4v4h-4M17 16.5A7 7 0 0 1 5.8 18L4 16m0 4v-4h4" /></svg></div><div className="github-copy"><strong>{translate('Обновление сетевых модулей')}</strong><span className={failed ? 'github-error' : ''}>{failed?.error || latest || translate('Проверяются последние релизы…')}{progress !== null ? ` · ${translate('загрузка')} ${progress}%` : ''}{installed ? ` · ${translate('обновлено:')} ${installed}` : ''}</span></div><span className="github-lock">{translate('Проверенные репозитории GitHub')}</span><button className="github-button" disabled={syncing} onClick={onSync}>{syncing ? (progress !== null ? `${progress}%` : translate('Синхронизация…')) : translate('Проверить обновления')} <span>↗</span></button></div>;
+  return <div className="github-strip"><div className="github-logo"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 7.5A7 7 0 0 1 18.2 6L20 8M20 4v4h-4M17 16.5A7 7 0 0 1 5.8 18L4 16m0 4v-4h4" /></svg></div><div className="github-copy"><strong>{translate('Обновление сетевых модулей')}</strong><span className={failed ? 'github-error' : ''}>{failed?.error || latest || translate('Проверяются последние релизы…')}{progress !== null ? ` · ${translate('загрузка')} ${progress}%` : ''}{installed ? ` · ${translate('обновлено:')} ${installed}` : ''}</span></div><span className="github-lock">{translate('Проверенные репозитории GitHub')}</span><button className={`github-button ${syncing ? 'is-busy' : ''}`} disabled={syncing} onClick={onSync}>
+    {/* Значок обновления вместо символа ↗: тот же, что на кнопках сканирования.
+        Во время проверки он вращается — раньше кнопка просто гасла, и было
+        непонятно, идёт работа или программа зависла. */}
+    <span className="github-button-icon"><RefreshGlyph /></span>
+    <span>{syncing ? (progress !== null ? `${progress}%` : translate('Синхронизация…')) : translate('Проверить обновления')}</span>
+    {/* Полоска хода загрузки: проценты в подписи мелкие и теряются. */}
+    {progress !== null && <i className="github-button-progress" style={{ width: `${progress}%` }} aria-hidden="true" />}
+  </button></div>;
 }
 
 function ProfilePopover({ open, profile, draft, setDraft, onSave }: { open: boolean; profile: UserProfile; draft: string; setDraft: (value: string) => void; onSave: () => void }) {
@@ -534,7 +542,7 @@ function AboutPage({ t }: { t: (text: string) => string }) {
         <div className="about-update-visual" aria-hidden="true">
           <svg viewBox="0 0 96 96"><rect x="20" y="22" width="56" height="42" rx="8" /><path d="M38 75h20M48 64v11" /><path className="about-update-arrow" d="M35 42a15 15 0 0 1 25-8l4 5m0-10v10H54M61 47a15 15 0 0 1-25 8l-4-5m0 10V50h10" /></svg>
         </div>
-        <div className="about-update-copy"><span>{t('ОБНОВЛЕНИЕ NEXUS')}</span><h3>{updateHeadline}</h3><p>{updateCheck?.message || `Текущая версия ${info.nexusVersion}. Нажмите «Проверить», чтобы узнать о новой.`}</p></div>
+        <div className="about-update-copy"><span>{t('ОБНОВЛЕНИЕ NEXUS')}</span><h3>{updateHeadline}</h3><p>{(updateCheck?.message && t(updateCheck.message)) || `Текущая версия ${info.nexusVersion}. Нажмите «Проверить», чтобы узнать о новой.`}</p></div>
         {updateStatus === 'downloading' && <div className="about-update-progress"><div className="about-update-progress-bar" style={{ width: `${updateCheck?.percent ?? 0}%` }} /></div>}
         {updateCheck?.releaseNotes && <p className="about-update-notes">{updateCheck.releaseNotes}</p>}
         {checkedAt && <div className="about-update-checked"><i /> {t('Проверено в')} {checkedAt}</div>}
