@@ -1,5 +1,5 @@
 import { EventEmitter } from 'node:events';
-import { createWriteStream, existsSync, mkdirSync } from 'node:fs';
+import { copyFileSync, createWriteStream, existsSync, mkdirSync } from 'node:fs';
 import { promises as fs } from 'node:fs';
 import { createServer, Socket } from 'node:net';
 import { connect as connectTls, type TLSSocket } from 'node:tls';
@@ -94,11 +94,39 @@ export class VpnManager extends EventEmitter {
    * null, если всё на месте.
    */
   private missingTunDriver(enginePath: string): string | null {
-    const driver = path.join(path.dirname(enginePath), 'wintun.dll');
-    if (existsSync(driver)) return null;
+    const engineDir = path.dirname(enginePath);
+    if (existsSync(path.join(engineDir, 'wintun.dll'))) return null;
+
+    // Драйвер мог остаться во вложенной в установщик папке, если приложение
+    // работает из другого каталога: переносим, вместо того чтобы отказывать.
+    for (const candidate of this.tunDriverCandidates()) {
+      if (!existsSync(candidate)) continue;
+      try {
+        copyFileSync(candidate, path.join(engineDir, 'wintun.dll'));
+        this.emitLog('info', 'Драйвер TUN перенесён к ядру.');
+        return null;
+      } catch {
+        // Каталог может быть защищён от записи — пробуем следующий источник.
+      }
+    }
+
     return 'Для режима TUN не хватает драйвера сетевого адаптера (wintun.dll). '
-      + 'Он загружается при сборке программы и должен лежать рядом с ядром. '
-      + 'Пока драйвера нет, пользуйтесь режимом PROXY — он работает без него.';
+      + 'Он не попал в установленную сборку. Проще всего обновить NEXUS до свежей версии '
+      + '(«О программе» → «Проверить»). Режим PROXY работает без этого драйвера.';
+  }
+
+  /** Места, где может лежать драйвер, кроме папки ядра. */
+  private tunDriverCandidates(): string[] {
+    const places = [
+      path.join(this.modulesDir, 'bin', 'wintun.dll'),
+      path.join(this.vpnRoot(), 'bin', 'wintun.dll'),
+      path.join(process.cwd(), 'modules', 'bin', 'wintun.dll'),
+    ];
+    try {
+      const { app } = require('electron') as typeof import('electron');
+      if (app?.isPackaged) places.unshift(path.join(process.resourcesPath, 'modules', 'bin', 'wintun.dll'));
+    } catch { /* вне Electron */ }
+    return places;
   }
 
   private binPath(name: string): string {

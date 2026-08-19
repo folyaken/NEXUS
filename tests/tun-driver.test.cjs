@@ -28,13 +28,30 @@ assert.equal(
 // Драйвер получает доступ к сетевому стеку целиком, поэтому подмена файла
 // недопустима: адрес ограничен, сумма сверяется, размер ограничен.
 assert.match(bootstrapSource, /parsed\.protocol !== 'https:'/, 'только защищённое соединение');
-assert.match(bootstrapSource, /parsed\.hostname\.toLowerCase\(\) !== WINTUN_HOST/, 'только доверенный узел');
+assert.match(bootstrapSource, /!ALLOWED_HOSTS\.has\(parsed\.hostname\.toLowerCase\(\)\)/, 'только доверенные узлы');
+
+// Сайт разработчика доступен не из всех сетей. Без запасного источника сборка
+// молча уходила без драйвера, и TUN не работал уже у пользователя.
+assert.ok(bootstrap.WINTUN_SOURCES.length >= 2, 'нужен запасной источник загрузки');
+for (const source of bootstrap.WINTUN_SOURCES) {
+  assert.match(source.url, /^https:\/\//, 'только защищённое соединение');
+  assert.ok(source.url.includes(bootstrap.WINTUN_VERSION), 'источники обязаны давать одну версию');
+}
+// Обоим источникам — одна контрольная сумма: запасной путь не ослабляет проверку.
+assert.match(bootstrapSource, /digest !== WINTUN_SHA256/);
+
+// Об отсутствии драйвера обязано быть заметное предупреждение: одна строка
+// среди сотен строк сборки теряется, и проблема всплывает у пользователя.
+assert.match(bootstrapSource, /function warnTunUnavailable/);
+assert.match(bootstrapSource, /режим TUN работать не будет/);
+assert.match(releaseScript, /wintun\.dll/, 'выпуск обязан проверять наличие драйвера');
+assert.match(releaseScript, /режим TUN работать не будет/, 'выпуск обязан предупреждать');
 assert.match(bootstrapSource, /digest !== WINTUN_SHA256/, 'сумма обязана сверяться');
 assert.match(bootstrapSource, /size > MAX_ARCHIVE_BYTES/, 'размер архива ограничен');
 assert.match(bootstrapSource, /redirectsLeft <= 0/, 'перенаправления ограничены');
 
 // Недоступность сети не должна ломать сборку: без драйвера остаётся режим PROXY.
-assert.match(bootstrapSource, /Режим PROXY будет работать/);
+assert.match(bootstrapSource, /Режим PROXY продолжит работать/);
 
 // Разрядность выбирается по системе: у драйвера отдельная сборка под каждую.
 assert.ok(['amd64', 'arm64', 'arm', 'x86'].includes(bootstrap.windowsArchFolder()));
@@ -65,7 +82,14 @@ const guard = vpnManager.indexOf('missingTunDriver(engine)');
 const spawn = vpnManager.indexOf('const child = spawn(');
 assert.ok(guard > 0 && spawn > guard, 'драйвер проверяется до запуска ядра');
 // Сообщение обязано подсказывать выход, а не только называть проблему.
-assert.match(vpnManager, /пользуйтесь режимом PROXY/);
+assert.match(vpnManager, /Режим PROXY работает без этого драйвера/);
+assert.match(vpnManager, /Проверить/, 'подсказка про обновление даёт простой выход');
+
+// Драйвер мог остаться во вложенной в установщик папке: прежде чем отказывать,
+// программа переносит его к ядру.
+assert.match(vpnManager, /private tunDriverCandidates\(\)/);
+assert.match(vpnManager, /copyFileSync\(candidate/);
+assert.match(vpnManager, /process\.resourcesPath, 'modules', 'bin', 'wintun\.dll'/);
 // Проверка только для Windows: на других системах драйвер не нужен.
 assert.match(vpnManager, /mode === 'tun' && process\.platform === 'win32'/);
 

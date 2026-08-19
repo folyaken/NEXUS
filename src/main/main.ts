@@ -15,6 +15,7 @@ import { GithubUpdater } from './github-updater';
 import { VpnManager } from './vpn-manager';
 import { normalizeVpnSplitApps, resolveVpnAppRouting } from './split-tunnel';
 import { listRunningApps } from './running-apps';
+import { LAUNCH_AT_LOGIN_FLAG, legacyRunKeyCleanup, setLoginTask } from './launch-at-login';
 import { DEFAULT_SETTINGS, type AboutSystemInfo, type AppSettings, type ModuleLog, type NexusUpdateCheck, type UserProfile, type VpnSplitApp, type VpnStatus } from './types';
 
 declare const __dirname: string;
@@ -180,33 +181,30 @@ async function saveSettings(next: AppSettings): Promise<AppSettings> {
 /**
  * Запуск вместе с Windows.
  *
- * Регистрацией занимается сама операционная система, поэтому реестр вручную не
- * правится. В среде разработки настройка не применяется: иначе автозапуск
- * получил бы не установленную программу, а временную сборку.
+ * Выполняется через планировщик заданий, а не через раздел автозапуска реестра.
+ * Причина: NEXUS требует прав администратора, а такие программы Windows из
+ * автозапуска не запускает вовсе — запросить подтверждение до входа в систему
+ * не у кого, и запись молча игнорируется. Пользователь при этом видит
+ * включённый переключатель и не запускающуюся программу.
+ *
+ * В среде разработки настройка не применяется: иначе в автозапуск попала бы
+ * временная сборка вместо установленной программы.
  *
  * Приложение открывается свёрнутым в трей: показывать окно при каждом входе в
  * систему навязчиво, а модули и VPN поднимаются в фоне.
  */
 function applyLaunchAtLogin(enabled: boolean): void {
   if (process.platform !== 'win32' || !app.isPackaged) return;
-  try {
-    app.setLoginItemSettings({
-      openAtLogin: enabled,
-      path: process.execPath,
-      args: enabled ? [LAUNCH_AT_LOGIN_FLAG] : [],
-    });
-  } catch {
-    // Политики организации могут запрещать автозапуск. Приложение продолжает
-    // работать: настройка просто не вступит в силу.
-  }
+  // Прежние версии писали в реестр. Запись не работает, но остаётся видна в
+  // списке автозагрузки — убираем, чтобы не вводить в заблуждение.
+  legacyRunKeyCleanup((options) => app.setLoginItemSettings(options), process.execPath);
+  void setLoginTask(enabled, process.execPath).then((problem) => {
+    if (problem) notify('NEXUS', problem);
+  });
 }
 
-/** Признак запуска системой при входе в Windows. */
-const LAUNCH_AT_LOGIN_FLAG = '--launched-at-login';
-
 function startedByWindowsLogin(): boolean {
-  return process.argv.includes(LAUNCH_AT_LOGIN_FLAG)
-    || Boolean(process.platform === 'win32' && app.isPackaged && app.getLoginItemSettings({ path: process.execPath }).wasOpenedAtLogin);
+  return process.argv.includes(LAUNCH_AT_LOGIN_FLAG);
 }
 
 async function pickVpnApplications(): Promise<VpnSplitApp[]> {

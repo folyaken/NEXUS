@@ -30,7 +30,20 @@ const isWin = process.platform === 'win32';
 const WINTUN_VERSION = '0.14.1';
 const WINTUN_URL = `https://www.wintun.net/builds/wintun-${WINTUN_VERSION}.zip`;
 const WINTUN_SHA256 = '07c256185d6ee3652e09fa55c0b673e2624b565e02c4b9091c79ca7d2f24ef51';
-const WINTUN_HOST = 'www.wintun.net';
+
+/**
+ * Источники загрузки.
+ *
+ * Основной — сайт разработчика. Запасной нужен потому, что сайт недоступен из
+ * некоторых сетей: тогда сборка молча уходила без драйвера, и TUN не работал у
+ * пользователя. Содержимое сверяется по одной и той же контрольной сумме, так
+ * что запасной источник не снижает надёжность.
+ */
+const WINTUN_SOURCES = [
+  { url: WINTUN_URL, host: 'www.wintun.net' },
+  { url: `https://download.wireguard.com/wintun/wintun-${WINTUN_VERSION}.zip`, host: 'download.wireguard.com' },
+];
+const ALLOWED_HOSTS = new Set(WINTUN_SOURCES.map((item) => item.host));
 
 const REQUEST_TIMEOUT_MS = 30_000;
 const MAX_ARCHIVE_BYTES = 16 * 1024 * 1024;
@@ -67,7 +80,7 @@ function download(url, redirectsLeft = 5) {
     }
     // Только сайт разработчика и только по защищённому соединению: подменённый
     // драйвер получает доступ к сетевому стеку целиком.
-    if (parsed.protocol !== 'https:' || parsed.hostname.toLowerCase() !== WINTUN_HOST) {
+    if (parsed.protocol !== 'https:' || !ALLOWED_HOSTS.has(parsed.hostname.toLowerCase())) {
       reject(new Error(`недоверенный адрес ${parsed.hostname}`));
       return;
     }
@@ -114,6 +127,29 @@ function download(url, redirectsLeft = 5) {
   });
 }
 
+/**
+ * Заметное предупреждение об отсутствии драйвера.
+ *
+ * Раньше сообщение было одной строкой среди сотен строк сборки — его никто не
+ * замечал, и отсутствие TUN обнаруживалось уже у пользователя. Рамка и пустые
+ * строки делают его заметным.
+ */
+function warnTunUnavailable(reasons) {
+  const line = '='.repeat(70);
+  console.error('');
+  console.error(line);
+  console.error('  ВНИМАНИЕ: драйвер TUN не установлен — режим TUN работать не будет.');
+  console.error('');
+  for (const reason of reasons) console.error(`  ${reason}`);
+  console.error('');
+  console.error('  Режим PROXY продолжит работать. Чтобы получить TUN, повторите');
+  console.error('  сборку при доступной сети либо положите wintun.dll вручную:');
+  console.error(`    из ${WINTUN_URL}`);
+  console.error('    в  modules\\bin\\wintun.dll (папка bin\\<разрядность> внутри архива)');
+  console.error(line);
+  console.error('');
+}
+
 async function main() {
   if (!isWin) {
     console.log('Драйвер TUN нужен только в Windows — шаг пропущен.');
@@ -125,21 +161,28 @@ async function main() {
   }
 
   console.log(`Загрузка драйвера TUN (Wintun ${WINTUN_VERSION})…`);
-  let archive;
-  try {
-    archive = await download(WINTUN_URL);
-  } catch (error) {
-    const reason = error instanceof Error ? error.message : String(error);
-    console.error(`Не удалось загрузить драйвер TUN: ${reason}`);
-    console.error('Режим PROXY будет работать; для TUN повторите сборку при доступной сети.');
+  let archive = null;
+  const failures = [];
+  for (const source of WINTUN_SOURCES) {
+    try {
+      archive = await download(source.url);
+      break;
+    } catch (error) {
+      failures.push(`${source.host}: ${error instanceof Error ? error.message : String(error)}`);
+    }
+  }
+  if (!archive) {
+    warnTunUnavailable(failures);
     return;
   }
 
   const digest = createHash('sha256').update(archive).digest('hex');
   if (digest !== WINTUN_SHA256) {
-    console.error('Контрольная сумма драйвера TUN не совпала — файл отклонён.');
-    console.error(`  ожидалось: ${WINTUN_SHA256}`);
-    console.error(`  получено : ${digest}`);
+    warnTunUnavailable([
+      'контрольная сумма не совпала — файл отклонён',
+      `  ожидалось: ${WINTUN_SHA256}`,
+      `  получено : ${digest}`,
+    ]);
     return;
   }
 
@@ -161,14 +204,13 @@ async function main() {
 
     console.log(`Драйвер TUN установлен: ${path.relative(root, destination)}`);
   } catch (error) {
-    const reason = error instanceof Error ? error.message : String(error);
-    console.error(`Не удалось распаковать драйвер TUN: ${reason}`);
+    warnTunUnavailable([`не удалось распаковать: ${error instanceof Error ? error.message : String(error)}`]);
   } finally {
     await fs.promises.rm(temporaryZip, { force: true }).catch(() => undefined);
   }
 }
 
-module.exports = { WINTUN_VERSION, WINTUN_SHA256, WINTUN_URL, windowsArchFolder, destination };
+module.exports = { WINTUN_VERSION, WINTUN_SHA256, WINTUN_URL, WINTUN_SOURCES, windowsArchFolder, destination, alreadyInstalled };
 
 if (require.main === module) {
   void main();
