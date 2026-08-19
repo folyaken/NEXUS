@@ -56,11 +56,23 @@ assert.match(ignore, /installer-\*\.bmp/, 'производные картинк
 const art = fs.readFileSync(path.join(root, 'scripts', 'make-installer-art.cjs'), 'utf8');
 assert.match(art, /SIDEBAR = \{ width: 164, height: 314 \}/);
 assert.match(art, /HEADER = \{ width: 150, height: 57 \}/);
-// sharp не умеет записывать BMP, поэтому заголовок собирается вручную.
+// Заголовок BMP собирается вручную: готовых записывающих библиотек в проекте нет.
 assert.match(art, /function writeBmp\(/);
 assert.match(art, /header\.write\('BM', 0, 'ascii'\)/);
-// Отсутствие sharp не должно ронять сборку: без картинок установщик соберётся.
-assert.match(art, /Оформление установщика пропущено/);
+// Скрипт обязан работать на чистом Node.
+//
+// Первая версия рисовала через sharp: пакет тянет платформенные двоичные
+// файлы, ставится не везде, и на машине пользователя сборка молча оставалась
+// без оформления. Никаких внешних зависимостей здесь быть не должно.
+const requires = [...art.matchAll(/require\('([^']+)'\)/g)].map((match) => match[1]);
+assert.deepEqual(
+  requires.filter((name) => !name.startsWith('node:')),
+  [],
+  `оформление установщика обязано работать без сторонних пакетов, найдено: ${requires.join(', ')}`,
+);
+// Сглаживание: без него диагонали логотипа выходят «лесенкой».
+assert.match(art, /SUPERSAMPLE = \d/);
+assert.match(art, /function downscale\(/);
 
 // Если картинки уже собраны, проверяем их формат по-настоящему.
 for (const [name, width, height] of [['installer-sidebar.bmp', 164, 314], ['installer-header.bmp', 150, 57]]) {
