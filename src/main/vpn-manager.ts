@@ -86,6 +86,21 @@ export class VpnManager extends EventEmitter {
     return this.binPath(process.platform === 'win32' ? 'sing-box.exe' : 'sing-box');
   }
 
+  /**
+   * Проверяет наличие драйвера виртуального адаптера для режима TUN.
+   *
+   * Библиотека wintun.dll обязана лежать рядом с ядром: ядро загружает её при
+   * создании адаптера. Возвращает готовое объяснение для пользователя либо
+   * null, если всё на месте.
+   */
+  private missingTunDriver(enginePath: string): string | null {
+    const driver = path.join(path.dirname(enginePath), 'wintun.dll');
+    if (existsSync(driver)) return null;
+    return 'Для режима TUN не хватает драйвера сетевого адаптера (wintun.dll). '
+      + 'Он загружается при сборке программы и должен лежать рядом с ядром. '
+      + 'Пока драйвера нет, пользуйтесь режимом PROXY — он работает без него.';
+  }
+
   private binPath(name: string): string {
     const candidates = [
       path.join(this.modulesDir, 'bin', name),
@@ -791,6 +806,18 @@ export class VpnManager extends EventEmitter {
       this.setState('error', null, null, message);
       throw new Error(message);
     }
+    // Режим TUN опирается на драйвер виртуального адаптера Wintun: библиотека
+    // должна лежать рядом с ядром. Без неё процесс завершается мгновенно с
+    // кодом −1 и пустым журналом — по такому сообщению причину не найти,
+    // поэтому она проверяется заранее.
+    if (mode === 'tun' && process.platform === 'win32') {
+      const missing = this.missingTunDriver(engine);
+      if (missing) {
+        this.setState('error', null, null, missing);
+        throw new Error(missing);
+      }
+    }
+
     if (this.child) await this.disconnect();
 
     this.mode = mode;

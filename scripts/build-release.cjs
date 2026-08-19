@@ -50,6 +50,8 @@ function main() {
   // Ядра и текст лицензии готовятся так же, как при обычной сборке.
   run(process.execPath, [path.join('scripts', 'ensure-xray.cjs')]);
   run(process.execPath, [path.join('scripts', 'ensure-singbox.cjs')]);
+  // Драйвер виртуального адаптера: без него режим TUN не запускается.
+  run(process.execPath, [path.join('scripts', 'ensure-wintun.cjs')]);
   run(process.execPath, [path.join('scripts', 'prepare-wincodesign.cjs')]);
   run(process.execPath, [path.join('scripts', 'prepare-license.cjs')]);
 
