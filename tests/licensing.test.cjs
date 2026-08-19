@@ -102,7 +102,8 @@ for (const fontLicense of ['Inter-OFL.txt', 'JetBrains-Mono-OFL.txt', 'Space-Gro
 assert.match(notices, /SIL Open Font License/);
 
 // --- Пользователь видит правовую информацию ---------------------------------
-assert.match(app, /Лицензии<\/h3>/, 'раздел «О программе» должен показывать лицензии');
+// Заголовок переводится словарём, поэтому в разметке он в виде t('Лицензии').
+assert.match(app, /\{t\('Лицензии'\)\}<\/h3>/, 'раздел «О программе» должен показывать лицензии');
 assert.match(app, /MPL-2\.0/);
 assert.match(app, /GPL-3\.0/);
 assert.match(app, /THIRD-PARTY-NOTICES\.md/, 'нужна отсылка к полному перечню');

@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { animated, config, useSpring } from '@react-spring/web';
 import type { AboutSystemInfo, AppSettings, ModuleLog, ModuleManifest, ModuleStatus, NexusUpdateCheck, UpdateInfo, UserProfile } from '../main/types';
 import { DEFAULT_SETTINGS } from '../main/types';
-import { createTranslator, interfaceLanguage, setInterfaceLanguage, t as translate } from '../main/i18n';
+import { createTranslator, dateLocale, setInterfaceLanguage, t as translate } from '../main/i18n';
 import { Jey2RayPage } from './Jey2RayPage';
 import { ModuleSettings } from './ModuleSettings';
 
@@ -66,7 +66,7 @@ function moduleLabel(module: ModuleManifest): string {
 }
 
 function formatTime(value: string): string {
-  return new Intl.DateTimeFormat('ru-RU', { hour: '2-digit', minute: '2-digit' }).format(new Date(value));
+  return new Intl.DateTimeFormat(dateLocale(), { hour: '2-digit', minute: '2-digit' }).format(new Date(value));
 }
 
 function cleanError(error: unknown): string {
@@ -76,6 +76,38 @@ function cleanError(error: unknown): string {
 
 function IconMark({ children }: { children: string }) {
   return <span className="icon-mark" aria-hidden="true">{children}</span>;
+}
+
+/**
+ * Значки карточек статистики.
+ *
+ * Раньше здесь стояли текстовые символы «◈ ϟ ⌁ ◷». Они брались из шрифта:
+ * размер и толщина у них разные, часть символов в некоторых шрифтах Windows
+ * отсутствует и показывается прямоугольником-заглушкой. Нарисованные значки
+ * выглядят одинаково на любой системе и масштабируются без потери чёткости.
+ */
+function StatGlyph({ name }: { name: string }) {
+  if (name === 'modules') {
+    return <svg viewBox="0 0 24 24" aria-hidden="true">
+      <path d="M12 3 20 7.5v9L12 21 4 16.5v-9L12 3Z" />
+      <path className="glyph-soft" d="M12 3v18M4 7.5l8 4.5 8-4.5" />
+    </svg>;
+  }
+  if (name === 'active') {
+    return <svg viewBox="0 0 24 24" aria-hidden="true">
+      <path d="M13.2 2.6 5 13.4h5.2l-.8 8 8.4-11H12.4l.8-7.8Z" />
+    </svg>;
+  }
+  if (name === 'health') {
+    return <svg viewBox="0 0 24 24" aria-hidden="true">
+      <path d="M3.5 12.5h4l2.2-5.6 3 11 2.4-7.2 1.6 1.8h3.8" />
+    </svg>;
+  }
+  // scan
+  return <svg viewBox="0 0 24 24" aria-hidden="true">
+    <circle cx="12" cy="12" r="8.6" />
+    <path d="M12 7.2v5.1l3.3 2" />
+  </svg>;
 }
 
 function NexusMark() {
@@ -184,15 +216,25 @@ function ModuleSkeletons({ count }: { count: number }) {
   </div>)}</>;
 }
 
-function StatCard({ label, value, note, icon, tone, index }: { label: string; value: string; note: string; icon: string; tone: string; index: number }) {
+function StatCard({ label, value, note, glyph, tone, index, meter }: { label: string; value: string; note: string; glyph: string; tone: string; index: number; meter?: number | null }) {
   const spring = useSpring({ from: { opacity: 0, y: 12 }, to: { opacity: 1, y: 0 }, delay: 100 + index * 70, config: config.gentle });
-  return <animated.div className="stat-card" style={{ opacity: spring.opacity, transform: spring.y.to((y) => `translateY(${y}px)`) }}><div className={`stat-icon ${tone}`}><IconMark>{icon}</IconMark></div><div><span className="stat-label">{label}</span><strong>{value}</strong><span className="stat-note">{note}</span></div></animated.div>;
+  return <animated.div className={`stat-card tone-${tone}`} style={{ opacity: spring.opacity, transform: spring.y.to((y) => `translateY(${y}px)`) }}>
+    <div className={`stat-icon ${tone}`}><StatGlyph name={glyph} /></div>
+    <div className="stat-body">
+      <span className="stat-label">{label}</span>
+      <strong>{value}</strong>
+      <span className="stat-note">{note}</span>
+      {/* Полоска показывает величину наглядно: число «73%» само по себе
+          ни с чем не сравнивается, а заполненность видна сразу. */}
+      {meter != null && <span className="stat-meter" aria-hidden="true"><i style={{ width: `${Math.max(0, Math.min(100, meter))}%` }} /></span>}
+    </div>
+  </animated.div>;
 }
 
 function PulsePanel({ running, total, errors }: { running: number; total: number; errors: number }) {
   const progress = total ? Math.round((running / total) * 100) : 0;
   const spring = useSpring({ from: { opacity: 0, x: 12 }, to: { opacity: 1, x: 0 }, delay: 260, config: config.gentle });
-  return <animated.aside className="pulse-panel" style={{ opacity: spring.opacity, transform: spring.x.to((x) => `translateX(${x}px)`) }}><div className="panel-topline"><span className="mini-label">SYSTEM PULSE</span><span className="live-badge"><StatusDot tone={errors ? 'red' : running ? 'green' : 'muted'} /> {errors ? 'ALERT' : 'LIVE'}</span></div><div className="pulse-title"><div><strong>{errors ? translate('Есть ошибки') : running ? translate('Контур активен') : translate('Контур готов')}</strong><span>{running} из {total} модулей запущено</span></div><span className="pulse-score">{progress}%</span></div><div className="pulse-chart" aria-hidden="true"><svg viewBox="0 0 330 110" preserveAspectRatio="none"><defs><linearGradient id="pulseFill" x1="0" x2="0" y1="0" y2="1"><stop offset="0" stopColor="#71f4b8" stopOpacity=".34" /><stop offset="1" stopColor="#71f4b8" stopOpacity="0" /></linearGradient></defs><path className="chart-grid" d="M0 22H330 M0 54H330 M0 86H330" /><path className="chart-fill" d="M0 78 C20 76, 23 58, 42 66 S66 94, 87 63 S111 34, 133 55 S160 78, 180 48 S204 31, 225 53 S247 80, 270 39 S300 50, 330 23 L330 110 L0 110 Z" /><path className="chart-line" d="M0 78 C20 76, 23 58, 42 66 S66 94, 87 63 S111 34, 133 55 S160 78, 180 48 S204 31, 225 53 S247 80, 270 39 S300 50, 330 23" /></svg></div><div className="pulse-foot"><span><i className="legend-line mint" /> Запущено</span><span>{errors ? `${errors} ошиб. ` : ''}{running}/{total}</span></div></animated.aside>;
+  return <animated.aside className="pulse-panel" style={{ opacity: spring.opacity, transform: spring.x.to((x) => `translateX(${x}px)`) }}><div className="panel-topline"><span className="mini-label">SYSTEM PULSE</span><span className="live-badge"><StatusDot tone={errors ? 'red' : running ? 'green' : 'muted'} /> {errors ? 'ALERT' : 'LIVE'}</span></div><div className="pulse-title"><div><strong>{errors ? translate('Есть ошибки') : running ? translate('Контур активен') : translate('Контур готов')}</strong><span>{running} {translate('из')} {total} {translate('модулей запущено')}</span></div><span className="pulse-score">{progress}%</span></div><div className="pulse-chart" aria-hidden="true"><svg viewBox="0 0 330 110" preserveAspectRatio="none"><defs><linearGradient id="pulseFill" x1="0" x2="0" y1="0" y2="1"><stop offset="0" stopColor="#71f4b8" stopOpacity=".34" /><stop offset="1" stopColor="#71f4b8" stopOpacity="0" /></linearGradient></defs><path className="chart-grid" d="M0 22H330 M0 54H330 M0 86H330" /><path className="chart-fill" d="M0 78 C20 76, 23 58, 42 66 S66 94, 87 63 S111 34, 133 55 S160 78, 180 48 S204 31, 225 53 S247 80, 270 39 S300 50, 330 23 L330 110 L0 110 Z" /><path className="chart-line" d="M0 78 C20 76, 23 58, 42 66 S66 94, 87 63 S111 34, 133 55 S160 78, 180 48 S204 31, 225 53 S247 80, 270 39 S300 50, 330 23" /></svg></div><div className="pulse-foot"><span><i className="legend-line mint" /> {translate('Запущено')}</span><span>{errors ? `${errors} ошиб. ` : ''}{running}/{total}</span></div></animated.aside>;
 }
 
 // Орбиты вращаются средствами CSS. Две бесконечные пружины держали JavaScript
@@ -213,7 +255,7 @@ function GithubUpdateStrip({ updates, syncing, onSync }: { updates: UpdateInfo[]
   const downloading = updates.find((item) => item.status === 'downloading');
   const progress = downloading && downloading.totalBytes ? Math.round(((downloading.downloadedBytes ?? 0) / downloading.totalBytes) * 100) : null;
   const failed = updates.find((item) => item.status === 'error');
-  return <div className="github-strip"><div className="github-logo"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 7.5A7 7 0 0 1 18.2 6L20 8M20 4v4h-4M17 16.5A7 7 0 0 1 5.8 18L4 16m0 4v-4h4" /></svg></div><div className="github-copy"><strong>{translate('Обновление сетевых модулей')}</strong><span className={failed ? 'github-error' : ''}>{failed?.error || latest || translate('Проверяются последние релизы…')}{progress !== null ? ` · загрузка ${progress}%` : ''}{installed ? ` · обновлено: ${installed}` : ''}</span></div><span className="github-lock">{translate('Проверенные репозитории GitHub')}</span><button className="github-button" disabled={syncing} onClick={onSync}>{syncing ? (progress !== null ? `${progress}%` : translate('Синхронизация…')) : translate('Проверить обновления')} <span>↗</span></button></div>;
+  return <div className="github-strip"><div className="github-logo"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 7.5A7 7 0 0 1 18.2 6L20 8M20 4v4h-4M17 16.5A7 7 0 0 1 5.8 18L4 16m0 4v-4h4" /></svg></div><div className="github-copy"><strong>{translate('Обновление сетевых модулей')}</strong><span className={failed ? 'github-error' : ''}>{failed?.error || latest || translate('Проверяются последние релизы…')}{progress !== null ? ` · ${translate('загрузка')} ${progress}%` : ''}{installed ? ` · ${translate('обновлено:')} ${installed}` : ''}</span></div><span className="github-lock">{translate('Проверенные репозитории GitHub')}</span><button className="github-button" disabled={syncing} onClick={onSync}>{syncing ? (progress !== null ? `${progress}%` : translate('Синхронизация…')) : translate('Проверить обновления')} <span>↗</span></button></div>;
 }
 
 function ProfilePopover({ open, profile, draft, setDraft, onSave }: { open: boolean; profile: UserProfile; draft: string; setDraft: (value: string) => void; onSave: () => void }) {
@@ -296,7 +338,7 @@ function LogsPage({ logs, category, setCategory, onNotice, t }: { logs: ModuleLo
   }, [reportText]);
 
   return <section className="page-section logs-page">
-    <div className="page-heading logs-heading"><div><span className="section-kicker">{t('КОНСОЛЬ СОБЫТИЙ')}</span><h1>Логи</h1><p>Системные события NEXUS в реальном времени.</p></div><button className="logs-report-button" onClick={() => void copyReport()}><NavGlyph name="logs" /> Скопировать отчёт</button></div>
+    <div className="page-heading logs-heading"><div><span className="section-kicker">{t('КОНСОЛЬ СОБЫТИЙ')}</span><h1>{t('Логи')}</h1><p>{t('Системные события NEXUS в реальном времени.')}</p></div><button className="logs-report-button" onClick={() => void copyReport()}><NavGlyph name="logs" /> {t('Скопировать отчёт')}</button></div>
     <div className="logs-hint"><span className="logs-hint-icon">i</span><span>{t('Нажмите')} <kbd>Ctrl</kbd> + <kbd>R</kbd>{t(', чтобы скопировать отчёт выбранной категории.')}</span><span className="logs-live-state"><i /> LIVE</span></div>
     <div className="log-source-tabs" role="tablist" aria-label={t('Источники логов')}>
       {LOG_CATEGORIES.map((tab) => <button key={tab.id} type="button" role="tab" aria-selected={category === tab.id} className={category === tab.id ? 'is-active' : ''} onClick={() => setCategory(tab.id)}>{t(tab.label)}</button>)}
@@ -304,7 +346,7 @@ function LogsPage({ logs, category, setCategory, onNotice, t }: { logs: ModuleLo
     <div className="log-console-shell">
       <div className="log-console-toolbar"><span><i /> NEXUS / {t(LOG_CATEGORIES.find((tab) => tab.id === category)?.label ?? '').toUpperCase()}</span><span>{visibleLogs.length} {visibleLogs.length === 1 ? t('СОБЫТИЕ') : t('СОБЫТИЙ')}</span></div>
       <div className="log-console" ref={consoleRef} role="tabpanel" aria-live="polite">
-        {visibleLogs.length ? visibleLogs.map((log, index) => <div className={`log-console-line level-${log.level}`} key={`${log.timestamp}-${log.id}-${index}`}><time>[{formatLogTimestamp(log.timestamp)}]</time><span className="log-console-source">[{logSourceLabel(log.id)}]:</span><span className="log-console-message">{log.message}</span></div>) : <div className="log-console-empty"><span>_</span><strong>Событий пока нет</strong><p>Новые записи появятся здесь автоматически.</p></div>}
+        {visibleLogs.length ? visibleLogs.map((log, index) => <div className={`log-console-line level-${log.level}`} key={`${log.timestamp}-${log.id}-${index}`}><time>[{formatLogTimestamp(log.timestamp)}]</time><span className="log-console-source">[{logSourceLabel(log.id)}]:</span><span className="log-console-message">{log.message}</span></div>) : <div className="log-console-empty"><span>_</span><strong>{t('Событий пока нет')}</strong><p>{t('Новые записи появятся здесь автоматически.')}</p></div>}
       </div>
     </div>
   </section>;
@@ -358,7 +400,7 @@ function AboutPage({ t }: { t: (text: string) => string }) {
     xrayVersion: null,
     singBoxVersion: null,
     hwid: 'NX-LOCAL',
-    computer: typeof navigator === 'undefined' ? translate('Локальное устройство') : `${navigator.platform || 'Desktop'} · локальное устройство`,
+    computer: typeof navigator === 'undefined' ? translate('Локальное устройство') : `${navigator.platform || 'Desktop'} · ${translate('локальное устройство')}`,
   });
   const [loadingInfo, setLoadingInfo] = useState(true);
   const [checkingUpdate, setCheckingUpdate] = useState(false);
@@ -445,7 +487,7 @@ function AboutPage({ t }: { t: (text: string) => string }) {
   } as Record<string, string>)[updateStatus] ?? t('Проверить новую версию');
   // Формат времени тоже зависит от языка: в английском режиме «14:05» уместнее
   // показать по правилам en-GB, а не ru-RU.
-  const checkedAt = updateCheck ? new Intl.DateTimeFormat(interfaceLanguage() === 'en' ? 'en-GB' : 'ru-RU', { hour: '2-digit', minute: '2-digit' }).format(new Date(updateCheck.checkedAt)) : null;
+  const checkedAt = updateCheck ? new Intl.DateTimeFormat(dateLocale(), { hour: '2-digit', minute: '2-digit' }).format(new Date(updateCheck.checkedAt)) : null;
 
   return <section className="page-section about-page">
     <div className="page-heading"><div><span className="section-kicker">{t('О ПРОГРАММЕ')}</span><h1>{t('О программе')}</h1><p>{t('Версии компонентов, сведения об устройстве и обновление NEXUS.')}</p></div><span className="about-version-pill">{t('ВЕРСИЯ')} {info.nexusVersion}</span></div>
@@ -457,10 +499,10 @@ function AboutPage({ t }: { t: (text: string) => string }) {
 
     <div className="about-system-layout">
       <article className="about-system-card">
-        <div className="about-panel-heading"><div className="about-panel-icon"><NavGlyph name="settings" /></div><div><span>СИСТЕМА</span><h3>Техническая информация</h3></div></div>
+        <div className="about-panel-heading"><div className="about-panel-icon"><NavGlyph name="settings" /></div><div><span>{t('СИСТЕМА')}</span><h3>{t('Техническая информация')}</h3></div></div>
         <div className="about-system-table">
-          <div className="about-system-row"><span>Версия NEXUS</span><strong>{info.nexusVersion}</strong></div>
-          <div className="about-system-row"><span>Версия Xray Core</span><strong className={!info.xrayVersion && !loadingInfo ? 'is-missing' : ''}>{coreValue(info.xrayVersion)}</strong></div>
+          <div className="about-system-row"><span>{t('Версия NEXUS')}</span><strong>{info.nexusVersion}</strong></div>
+          <div className="about-system-row"><span>{t('Версия Xray Core')}</span><strong className={!info.xrayVersion && !loadingInfo ? 'is-missing' : ''}>{coreValue(info.xrayVersion)}</strong></div>
           <div className="about-system-row"><span>{t('Версия sing-box')}</span><strong className={!info.singBoxVersion && !loadingInfo ? 'is-missing' : ''}>{coreValue(info.singBoxVersion)}</strong></div>
           <div className="about-system-row"><span>HWID</span><div className="about-hwid"><strong>{info.hwid}</strong></div></div>
           <div className="about-system-row about-computer-row"><span>{t('Компьютер / ОС')}</span><strong>{loadingInfo ? t('Определение…') : info.computer}</strong></div>
@@ -473,7 +515,7 @@ function AboutPage({ t }: { t: (text: string) => string }) {
         <div className="about-update-visual" aria-hidden="true">
           <svg viewBox="0 0 96 96"><rect x="20" y="22" width="56" height="42" rx="8" /><path d="M38 75h20M48 64v11" /><path className="about-update-arrow" d="M35 42a15 15 0 0 1 25-8l4 5m0-10v10H54M61 47a15 15 0 0 1-25 8l-4-5m0 10V50h10" /></svg>
         </div>
-        <div className="about-update-copy"><span>ОБНОВЛЕНИЕ NEXUS</span><h3>{updateHeadline}</h3><p>{updateCheck?.message || `Текущая версия ${info.nexusVersion}. Нажмите «Проверить», чтобы узнать о новой.`}</p></div>
+        <div className="about-update-copy"><span>{t('ОБНОВЛЕНИЕ NEXUS')}</span><h3>{updateHeadline}</h3><p>{updateCheck?.message || `Текущая версия ${info.nexusVersion}. Нажмите «Проверить», чтобы узнать о новой.`}</p></div>
         {updateStatus === 'downloading' && <div className="about-update-progress"><div className="about-update-progress-bar" style={{ width: `${updateCheck?.percent ?? 0}%` }} /></div>}
         {updateCheck?.releaseNotes && <p className="about-update-notes">{updateCheck.releaseNotes}</p>}
         {checkedAt && <div className="about-update-checked"><i /> {t('Проверено в')} {checkedAt}</div>}
@@ -489,8 +531,8 @@ function AboutPage({ t }: { t: (text: string) => string }) {
     <CommunityCard t={t} />
 
     <article className="about-license-card">
-      <div className="about-panel-heading"><div className="about-panel-icon"><NavGlyph name="about" /></div><div><span>ПРАВОВАЯ ИНФОРМАЦИЯ</span><h3>Лицензии</h3></div></div>
-      <p className="about-license-lead">NEXUS — проприетарное программное обеспечение. Copyright © 2026 NEXUS. Все права защищены.</p>
+      <div className="about-panel-heading"><div className="about-panel-icon"><NavGlyph name="about" /></div><div><span>{t('ПРАВОВАЯ ИНФОРМАЦИЯ')}</span><h3>{t('Лицензии')}</h3></div></div>
+      <p className="about-license-lead">{t('NEXUS — проприетарное программное обеспечение. Copyright © 2026 NEXUS. Все права защищены.')}</p>
       <div className="about-license-list">
         <div className="about-license-row"><span>Xray-core</span><strong>MPL-2.0</strong></div>
         <div className="about-license-row"><span>sing-box</span><strong>GPL-3.0</strong></div>
@@ -499,10 +541,10 @@ function AboutPage({ t }: { t: (text: string) => string }) {
         <div className="about-license-row"><span>Electron, React</span><strong>MIT</strong></div>
         <div className="about-license-row"><span>Inter, JetBrains Mono, Space Grotesk</span><strong>OFL-1.1</strong></div>
       </div>
-      <p className="about-license-note">Сетевые ядра и модули — самостоятельные программы сторонних разработчиков. Они загружаются с официальных репозиториев и запускаются отдельными процессами. Полный перечень условий приведён в файле THIRD-PARTY-NOTICES.md рядом с приложением.</p>
+      <p className="about-license-note">{t('Сетевые ядра и модули — самостоятельные программы сторонних разработчиков. Они загружаются с официальных репозиториев и запускаются отдельными процессами. Полный перечень условий приведён в файле THIRD-PARTY-NOTICES.md рядом с приложением.')}</p>
     </article>
 
-    <div className="about-footer-card"><div><strong>NEXUS</strong><span>Разработано для безопасной локальной работы</span></div><div><span>ХРАНЕНИЕ</span><strong>Только на устройстве</strong></div><div><span>КАНАЛ</span><strong>Stable</strong></div></div>
+    <div className="about-footer-card"><div><strong>NEXUS</strong><span>{t('Разработано для безопасной локальной работы')}</span></div><div><span>{t('ХРАНЕНИЕ')}</span><strong>{t('Только на устройстве')}</strong></div><div><span>{t('КАНАЛ')}</span><strong>Stable</strong></div></div>
   </section>;
 }
 
@@ -633,7 +675,7 @@ function App() {
 
   const handleToggle = async (module: ModuleManifest) => {
     if (module.development) {
-      setToast(`${module.name}: интеграция в разработке`);
+      setToast(`${module.name}: ${t('интеграция в разработке')}`);
       return;
     }
     try {
@@ -689,14 +731,14 @@ function App() {
       } else {
         setModules((current) => current.map((item) => item.id === module.id ? { ...item, strategy, launch_mode: 'batch' } : item));
       }
-      setToast(`Выбрана стратегия ${strategy}`);
+      setToast(`${t('Выбрана стратегия')} ${strategy}`);
     } catch (error) { setToast(error instanceof Error ? error.message : t('Не удалось выбрать стратегию')); }
   };
 
   const handleReload = async () => {
     try {
       if (desktop) await window.nexus?.reloadModules();
-      else setLogs((current) => [{ id: 'system', level: 'success', message: `Повторное сканирование: найдено модулей — ${modules.length}`, timestamp: new Date().toISOString() }, ...current]);
+      else setLogs((current) => [{ id: 'system', level: 'success', message: `${t('Повторное сканирование: найдено модулей —')} ${modules.length}`, timestamp: new Date().toISOString() }, ...current]);
       setLastScan(new Date().toISOString());
       setToast(t('Модули синхронизированы'));
     } catch (error) { setToast(error instanceof Error ? error.message : t('Ошибка сканирования')); }
@@ -758,7 +800,20 @@ function App() {
 
     <main className="main-content" ref={mainContentRef}><header className="topbar"><div className="breadcrumb"><span>{t('ЦЕНТР УПРАВЛЕНИЯ')}</span><b>/</b><strong>{page === 'about' ? t('О программе') : t(navItems.find((item) => item.id === page)?.label ?? '')}</strong></div><div className="top-actions"><button className={`logs-shortcut ${page === 'logs' ? 'is-active' : ''}`} aria-label={t('Логи')} onClick={() => openPage('logs')}><span className="logs-shortcut-icon"><NavGlyph name="logs" /></span><span>{t('Логи')}</span>{logs.some((log) => log.level === 'error') ? <i /> : null}</button><div className="profile-wrap" ref={profileWrapRef}><button className={`user-chip ${profileOpen ? 'is-open' : ''}`} aria-expanded={profileOpen} aria-haspopup="dialog" onClick={() => setProfileOpen((value) => !value)}><span className="user-avatar">{profileInitial}</span><span>{profileName}</span><span className="profile-chevron"><svg viewBox="0 0 20 20" aria-hidden="true"><path d="m5.5 7.5 4.5 4.5 4.5-4.5" /></svg></span></button><ProfilePopover open={profileOpen} profile={profile} draft={profileDraft} setDraft={setProfileDraft} onSave={handleSaveProfile} /></div></div></header>
 
-      {page === 'dashboard' && <><section className="hero"><div className="hero-copy"><div className="hero-kicker"><span className="spark-line">✦</span> {t('УПРАВЛЕНИЕ ЛОКАЛЬНОЙ СЕТЬЮ')} <span className="hero-line" /></div><h1>{t('Сеть, которая')}<br /><span>{t('остаётся под контролем.')}</span></h1><p>{t('Единый центр для спокойного управления сетевыми инструментами,')}<br />{t('локальными прокси и профилями маршрутизации.')}</p><div className="hero-actions"><button className="primary-button" onClick={() => setPage('modules')}><span>{t('Открыть модули')}</span><b>↗</b></button><button className="quiet-button" onClick={handleReload}><span>⟳</span> {t('Сканировать заново')}</button></div></div><HeroVisual /></section><section className="stats-grid"><StatCard label={t('ВСЕГО МОДУЛЕЙ')} value={String(modules.length).padStart(2, '0')} note={t('обнаружено локально')} icon="◈" tone="cyan" index={0} /><StatCard label={t('АКТИВНЫЕ')} value={String(running).padStart(2, '0')} note={running ? t('контур запущен') : t('готовы к запуску')} icon="ϟ" tone="violet" index={1} /><StatCard label={t('ЗДОРОВЬЕ')} value={`${modules.length ? Math.round((healthy / modules.length) * 100) : 100}%`} note={errors ? `${errors} ${t('с ошибкой')}` : t('без критических ошибок')} icon="⌁" tone="mint" index={2} /><StatCard label={t('ПОСЛЕДНИЙ СКАН')} value={lastScanLabel} note={settings.autoStart ? t('автозапуск включён') : t('автозапуск выключен')} icon="◷" tone="amber" index={3} /></section><section className="section-heading"><div><span className="section-kicker">{t('ВАШИ ИНСТРУМЕНТЫ')}</span><h2>{t('Быстрый доступ')}</h2></div><button className="text-button" onClick={() => setPage('modules')}>{t('Все модули')} <span>→</span></button></section><div className="dashboard-grid"><div className="module-grid compact">{loadingModules ? <ModuleSkeletons count={4} /> : filteredModules.slice(0, 4).map((module, index) => <ModuleCard key={module.id} module={module} index={index} onToggle={handleToggle} onStrategyChange={handleStrategyChange} onOpenSettings={openModuleSettings} t={t} />)}</div><PulsePanel running={running} total={modules.length} errors={errors} /></div></>}
+      {page === 'dashboard' && <><section className="hero"><div className="hero-copy"><div className="hero-kicker"><span className="spark-line">✦</span> {t('УПРАВЛЕНИЕ ЛОКАЛЬНОЙ СЕТЬЮ')} <span className="hero-line" /></div><h1>{t('Сеть, которая')}<br /><span>{t('остаётся под контролем.')}</span></h1><p>{t('Единый центр для спокойного управления сетевыми инструментами,')}<br />{t('локальными прокси и профилями маршрутизации.')}</p><div className="hero-actions">
+      <button className="primary-button" onClick={() => openPage('modules')}>
+        <span>{t('Открыть модули')}</span>
+        <b><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 16 16 8M9.5 8H16v6.5" /></svg></b>
+      </button>
+      <button className={`quiet-button ${loadingModules ? 'is-busy' : ''}`} onClick={handleReload}>
+        <span className="quiet-button-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20 12a8 8 0 1 1-2.4-5.7" /><path d="M20 4.5V10h-5.5" /></svg></span>
+        {t('Сканировать заново')}
+      </button>
+    </div></div><HeroVisual /></section><section className="stats-grid"><StatCard label={t('ВСЕГО МОДУЛЕЙ')} value={String(modules.length).padStart(2, '0')} note={t('обнаружено локально')} glyph="modules" tone="cyan" index={0} /><StatCard label={t('АКТИВНЫЕ')} value={String(running).padStart(2, '0')} note={running ? t('контур запущен') : t('готовы к запуску')} glyph="active" tone="violet" index={1} meter={modules.length ? (running / modules.length) * 100 : 0} /><StatCard label={t('ЗДОРОВЬЕ')} value={`${modules.length ? Math.round((healthy / modules.length) * 100) : 100}%`} note={errors ? `${errors} ${t('с ошибкой')}` : t('без критических ошибок')} glyph="health" tone={errors ? 'red' : 'mint'} index={2} meter={modules.length ? Math.round((healthy / modules.length) * 100) : 100} /><StatCard label={t('ПОСЛЕДНИЙ СКАН')} value={lastScanLabel} note={settings.autoStart ? t('автозапуск включён') : t('автозапуск выключен')} glyph="scan" tone="amber" index={3} /></section><section className="section-heading"><div><span className="section-kicker">{t('ВАШИ ИНСТРУМЕНТЫ')}</span><h2>{t('Быстрый доступ')}</h2></div><button className="text-button" onClick={() => openPage('modules')}>
+        <span className="text-button-label">{t('Все модули')}</span>
+        <em className="text-button-count">{modules.length}</em>
+        <span className="text-button-arrow"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12h13M12.5 6.5 19 12l-6.5 5.5" /></svg></span>
+      </button></section><div className="dashboard-grid"><div className="module-grid compact">{loadingModules ? <ModuleSkeletons count={4} /> : filteredModules.slice(0, 4).map((module, index) => <ModuleCard key={module.id} module={module} index={index} onToggle={handleToggle} onStrategyChange={handleStrategyChange} onOpenSettings={openModuleSettings} t={t} />)}</div><PulsePanel running={running} total={modules.length} errors={errors} /></div></>}
 
       {page === 'modules' && settingsModule && <ModuleSettings
         module={settingsModule}
@@ -767,7 +822,7 @@ function App() {
         onStrategyChange={handleStrategyChange}
       />}
 
-      {page === 'modules' && !settingsModule && <section className="page-section"><div className="page-heading"><div><span className="section-kicker">{t('РЕЕСТР МОДУЛЕЙ')}</span><h1>{t('Все модули')}</h1><p>{t('Манифесты из')} <code>./modules</code> · {modules.length} {t('подключено')}</p></div><button className="primary-button small" onClick={handleReload}><span>⟳</span><b>{t('Сканировать')}</b></button></div><GithubUpdateStrip updates={updates} syncing={syncing} onSync={handleSyncUpdates} /><div className="filter-row"><span className="filter-label">{t('ФИЛЬТР:')}</span><button className={`filter-chip ${moduleFilter === 'all' ? 'active' : ''}`} onClick={() => setModuleFilter('all')}>{t('Все')} <b>{modules.length}</b></button><button className={`filter-chip ${moduleFilter === 'running' ? 'active' : ''}`} onClick={() => setModuleFilter('running')}>{t('Активные')} <b>{running}</b></button><button className={`filter-chip ${moduleFilter === 'stopped' ? 'active' : ''}`} onClick={() => setModuleFilter('stopped')}>{t('Остановлены')} <b>{modules.length - running}</b></button></div><div className="module-grid full">{loadingModules ? <ModuleSkeletons count={4} /> : filteredModules.map((module, index) => <ModuleCard key={module.id} module={module} index={index} onToggle={handleToggle} onStrategyChange={handleStrategyChange} onOpenSettings={openModuleSettings} t={t} />)}</div>{!loadingModules && filteredModules.length === 0 && <div className="empty-state"><span>⌕</span><h3>{t('Ничего не найдено')}</h3><p>{t('Смените фильтр или просканируйте modules ещё раз.')}</p></div>}</section>}
+      {page === 'modules' && !settingsModule && <section className="page-section"><div className="page-heading"><div><span className="section-kicker">{t('РЕЕСТР МОДУЛЕЙ')}</span><h1>{t('Все модули')}</h1><p>{t('Манифесты из')} <code>./modules</code> · {modules.length} {t('подключено')}</p></div><button className={`primary-button small ${loadingModules ? 'is-busy' : ''}`} onClick={handleReload}><span className="quiet-button-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20 12a8 8 0 1 1-2.4-5.7" /><path d="M20 4.5V10h-5.5" /></svg></span><b>{t('Сканировать')}</b></button></div><GithubUpdateStrip updates={updates} syncing={syncing} onSync={handleSyncUpdates} /><div className="filter-row"><span className="filter-label">{t('ФИЛЬТР:')}</span><button className={`filter-chip ${moduleFilter === 'all' ? 'active' : ''}`} onClick={() => setModuleFilter('all')}>{t('Все')} <b>{modules.length}</b></button><button className={`filter-chip ${moduleFilter === 'running' ? 'active' : ''}`} onClick={() => setModuleFilter('running')}>{t('Активные')} <b>{running}</b></button><button className={`filter-chip ${moduleFilter === 'stopped' ? 'active' : ''}`} onClick={() => setModuleFilter('stopped')}>{t('Остановлены')} <b>{modules.length - running}</b></button></div><div className="module-grid full">{loadingModules ? <ModuleSkeletons count={4} /> : filteredModules.map((module, index) => <ModuleCard key={module.id} module={module} index={index} onToggle={handleToggle} onStrategyChange={handleStrategyChange} onOpenSettings={openModuleSettings} t={t} />)}</div>{!loadingModules && filteredModules.length === 0 && <div className="empty-state"><span>⌕</span><h3>{t('Ничего не найдено')}</h3><p>{t('Смените фильтр или просканируйте modules ещё раз.')}</p></div>}</section>}
 
       {page === 'jey2ray' && <Jey2RayPage settings={settings} updates={updates} syncing={syncing} onSync={handleSyncUpdates} onSettings={(next) => void persistSettings(next)} onToast={setToast} />}
 
@@ -785,12 +840,12 @@ function Settings({ settings, onChange }: {
 }) {
   const t = createTranslator(settings.language);
   return <section className="page-section settings-page global-settings-page">
-    <div className="page-heading"><div><span className="section-kicker">{t('ПАРАМЕТРЫ NEXUS')}</span><h1>{t('Настройки')}</h1><p>Глобальные параметры языка, оформления и поведения NEXUS.</p></div></div>
+    <div className="page-heading"><div><span className="section-kicker">{t('ПАРАМЕТРЫ NEXUS')}</span><h1>{t('Настройки')}</h1><p>{t('Глобальные параметры языка, оформления и поведения NEXUS.')}</p></div></div>
 
     <div className="global-settings-hero">
       <span className="global-settings-hero-icon"><GearIcon /></span>
-      <div><span>ОБЩИЕ НАСТРОЙКИ</span><h2>Интерфейс NEXUS</h2><p>Эти параметры относятся ко всему приложению. Настройки VPN находятся внутри Jey2Ray.</p></div>
-      <div className="global-settings-badges"><span>RU</span><span>Тёмная тема</span></div>
+      <div><span>{t('ОБЩИЕ НАСТРОЙКИ')}</span><h2>{t('Интерфейс NEXUS')}</h2><p>{t('Эти параметры относятся ко всему приложению. Настройки VPN находятся внутри Jey2Ray.')}</p></div>
+      <div className="global-settings-badges"><span>RU</span><span>{t('Тёмная тема')}</span></div>
     </div>
 
     <div className="settings-layout global-settings-layout">

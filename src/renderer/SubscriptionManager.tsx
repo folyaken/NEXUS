@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react';
 import type { VpnProfile, VpnSubscriptionInfo } from '../main/types';
-import { t } from '../main/i18n';
+import { dateLocale, t } from '../main/i18n';
 
 export type SubscriptionAction = {
   kind: 'add' | 'refresh' | 'refresh-all' | 'remove';
@@ -39,7 +39,7 @@ function formatWhen(value?: string): string {
   if (!value) return t('Ещё не обновлялась');
   const date = new Date(value);
   if (!Number.isFinite(date.getTime())) return t('Время неизвестно');
-  return new Intl.DateTimeFormat('ru-RU', {
+  return new Intl.DateTimeFormat(dateLocale(), {
     day: '2-digit',
     month: '2-digit',
     year: 'numeric',
@@ -53,10 +53,10 @@ function expiration(value?: string): { label: string; tone: 'normal' | 'soon' | 
   const date = new Date(value);
   if (!Number.isFinite(date.getTime())) return { label: t('Срок не указан'), tone: 'normal' };
   const days = Math.ceil((date.getTime() - Date.now()) / 86_400_000);
-  const stamp = new Intl.DateTimeFormat('ru-RU', { day: '2-digit', month: '2-digit', year: 'numeric' }).format(date);
-  if (days < 0) return { label: `Истекла ${stamp}`, tone: 'expired' };
-  if (days === 0) return { label: `Истекает сегодня · ${stamp}`, tone: 'soon' };
-  return { label: `Истекает ${stamp} · ещё ${days} дн.`, tone: days <= 7 ? 'soon' : 'normal' };
+  const stamp = new Intl.DateTimeFormat(dateLocale(), { day: '2-digit', month: '2-digit', year: 'numeric' }).format(date);
+  if (days < 0) return { label: `${t('Истекла')} ${stamp}`, tone: 'expired' };
+  if (days === 0) return { label: `${t('Истекает сегодня')} · ${stamp}`, tone: 'soon' };
+  return { label: `${t('Истекает')} ${stamp} · ${t('ещё')} ${days} ${t('дн.')}`, tone: days <= 7 ? 'soon' : 'normal' };
 }
 
 export function SubscriptionManager({
@@ -114,7 +114,7 @@ export function SubscriptionManager({
       <div className="subscriptions-heading">
         <span>Jey2Ray</span>
         <h2>{t('Управление подписками')}</h2>
-        <p>Добавляй источники, обновляй их по отдельности и контролируй срок действия.</p>
+        <p>{t('Добавляй источники, обновляй их по отдельности и контролируй срок действия.')}</p>
       </div>
       <div className="subscriptions-toolbar-actions">
         <button type="button" className="subscription-toolbar-button" disabled={busy} onClick={() => setAddOpen((value) => !value)}>
@@ -134,7 +134,7 @@ export function SubscriptionManager({
           <span className="subscription-source-icon">
             <svg viewBox="0 0 24 24" aria-hidden><path d="M9.5 14.5 14.5 9M7.2 16.8l-1 1a3.5 3.5 0 0 1-5-5l4-4a3.5 3.5 0 0 1 5 0M16.8 7.2l1-1a3.5 3.5 0 0 1 5 5l-4 4a3.5 3.5 0 0 1-5 0" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" /></svg>
           </span>
-          <div><strong>{t('Новая подписка')}</strong><p>Вставьте полный HTTPS-адрес, выданный провайдером. Адрес и его секретный токен не показываются в списке.</p></div>
+          <div><strong>{t('Новая подписка')}</strong><p>{t('Вставьте полный HTTPS-адрес, выданный провайдером. Адрес и его секретный токен не показываются в списке.')}</p></div>
         </div>
         <div className="subscription-add-form">
           <input
@@ -155,7 +155,7 @@ export function SubscriptionManager({
       <div className="subscriptions-summary">
         <div><span>{t('Источников')}</span><strong>{subscriptions.length}</strong></div>
         <div><span>{t('Серверов в подписках')}</span><strong>{[...nodeCounts.values()].reduce((sum, count) => sum + count, 0)}</strong></div>
-        <p>Удаление источника удалит и его серверы. Если один из них подключён, VPN будет сначала безопасно отключён.</p>
+        <p>{t('Удаление источника удалит и его серверы. Если один из них подключён, VPN будет сначала безопасно отключён.')}</p>
       </div>
 
       {subscriptions.length ? <div className="subscription-list" aria-live="polite">
@@ -182,7 +182,7 @@ export function SubscriptionManager({
               <div className="subscription-title">
                 <span className={`subscription-state ${state.tone}`}><i /> {state.label}</span>
                 <h3>{info.title || sourceHost(info.url)}</h3>
-                <p title={t('Секретная часть адреса скрыта')}>{sourceHost(info.url)} · адрес скрыт</p>
+                <p title={t('Секретная часть адреса скрыта')}>{sourceHost(info.url)} · {t('адрес скрыт')}</p>
               </div>
               <span className="subscription-node-count"><strong>{nodes}</strong><small>{t('серверов')}</small></span>
             </div>
@@ -190,9 +190,9 @@ export function SubscriptionManager({
             <div className="subscription-metrics">
               <div><span>{t('Трафик')}</span><strong>{formatBytes(used)} <em>/ {total ? formatBytes(total) : t('без лимита')}</em></strong></div>
               <div><span>{t('Последнее обновление')}</span><strong>{formatWhen(info.lastSync)}</strong></div>
-              <div><span>{t('Интервал панели')}</span><strong>{info.updateHours ? `каждые ${info.updateHours} ч.` : t('не указан')}</strong></div>
+              <div><span>{t('Интервал панели')}</span><strong>{info.updateHours ? `${t('каждые')} ${info.updateHours} ${t('ч.')}` : t('не указан')}</strong></div>
             </div>
-            {total > 0 && <div className="subscription-quota" title={`Использовано ${progress.toFixed(1)}%`}><i style={{ width: `${progress}%` }} /></div>}
+            {total > 0 && <div className="subscription-quota" title={`${t('Использовано')} ${progress.toFixed(1)}%`}><i style={{ width: `${progress}%` }} /></div>}
             <div className="subscription-card-foot">
               <span className={`subscription-expire ${expires.tone}`}>{expires.label}</span>
               <div className="subscription-card-actions">
@@ -205,7 +205,7 @@ export function SubscriptionManager({
             </div>
 
             {confirming && <div className="subscription-confirm">
-              <div><strong>{t('Удалить подписку?')}</strong><p>Будут удалены все её серверы: {nodes}. Это действие нельзя отменить.</p></div>
+              <div><strong>{t('Удалить подписку?')}</strong><p>{t('Будут удалены все её серверы:')} {nodes}. {t('Это действие нельзя отменить.')}</p></div>
               <div><button type="button" disabled={busy} onClick={() => setConfirmUrl(null)}>{t('Отмена')}</button><button type="button" className="danger" disabled={busy} onClick={() => void remove(info.url)}>{isRemoving ? t('Удаляем…') : t('Удалить')}</button></div>
             </div>}
           </article>;
@@ -215,7 +215,7 @@ export function SubscriptionManager({
           <svg viewBox="0 0 24 24" aria-hidden><path d="M9.5 14.5 14.5 9M7.2 16.8l-1 1a3.5 3.5 0 0 1-5-5l4-4a3.5 3.5 0 0 1 5 0M16.8 7.2l1-1a3.5 3.5 0 0 1 5 5l-4 4a3.5 3.5 0 0 1-5 0" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" /></svg>
         </span>
         <strong>{t('Подписок пока нет')}</strong>
-        <p>Добавьте HTTPS-ссылку провайдера — серверы появятся в общем списке автоматически.</p>
+        <p>{t('Добавьте HTTPS-ссылку провайдера — серверы появятся в общем списке автоматически.')}</p>
         <button type="button" onClick={() => setAddOpen(true)}>{t('Добавить первую подписку')}</button>
       </div>}
     </div>

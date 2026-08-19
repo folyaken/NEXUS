@@ -150,13 +150,13 @@ export default function AppPicker({ selected, onClose, onConfirm, onBrowse }: Pr
 
         {state === 'unavailable' && <div className="app-picker-state">
           <strong>{t('Список открытых программ недоступен')}</strong>
-          <p>Такое бывает, если Windows ограничила доступ к сведениям о процессах. Добавьте программу файлом — результат будет тот же.</p>
+          <p>{t('Такое бывает, если Windows ограничила доступ к сведениям о процессах. Добавьте программу файлом — результат будет тот же.')}</p>
           <button type="button" className="app-picker-secondary" onClick={onBrowse}>{t('Выбрать файл…')}</button>
         </div>}
 
         {state === 'empty' && <div className="app-picker-state">
           <strong>{t('Открытых программ не найдено')}</strong>
-          <p>Запустите нужную программу и обновите список либо укажите её файл вручную.</p>
+          <p>{t('Запустите нужную программу и обновите список либо укажите её файл вручную.')}</p>
           <button type="button" className="app-picker-secondary" onClick={() => void load()}>{t('Обновить список')}</button>
         </div>}
 
@@ -205,7 +205,7 @@ export default function AppPicker({ selected, onClose, onConfirm, onBrowse }: Pr
           {state === 'ready' && <button type="button" className="app-picker-refresh" onClick={() => void load()}>{t('Обновить')}</button>}
           <button type="button" className="app-picker-cancel" onClick={onClose}>{t('Отмена')}</button>
           <button type="button" className="app-picker-confirm" disabled={!picked.size} onClick={confirm}>
-            {picked.size ? `Добавить · ${picked.size}` : t('Добавить')}
+            {picked.size ? `${t('Добавить')} · ${picked.size}` : t('Добавить')}
           </button>
         </div>
       </footer>

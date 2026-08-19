@@ -98,10 +98,10 @@ function DpiHostlistSection({ onToast }: { onToast: (message: string) => void })
       setDraft('');
       inputRef.current?.focus();
       const companions = next?.companions ?? 0;
-      const extra = companions > 0 ? ` · подключено связанных доменов: ${companions}` : '';
+      const extra = companions > 0 ? ` · ${t('подключено связанных доменов:')} ${companions}` : '';
       onToast(next?.restarted
-        ? `${normalized} добавлен${extra} · модуль перезапущен`
-        : `${normalized} добавлен${extra}`);
+        ? `${normalized} ${t('добавлен')}${extra} · ${t('модуль перезапущен')}`
+        : `${normalized} ${t('добавлен')}${extra}`);
     } catch (error) {
       onToast(cleanError(error));
     } finally {
@@ -115,7 +115,7 @@ function DpiHostlistSection({ onToast }: { onToast: (message: string) => void })
     try {
       const next = await window.nexus?.removeDpiHost(host);
       if (next) setHosts(next.hosts);
-      onToast(next?.restarted ? `${host} удалён · модуль перезапущен` : `${host} удалён из списка`);
+      onToast(next?.restarted ? `${host} ${t('удалён')} · ${t('модуль перезапущен')}` : `${host} ${t('удалён из списка')}`);
     } catch (error) {
       onToast(cleanError(error));
     } finally {
@@ -127,7 +127,7 @@ function DpiHostlistSection({ onToast }: { onToast: (message: string) => void })
     <div className="module-settings-card-head">
       <div>
         <h3>{t('Свои сайты')}</h3>
-        <p>Добавьте сайты, которые нужно открывать в обход блокировок. Поддомены и служебные адреса сервиса подключаются автоматически. Встроенный список YouTube и Discord продолжает работать.</p>
+        <p>{t('Добавьте сайты, которые нужно открывать в обход блокировок. Поддомены и служебные адреса сервиса подключаются автоматически. Встроенный список YouTube и Discord продолжает работать.')}</p>
       </div>
       <span className="module-settings-count">{hosts.length}</span>
     </div>
@@ -155,7 +155,7 @@ function DpiHostlistSection({ onToast }: { onToast: (message: string) => void })
     </form>
 
     {duplicate
-      ? <p className="dpi-host-hint is-warning">{normalized} уже есть в списке</p>
+      ? <p className="dpi-host-hint is-warning">{normalized} {t('уже есть в списке')}</p>
       : normalized && normalized !== draft.trim().toLowerCase()
         ? <p className="dpi-host-hint">{t('Будет добавлен как')} <b>{normalized}</b></p>
         : <p className="dpi-host-hint">{t('Достаточно основного домена — можно вставить и полную ссылку.')}</p>}
@@ -181,11 +181,11 @@ function DpiHostlistSection({ onToast }: { onToast: (message: string) => void })
             type="button"
             className="dpi-host-remove"
             disabled={busy}
-            aria-label={`Удалить ${host}`}
+            aria-label={`${t('Удалить')} ${host}`}
             onClick={() => void removeHost(host)}
           >×</button>
         </li>)}
-      </ul> : <p className="dpi-host-hint">По запросу «{query.trim()}» ничего не найдено.</p>}
+      </ul> : <p className="dpi-host-hint">{t('По запросу')} «{query.trim()}» {t('ничего не найдено.')}</p>}
 
       {pageCount > 1 && <div className="dpi-host-pager">
         <button
@@ -221,7 +221,7 @@ function DpiHostlistSection({ onToast }: { onToast: (message: string) => void })
         </button>
       </div>}
 
-      <p className="dpi-host-note">Если модуль запущен, он перезапускается автоматически — сайт начинает работать сразу.</p>
+      <p className="dpi-host-note">{t('Если модуль запущен, он перезапускается автоматически — сайт начинает работать сразу.')}</p>
     </> : <div className="dpi-host-empty">
       <strong>{t('Список пуст')}</strong>
       <p>{t('Добавьте первый сайт, например instagram.com.')}</p>
@@ -292,7 +292,7 @@ function DpiExpertSection({ module, onToast }: { module: ModuleManifest; onToast
     {open && <div className="expert-body">
       <div className="expert-warning">
         <span aria-hidden="true">!</span>
-        <p>Изменяйте только если уверены. Неправильные параметры могут нарушить работу.</p>
+        <p>{t('Изменяйте только если уверены. Неправильные параметры могут нарушить работу.')}</p>
       </div>
 
       <label className="expert-check">
@@ -354,7 +354,7 @@ function DpiExpertSection({ module, onToast }: { module: ModuleManifest; onToast
           value={options.custom}
           onChange={(event) => patch({ custom: event.target.value })}
         />
-        <p className="dpi-host-hint">Через пробел, каждый начинается с двух дефисов. Списки сайтов и порты NEXUS задаёт сам.</p>
+        <p className="dpi-host-hint">{t('Через пробел, каждый начинается с двух дефисов. Списки сайтов и порты NEXUS задаёт сам.')}</p>
       </div>
 
       <div className="expert-actions">
@@ -474,7 +474,7 @@ function TgProxySection({ module, onToast }: { module: ModuleManifest; onToast: 
         <ul>
           <li><span>{t('Процесс')}</span><b>{status.running ? t('активен') : t('не запущен')}</b></li>
           <li><span>PID</span><b>{status.pid ?? '—'}</b></li>
-          <li><span>Порт {status.host}:{status.port}</span><b>{status.portListening ? t('прослушивается') : t('не отвечает')}</b></li>
+          <li><span>{t('Порт')} {status.host}:{status.port}</span><b>{status.portListening ? t('прослушивается') : t('не отвечает')}</b></li>
         </ul>
       </div>}
     </div>
@@ -619,7 +619,7 @@ export function ModuleSettings({ module, onClose, onToast, onStrategyChange }: {
     setScanning(true);
     try {
       const next = await window.nexus?.refreshModuleStrategies(module.id);
-      onToast(next ? `Найдено профилей: ${Object.keys(next.strategies ?? {}).length}` : t('Профили не найдены'));
+      onToast(next ? `${t('Найдено профилей:')} ${Object.keys(next.strategies ?? {}).length}` : t('Профили не найдены'));
     } catch (error) {
       onToast(cleanError(error));
     } finally {
@@ -653,7 +653,7 @@ export function ModuleSettings({ module, onClose, onToast, onStrategyChange }: {
       <span aria-hidden="true">!</span>
       <div>
         <strong>{t('Нужны права администратора')}</strong>
-        <p>Модуль изменяет сетевые настройки Windows. Установленная версия запрашивает права сама — запустите NEXUS через ярлык. Это сообщение видно при запуске из папки разработки.</p>
+        <p>{t('Модуль изменяет сетевые настройки Windows. Установленная версия запрашивает права сама — запустите NEXUS через ярлык. Это сообщение видно при запуске из папки разработки.')}</p>
       </div>
     </div>}
 
@@ -668,7 +668,7 @@ export function ModuleSettings({ module, onClose, onToast, onStrategyChange }: {
       <div className="module-settings-card-head">
         <div>
           <h3>{t('Профиль обхода')}</h3>
-          <p>Профили ещё не загружены из релиза Zapret. Нажмите кнопку ниже — NEXUS найдёт их в установленном модуле.</p>
+          <p>{t('Профили ещё не загружены из релиза Zapret. Нажмите кнопку ниже — NEXUS найдёт их в установленном модуле.')}</p>
         </div>
       </div>
       <div className="expert-actions">
@@ -676,14 +676,14 @@ export function ModuleSettings({ module, onClose, onToast, onStrategyChange }: {
           <b>{scanning ? t('Поиск…') : t('Найти профили')}</b>
         </button>
       </div>
-      <p className="dpi-host-hint">Если профили не найдены, откройте «Модули» и нажмите «Проверить обновления».</p>
+      <p className="dpi-host-hint">{t('Если профили не найдены, откройте «Модули» и нажмите «Проверить обновления».')}</p>
     </section>}
 
     {strategies.length > 0 && <section className="module-settings-card">
       <div className="module-settings-card-head">
         <div>
           <h3>{t('Профиль обхода')}</h3>
-          <p>Если какой-то сайт не открывается, попробуйте другой профиль. По умолчанию используется {DEFAULT_STRATEGY}.</p>
+          <p>{t('Если какой-то сайт не открывается, попробуйте другой профиль. По умолчанию используется')} {DEFAULT_STRATEGY}.</p>
         </div>
         <span className="module-settings-count">{strategies.length}</span>
       </div>

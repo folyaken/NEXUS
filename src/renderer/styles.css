@@ -1682,3 +1682,112 @@ kbd { padding: 3px 5px; border: 1px solid rgba(255,255,255,.1); border-radius: 5
 }
 .app-frame.motion-off .nav-update-dot:after { animation: none; }
 .app-frame.motion-off .nav-update-dot { transition: none; }
+
+/* ============================================================================
+   Главная страница: значки, карточки и кнопки
+   ==========================================================================*/
+
+/* Значки карточек статистики.
+   Раньше это были символы шрифта «◈ ϟ ⌁ ◷»: разной толщины и размера, а на
+   части систем Windows вместо некоторых рисовался прямоугольник-заглушка.
+   Теперь это SVG — они одинаковы везде и остаются чёткими при любом масштабе. */
+.stat-icon svg { width: 21px; height: 21px; fill: none; stroke: currentColor; stroke-linecap: round; stroke-linejoin: round; stroke-width: 1.7; }
+.stat-icon .glyph-soft { opacity: .45; stroke-width: 1.3; }
+.stat-icon { position: relative; overflow: hidden; border: 1px solid transparent; transition: transform .22s ease, box-shadow .22s ease; }
+/* Мягкий блик внутри плитки: плоская заливка выглядела дёшево. */
+.stat-icon:after { position: absolute; top: -55%; left: -25%; width: 90%; height: 150%; background: linear-gradient(115deg, rgba(255,255,255,.16), transparent 62%); content: ''; pointer-events: none; }
+.stat-icon.cyan { border-color: rgba(124,242,213,.22); background: linear-gradient(150deg, rgba(124,242,213,.2), rgba(124,242,213,.05)); box-shadow: inset 0 1px rgba(255,255,255,.1), 0 6px 16px rgba(60,190,170,.16); }
+.stat-icon.violet { border-color: rgba(168,149,255,.24); background: linear-gradient(150deg, rgba(168,149,255,.22), rgba(168,149,255,.05)); box-shadow: inset 0 1px rgba(255,255,255,.1), 0 6px 16px rgba(120,100,220,.18); }
+.stat-icon.mint { border-color: rgba(113,244,184,.22); background: linear-gradient(150deg, rgba(113,244,184,.2), rgba(113,244,184,.05)); box-shadow: inset 0 1px rgba(255,255,255,.1), 0 6px 16px rgba(60,200,150,.16); }
+.stat-icon.amber { border-color: rgba(248,199,108,.24); background: linear-gradient(150deg, rgba(248,199,108,.2), rgba(248,199,108,.05)); box-shadow: inset 0 1px rgba(255,255,255,.1), 0 6px 16px rgba(200,150,50,.16); }
+/* Красный вариант для «Здоровья», когда есть ошибки: цвет сам сообщает о беде. */
+.stat-icon.red { border-color: rgba(255,122,145,.26); background: linear-gradient(150deg, rgba(255,122,145,.2), rgba(255,122,145,.05)); color: var(--red); box-shadow: inset 0 1px rgba(255,255,255,.1), 0 6px 16px rgba(200,60,80,.18); }
+
+/* Карточка целиком отзывается на наведение: страница перестаёт быть «плакатом». */
+.stat-card { position: relative; overflow: hidden; transition: transform .22s ease, border-color .22s ease, box-shadow .22s ease; }
+.stat-card:before { position: absolute; top: 0; left: 0; width: 100%; height: 2px; background: linear-gradient(90deg, transparent, rgba(124,242,213,.5), transparent); content: ''; opacity: 0; transition: opacity .22s ease; }
+.stat-card:hover { border-color: rgba(140,161,255,.2); box-shadow: inset 0 1px rgba(255,255,255,.06), 0 20px 44px rgba(0,0,0,.22); transform: translateY(-2px); }
+.stat-card:hover:before { opacity: 1; }
+.stat-card:hover .stat-icon { transform: scale(1.06); }
+.stat-body { min-width: 0; flex: 1; }
+
+/* Полоска под числом: «73%» само по себе не с чем сравнить, а заполненность
+   считывается мгновенно. */
+.stat-meter { display: block; height: 3px; margin-top: 8px; overflow: hidden; border-radius: 3px; background: rgba(255,255,255,.06); }
+.stat-meter i { display: block; height: 100%; border-radius: 3px; background: linear-gradient(90deg, var(--mint), var(--cyan)); box-shadow: 0 0 10px rgba(113,244,184,.45); transition: width .5s ease; }
+.stat-card.tone-violet .stat-meter i { background: linear-gradient(90deg, var(--violet), #8ea0ff); box-shadow: 0 0 10px rgba(168,149,255,.45); }
+.stat-card.tone-red .stat-meter i { background: linear-gradient(90deg, #ff7a91, #ffa48f); box-shadow: 0 0 10px rgba(255,122,145,.45); }
+
+/* Кнопка «Открыть модули»: стрелка нарисована, а не взята из шрифта. */
+.primary-button { position: relative; overflow: hidden; transition: transform .2s ease, box-shadow .2s ease; }
+.primary-button:hover { transform: translateY(-1px); }
+.primary-button:active { transform: translateY(0); }
+.primary-button b svg { width: 14px; height: 14px; fill: none; stroke: currentColor; stroke-linecap: round; stroke-linejoin: round; stroke-width: 2.2; }
+.primary-button b { transition: transform .2s ease; }
+.primary-button:hover b { transform: translate(2px, -2px); }
+/* Блик пробегает по кнопке при наведении — она читается как главное действие. */
+.primary-button:after { position: absolute; top: 0; left: -60%; width: 40%; height: 100%; background: linear-gradient(100deg, transparent, rgba(255,255,255,.42), transparent); content: ''; transform: skewX(-18deg); transition: left .55s ease; }
+.primary-button:hover:after { left: 130%; }
+
+/* «Сканировать заново»: значок вместо символа ⟳, вращается во время работы. */
+.quiet-button { padding: 9px 12px; border: 1px solid transparent; border-radius: 11px; transition: border-color .2s ease, background .2s ease, color .2s ease; }
+.quiet-button:hover { border-color: rgba(124,242,213,.2); background: rgba(124,242,213,.07); color: #e9fff9; }
+.quiet-button-icon { display: grid; width: 16px; height: 16px; place-items: center; color: var(--cyan); }
+.quiet-button-icon svg { width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-linecap: round; stroke-linejoin: round; stroke-width: 2; }
+.quiet-button.is-busy .quiet-button-icon { animation: nx-spin 1s linear infinite; }
+@keyframes nx-spin { to { transform: rotate(360deg); } }
+
+/* «Все модули»: раньше это был просто текст со стрелкой — он терялся рядом с
+   заголовком и не выглядел нажимаемым. */
+.text-button { display: inline-flex; align-items: center; gap: 9px; padding: 8px 10px 8px 13px; border: 1px solid rgba(255,255,255,.07); border-radius: 11px; background: rgba(255,255,255,.025); transition: border-color .2s ease, background .2s ease, color .2s ease, transform .2s ease; }
+.text-button:hover { border-color: rgba(124,242,213,.24); background: rgba(124,242,213,.07); color: #e9fff9; transform: translateY(-1px); }
+.text-button:focus-visible { outline: 2px solid var(--cyan); outline-offset: 2px; }
+.text-button-count { display: grid; min-width: 20px; height: 20px; padding: 0 5px; place-items: center; border-radius: 6px; background: rgba(124,242,213,.12); color: var(--cyan); font-family: var(--font-data); font-size: 10px; font-style: normal; }
+.text-button-arrow { display: grid; place-items: center; color: var(--cyan); transition: transform .2s ease; }
+.text-button-arrow svg { width: 15px; height: 15px; fill: none; stroke: currentColor; stroke-linecap: round; stroke-linejoin: round; stroke-width: 2; }
+.text-button:hover .text-button-arrow { transform: translateX(3px); }
+
+/* Графит остаётся строго серым: цветные акценты в нём выглядят инородно. */
+.appearance-graphite .stat-icon.cyan,
+.appearance-graphite .stat-icon.violet,
+.appearance-graphite .stat-icon.mint,
+.appearance-graphite .stat-icon.amber { border-color: rgba(226,226,226,.14); background: linear-gradient(150deg, rgba(226,226,226,.16), rgba(226,226,226,.04)); color: #d8d8d8; box-shadow: inset 0 1px rgba(255,255,255,.07), 0 6px 16px rgba(0,0,0,.3); }
+.appearance-graphite .stat-meter i,
+.appearance-graphite .stat-card.tone-violet .stat-meter i { background: linear-gradient(90deg, #d0d0d0, #8f8f8f); box-shadow: 0 0 10px rgba(200,200,200,.3); }
+.appearance-graphite .stat-card:hover { border-color: rgba(233,233,233,.14); }
+.appearance-graphite .stat-card:before { background: linear-gradient(90deg, transparent, rgba(226,226,226,.4), transparent); }
+.appearance-graphite .text-button:hover { border-color: rgba(226,226,226,.2); background: rgba(226,226,226,.06); color: #f0f0f0; }
+.appearance-graphite .text-button-count { background: rgba(226,226,226,.1); color: #d6d6d6; }
+.appearance-graphite .text-button-arrow,
+.appearance-graphite .quiet-button-icon { color: #d6d6d6; }
+.appearance-graphite .quiet-button:hover { border-color: rgba(226,226,226,.16); background: rgba(226,226,226,.05); }
+
+/* Движение подчиняется настройке анимаций: Windows умеет гасить их глобально,
+   и без защиты интерфейс выглядел бы застывшим. */
+@media (prefers-reduced-motion: reduce) {
+  .app-frame:not(.motion-force) .stat-card,
+  .app-frame:not(.motion-force) .stat-icon,
+  .app-frame:not(.motion-force) .primary-button,
+  .app-frame:not(.motion-force) .primary-button b,
+  .app-frame:not(.motion-force) .text-button,
+  .app-frame:not(.motion-force) .text-button-arrow,
+  .app-frame:not(.motion-force) .stat-meter i { transition: none; }
+  .app-frame:not(.motion-force) .primary-button:after { display: none; }
+  .app-frame:not(.motion-force) .quiet-button.is-busy .quiet-button-icon { animation: none; }
+}
+.app-frame.motion-off .stat-card,
+.app-frame.motion-off .stat-icon,
+.app-frame.motion-off .primary-button,
+.app-frame.motion-off .primary-button b,
+.app-frame.motion-off .text-button,
+.app-frame.motion-off .text-button-arrow,
+.app-frame.motion-off .stat-meter i { transition: none; }
+.app-frame.motion-off .primary-button:after { display: none; }
+.app-frame.motion-off .quiet-button.is-busy .quiet-button-icon { animation: none; }
+
+/* Значок обновления в кнопке «Сканировать» на странице модулей: тот же приём,
+   что и на главной — символ шрифта заменён значком, вращается во время работы. */
+.primary-button.small .quiet-button-icon { color: inherit; }
+.primary-button.small.is-busy .quiet-button-icon { animation: nx-spin 1s linear infinite; }
+@media (prefers-reduced-motion: reduce) { .app-frame:not(.motion-force) .primary-button.small.is-busy .quiet-button-icon { animation: none; } }
+.app-frame.motion-off .primary-button.small.is-busy .quiet-button-icon { animation: none; }

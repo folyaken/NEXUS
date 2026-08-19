@@ -114,7 +114,7 @@ export function ConnectionDiagnostics({ profileId, onBack, onToast }: Props) {
           <div>
             <span>{runtimeLabel(snapshot.runtimeStatus)}</span>
             <h3>{snapshot.headline}</h3>
-            <p>{issueCount ? `Требуют внимания: ${issueCount}` : t('Все доступные проверки пройдены')}</p>
+            <p>{issueCount ? `${t('Требуют внимания:')} ${issueCount}` : t('Все доступные проверки пройдены')}</p>
           </div>
           <div className="diagnostics-overview-meta">
             <span>{t('РЕЖИМ')}</span><strong>{snapshot.mode.toUpperCase()}</strong>
@@ -130,7 +130,7 @@ export function ConnectionDiagnostics({ profileId, onBack, onToast }: Props) {
 
         <div className="diagnostics-grid">
           <section className="diagnostics-checks-card">
-            <div className="diagnostics-section-head"><div><span>{t('БЫСТРАЯ ПРОВЕРКА')}</span><h3>{t('Что работает')}</h3></div><small>{snapshot.checks.length} пунктов</small></div>
+            <div className="diagnostics-section-head"><div><span>{t('БЫСТРАЯ ПРОВЕРКА')}</span><h3>{t('Что работает')}</h3></div><small>{snapshot.checks.length} {t('пунктов')}</small></div>
             <div className="diagnostics-check-list">
               {snapshot.checks.map((check) => <div className={`diagnostics-check ${check.tone}`} key={check.id}>
                 <span className="diagnostics-check-icon"><StatusIcon tone={check.tone} /></span>
@@ -144,13 +144,13 @@ export function ConnectionDiagnostics({ profileId, onBack, onToast }: Props) {
             <div className="diagnostics-report-icon"><svg viewBox="0 0 24 24" aria-hidden><path d="M7 3h7l4 4v14H7z" /><path d="M14 3v5h5M10 12h5M10 16h5" /></svg></div>
             <span>SAFE SUPPORT REPORT</span>
             <h3>{t('Отчёт для поддержки')}</h3>
-            <p>Можно отправить этот текст при обращении за помощью. В нём нет ссылок подписок и ключей подключения.</p>
+            <p>{t('Можно отправить этот текст при обращении за помощью. В нём нет ссылок подписок и ключей подключения.')}</p>
             <button type="button" onClick={() => void copyReport()}>
               <svg viewBox="0 0 24 24" aria-hidden><rect x="8" y="8" width="11" height="11" rx="2" /><path d="M16 8V6a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v8a2 2 0 0 0 2 2h2" /></svg>
               Скопировать отчёт
             </button>
             <details><summary>{t('Посмотреть текст')}</summary><pre>{snapshot.report}</pre></details>
-            <div className="diagnostics-privacy"><i>✓</i><span><strong>{t('Секреты скрыты')}</strong><small>UUID, пароли, токены, URL и локальное имя пользователя удаляются до показа.</small></span></div>
+            <div className="diagnostics-privacy"><i>✓</i><span><strong>{t('Секреты скрыты')}</strong><small>{t('UUID, пароли, токены, URL и локальное имя пользователя удаляются до показа.')}</small></span></div>
           </aside>
         </div>
       </>}

@@ -5,7 +5,7 @@ import { Flag } from './Flag';
 import { ConnectionDiagnostics } from './ConnectionDiagnostics';
 import { SubscriptionManager, type SubscriptionAction } from './SubscriptionManager';
 import AppPicker from './AppPicker';
-import { t } from '../main/i18n';
+import { dateLocale, t } from '../main/i18n';
 
 function cleanError(error: unknown): string {
   const raw = error instanceof Error ? error.message : String(error);
@@ -52,7 +52,7 @@ function formatBytes(value?: number): string {
 
 function formatWhen(value?: string): string {
   if (!value) return '—';
-  return new Intl.DateTimeFormat('ru-RU', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' }).format(new Date(value));
+  return new Intl.DateTimeFormat(dateLocale(), { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' }).format(new Date(value));
 }
 
 function formatSessionDuration(connectedAt: string | null, now: number): string {
@@ -68,10 +68,10 @@ function formatExpire(value?: string): string {
   if (!value) return t('без срока');
   const date = new Date(value);
   const days = Math.round((date.getTime() - Date.now()) / 86_400_000);
-  const stamp = new Intl.DateTimeFormat('ru-RU', { day: '2-digit', month: '2-digit', year: 'numeric' }).format(date);
-  if (days < 0) return `${stamp} · истекла`;
-  if (days === 0) return `${stamp} · сегодня`;
-  return `${stamp} · ещё ${days} дн.`;
+  const stamp = new Intl.DateTimeFormat(dateLocale(), { day: '2-digit', month: '2-digit', year: 'numeric' }).format(date);
+  if (days < 0) return `${stamp} · ${t('истекла')}`;
+  if (days === 0) return `${stamp} · ${t('сегодня')}`;
+  return `${stamp} · ${t('ещё')} ${days} ${t('дн.')}`;
 }
 
 function stackOf(profile: VpnProfile): string {
@@ -107,12 +107,12 @@ function Signal({ ms }: { ms?: number | null }) {
   if (ms < 0) {
     return <span className="server-ping soft" title={t('Порт не отвечает на TCP, но узел рабочий (часто Reality / Hysteria)')}>
       <span className="server-signal soft">{[1, 2, 3, 4].map((bar) => <i key={bar} className={bar <= 3 ? 'on' : ''} />)}</span>
-      <em>ок</em>
+      <em>{t('ок')}</em>
     </span>;
   }
   const level = ms < 60 ? 4 : ms < 120 ? 3 : ms < 220 ? 2 : 1;
   const tone = level >= 3 ? 'good' : level === 2 ? 'ok' : 'weak';
-  return <span className={`server-ping ${tone}`} title={`${ms} мс`}>
+  return <span className={`server-ping ${tone}`} title={`${ms} ${t('мс')}`}>
     <span className={`server-signal ${tone}`}>{[1, 2, 3, 4].map((bar) => <i key={bar} className={bar <= level ? 'on' : ''} />)}</span>
     <em>{ms}</em>
   </span>;
@@ -252,7 +252,7 @@ export function Jey2RayPage({
         setImportOpen(false);
         if (imported[0].subscriptionUrl) setTab(imported[0].subscriptionUrl);
         setSelectedId(imported[0].id);
-        onToast(`Подписка: серверов ${imported.length}`);
+        onToast(`${t('Подписка: серверов')} ${imported.length}`);
       }
     } catch (error) {
       onToast(cleanError(error) || t('Не удалось импортировать ссылку'));
@@ -360,7 +360,7 @@ export function Jey2RayPage({
       setModeSwitching(next);
       await window.nexus?.switchVpnMode(next);
       onSettings(nextSettings);
-      onToast(`Режим ${next.toUpperCase()} включён · VPN переподключён`);
+      onToast(`${t('Режим')} ${next.toUpperCase()} ${t('включён · VPN переподключён')}`);
     } catch (error) {
       const persisted = await window.nexus?.getSettings().catch(() => null);
       if (persisted) onSettings(persisted);
@@ -429,7 +429,7 @@ export function Jey2RayPage({
   const refresh = () => holdAction('refresh', async () => {
     try {
       const count = await window.nexus?.refreshVpn();
-      onToast(count ? `Обновлено · ${count}` : t('Нет подписок'));
+      onToast(count ? `${t('Обновлено')} · ${count}` : t('Нет подписок'));
     } catch (error) {
       onToast(cleanError(error));
     }
@@ -454,7 +454,7 @@ export function Jey2RayPage({
       const subscriptionUrl = imported[0].subscriptionUrl || url;
       setTab(subscriptionUrl);
       setSelectedId(imported[0].id);
-      onToast(`Подписка добавлена · серверов ${imported.length}`);
+      onToast(`${t('Подписка добавлена · серверов')} ${imported.length}`);
       return true;
     } catch (error) {
       onToast(cleanError(error) || t('Не удалось добавить подписку'));
@@ -469,7 +469,7 @@ export function Jey2RayPage({
     try {
       setSubscriptionAction({ kind: 'refresh', url });
       const count = await window.nexus?.refreshVpn(url);
-      onToast(`Подписка обновлена · серверов ${count ?? 0}`);
+      onToast(`${t('Подписка обновлена · серверов')} ${count ?? 0}`);
     } catch (error) {
       onToast(cleanError(error) || t('Не удалось обновить подписку'));
     } finally {
@@ -481,7 +481,7 @@ export function Jey2RayPage({
     try {
       setSubscriptionAction({ kind: 'refresh-all' });
       const count = await window.nexus?.refreshVpn();
-      onToast(count ? `Все подписки обновлены · серверов ${count}` : t('Нет подписок'));
+      onToast(count ? `${t('Все подписки обновлены · серверов')} ${count}` : t('Нет подписок'));
     } catch (error) {
       onToast(cleanError(error) || t('Не удалось обновить подписки'));
     } finally {
@@ -629,7 +629,7 @@ export function Jey2RayPage({
 
         <section className="app-settings-card fragmentation-settings-card">
           <div className="app-settings-card-head compact">
-            <div><span className="settings-step">02</span><div><h3>{t('Включить фрагментацию')}</h3><p>Разделять TLS ClientHello на небольшие фрагменты, чтобы повысить устойчивость соединения при DPI-фильтрации.</p></div></div>
+            <div><span className="settings-step">02</span><div><h3>{t('Включить фрагментацию')}</h3><p>{t('Разделять TLS ClientHello на небольшие фрагменты, чтобы повысить устойчивость соединения при DPI-фильтрации.')}</p></div></div>
             <button
               type="button"
               className={`settings-toggle ${settings.vpnFragmentation ? 'is-on' : ''}`}
@@ -643,12 +643,12 @@ export function Jey2RayPage({
             ><i /></button>
           </div>
           <div className={`auto-status ${settings.vpnFragmentation ? 'is-on' : ''}`}><i />{settings.vpnFragmentation ? t('Включено по умолчанию') : t('Выключено')}</div>
-          <p className="fragmentation-note">Работает для Xray-профилей с TCP/TLS, включая Reality. Hysteria2 использует QUIC и не поддерживает TCP-фрагментацию ClientHello.</p>
+          <p className="fragmentation-note">{t('Работает для Xray-профилей с TCP/TLS, включая Reality. Hysteria2 использует QUIC и не поддерживает TCP-фрагментацию ClientHello.')}</p>
         </section>
 
         <section className="app-settings-card lan-share-card">
           <div className="app-settings-card-head compact">
-            <div><span className="settings-step">03</span><div><h3>{t('Раздача в локальную сеть')}</h3><p>Открыть локальный SOCKS/HTTP для других устройств домашней сети: ТВ, консоли, телефона.</p></div></div>
+            <div><span className="settings-step">03</span><div><h3>{t('Раздача в локальную сеть')}</h3><p>{t('Открыть локальный SOCKS/HTTP для других устройств домашней сети: ТВ, консоли, телефона.')}</p></div></div>
             <button
               type="button"
               className={`settings-toggle ${settings.vpnAllowLan ? 'is-on' : ''}`}
@@ -656,7 +656,7 @@ export function Jey2RayPage({
                 const enabled = !settings.vpnAllowLan;
                 onSettings({ ...settings, vpnAllowLan: enabled });
                 onToast(enabled
-                  ? `Раздача включена${runtime.status === 'connected' ? t(' · подключение перезапускается') : ''}`
+                  ? `${t('Раздача включена')}${runtime.status === 'connected' ? t(' · подключение перезапускается') : ''}`
                   : t('Раздача в локальную сеть выключена'));
               }}
               aria-label={settings.vpnAllowLan ? t('Выключить раздачу в локальную сеть') : t('Включить раздачу в локальную сеть')}
@@ -674,12 +674,12 @@ export function Jey2RayPage({
               ? t('Приватный IPv4-адрес не найден — проверьте подключение к домашней сети.')
               : t('Адреса появятся здесь после подключения VPN.')}
           </p>)}
-          <p className="fragmentation-note">Включайте только в доверенной сети: прокси станет доступен всем устройствам этого сегмента без пароля. Может потребоваться разрешение в брандмауэре Windows.</p>
+          <p className="fragmentation-note">{t('Включайте только в доверенной сети: прокси станет доступен всем устройствам этого сегмента без пароля. Может потребоваться разрешение в брандмауэре Windows.')}</p>
         </section>
       </> : <>
         {routeSettingsLocked && <div className="app-settings-lock">
           <span>i</span>
-          <div><strong>VPN сейчас работает</strong><p>Отключите подключение, чтобы изменить маршрутизацию или список приложений.</p></div>
+          <div><strong>{t('VPN сейчас работает')}</strong><p>{t('Отключите подключение, чтобы изменить маршрутизацию или список приложений.')}</p></div>
         </div>}
 
         <section className="app-settings-card routing-settings-card">
@@ -689,7 +689,7 @@ export function Jey2RayPage({
           <div className="routing-choice-list" role="radiogroup" aria-label={t('Режим маршрутизации приложений')}>
             <button type="button" role="radio" aria-checked={appRouting === 'system'} className={`routing-choice ${appRouting === 'system' ? 'is-active' : ''}`} disabled={routeSettingsLocked} onClick={() => selectAppRouting('system')}>
               <i className="settings-radio" />
-              <span><strong>{t('Системные настройки')}</strong><small>Без отдельных правил. Используется общий режим {mode === 'tun' ? 'TUN' : 'Proxy'}.</small></span>
+              <span><strong>{t('Системные настройки')}</strong><small>{t('Без отдельных правил. Используется общий режим')} {mode === 'tun' ? 'TUN' : 'Proxy'}.</small></span>
               <em>{t('По умолчанию')}</em>
             </button>
             <button type="button" role="radio" aria-checked={appRouting === 'exclude'} className={`routing-choice ${appRouting === 'exclude' ? 'is-active' : ''}`} disabled={routeSettingsLocked} onClick={() => selectAppRouting('exclude')}>
@@ -699,7 +699,7 @@ export function Jey2RayPage({
             </button>
             <button type="button" role="radio" aria-checked={appRouting === 'include'} className={`routing-choice ${appRouting === 'include' ? 'is-active' : ''}`} disabled={routeSettingsLocked} onClick={() => selectAppRouting('include')}>
               <i className="settings-radio" />
-              <span><strong>VPN только для выбранных приложений</strong><small>{t('Выбранные приложения идут через VPN, все остальные — напрямую.')}</small></span>
+              <span><strong>{t('VPN только для выбранных приложений')}</strong><small>{t('Выбранные приложения идут через VPN, все остальные — напрямую.')}</small></span>
               <em>Split Tunneling</em>
             </button>
           </div>
@@ -707,7 +707,7 @@ export function Jey2RayPage({
 
         <section className="app-settings-card selected-apps-card">
           <div className="app-settings-card-head selected-apps-head">
-            <div><span className="settings-step">02</span><div><h3>{t('Выбранные приложения')}</h3><p>{splitApps.length ? `Добавлено: ${splitApps.length}` : t('Добавьте приложения Windows, для которых будут действовать правила выше.')}</p></div></div>
+            <div><span className="settings-step">02</span><div><h3>{t('Выбранные приложения')}</h3><p>{splitApps.length ? `${t('Добавлено:')} ${splitApps.length}` : t('Добавьте приложения Windows, для которых будут действовать правила выше.')}</p></div></div>
             <button type="button" className="app-add-button" disabled={routeSettingsLocked} onClick={() => addSplitApps(appRouting)}>
               <svg viewBox="0 0 16 16" aria-hidden><path d="M8 3v10M3 8h10" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" /></svg>
               Добавить приложение
@@ -720,12 +720,12 @@ export function Jey2RayPage({
               <span className={`selected-app-route ${appRouting === 'exclude' ? 'is-direct' : appRouting === 'include' ? 'is-vpn' : ''}`}>
                 {appRouting === 'exclude' ? t('Напрямую') : appRouting === 'include' ? t('Через VPN') : t('Не активно')}
               </span>
-              <button type="button" className="selected-app-remove" disabled={routeSettingsLocked} onClick={() => removeSplitApp(app.executable)} aria-label={`Удалить ${app.executable}`}>×</button>
+              <button type="button" className="selected-app-remove" disabled={routeSettingsLocked} onClick={() => removeSplitApp(app.executable)} aria-label={`${t('Удалить')} ${app.executable}`}>×</button>
             </div>)}
           </div> : <div className="selected-app-empty">
             <span><svg viewBox="0 0 32 32" aria-hidden><rect x="7" y="5" width="18" height="22" rx="4" fill="none" stroke="currentColor" strokeWidth="1.5" /><path d="M12 12h8M12 17h6" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" /></svg></span>
             <strong>{t('Приложения ещё не выбраны')}</strong>
-            <p>Нажмите «Добавить приложение» и отметьте нужные программы из списка открытых.</p>
+            <p>{t('Нажмите «Добавить приложение» и отметьте нужные программы из списка открытых.')}</p>
           </div>}
         </section>
       </>}
@@ -792,7 +792,7 @@ export function Jey2RayPage({
             </svg>
             Пинг
           </button>
-          {!runtime.xrayReady && <button className="ghost-action core-download-action" disabled={syncing} onClick={onSync}>Скачать ядро {xrayUpdate?.latestVersion ?? ''}</button>}
+          {!runtime.xrayReady && <button className="ghost-action core-download-action" disabled={syncing} onClick={onSync}>{t('Скачать ядро')} {xrayUpdate?.latestVersion ?? ''}</button>}
         </div>
       </div>
 
@@ -807,9 +807,9 @@ export function Jey2RayPage({
       {tabs.length > 1 && <div className="jey-subs">
         {tabs.map((key) => <button key={key} className={`jey-sub ${tab === key ? 'active' : ''}`} onClick={() => setTab(key)}>
           {key === 'all'
-            ? `Все · ${nodes.length}`
+            ? `${t('Все')} · ${nodes.length}`
             : key === 'manual'
-              ? `Ручные · ${nodes.filter((item) => subscriptionKey(item) === key).length}`
+              ? `${t('Ручные')} · ${nodes.filter((item) => subscriptionKey(item) === key).length}`
               : `${(runtime.subscriptions ?? []).find((item) => item.url === key)?.title || t('Подписка')} · ${nodes.filter((item) => subscriptionKey(item) === key).length}`}
         </button>)}
       </div>}
@@ -823,7 +823,7 @@ export function Jey2RayPage({
             <small>{info ? t('Выбранная подписка') : t('Текущая выборка')}</small>
             <strong>{title}</strong>
             <span>{info
-              ? `Обновлено ${formatWhen(info.lastSync)}`
+              ? `${t('Обновлено')} ${formatWhen(info.lastSync)}`
               : tab === 'manual'
                 ? t('Серверы, добавленные отдельными ссылками')
                 : t('Серверы из всех доступных источников')}</span>
@@ -834,8 +834,8 @@ export function Jey2RayPage({
           <span><small>{info ? t('Трафик') : t('Подписок')}</small><strong>{info ? `${formatBytes(used)} / ${quota}` : runtime.subscriptions?.length ?? 0}</strong></span>
         </div>
         {info && <div className="server-card-details">
-          <span className="server-expire">Истекает {formatExpire(info.expireAt)}</span>
-          <span>{info.updateHours ? `Автообновление: каждые ${info.updateHours} ч.` : t('Интервал обновления не задан')}</span>
+          <span className="server-expire">{t('Истекает')} {formatExpire(info.expireAt)}</span>
+          <span>{info.updateHours ? `${t('Автообновление: каждые')} ${info.updateHours} ${t('ч.')}` : t('Интервал обновления не задан')}</span>
         </div>}
         {info?.announce && <div className="server-ribbon">{info.announce}</div>}
       </div>
@@ -859,8 +859,8 @@ export function Jey2RayPage({
     </div>
 
     <aside className="server-right">
-      {runtime.status === 'connected' && <span className="tunnel-session-counter" aria-label={`Время подключения ${sessionDuration}`}>{sessionDuration}</span>}
-      {runtime.status === 'connected' && panelProfile && <div className="tunnel-route" aria-label={`Защищённый маршрут к серверу ${panelLocation.detail}`}>
+      {runtime.status === 'connected' && <span className="tunnel-session-counter" aria-label={`${t('Время подключения')} ${sessionDuration}`}>{sessionDuration}</span>}
+      {runtime.status === 'connected' && panelProfile && <div className="tunnel-route" aria-label={`${t('Защищённый маршрут к серверу')} ${panelLocation.detail}`}>
         <span className="tunnel-route-device" title={t('Это устройство')}>
           <svg viewBox="0 0 24 24" aria-hidden><rect x="4" y="3.5" width="16" height="12" rx="2" /><path d="M8 20h8M10 15.5 9 20m5-4.5 1 4.5" /></svg>
         </span>
@@ -882,7 +882,7 @@ export function Jey2RayPage({
         <strong>{panelLocation.country}</strong>
         {panelLocation.detail !== panelLocation.country && <small className="power-location">{panelLocation.detail}</small>}
         {runtime.status === 'connected'
-          ? <span className={`power-connected ${latencyUnavailable ? 'is-unavailable' : ''}`}><i />Подключено {latencyMs != null ? <>· <b>{latencyMs} мс</b></> : latencyUnavailable ? t('· пинг недоступен') : t('· замеряем…')}</span>
+          ? <span className={`power-connected ${latencyUnavailable ? 'is-unavailable' : ''}`}><i />{t('Подключено')} {latencyMs != null ? <>· <b>{latencyMs} {t('мс')}</b></> : latencyUnavailable ? t('· пинг недоступен') : t('· замеряем…')}</span>
           : <span className={`power-state ${runtime.status === 'error' ? 'is-error' : ''}`}>{powerState}</span>}
       </div>
       <div className="mode-switch" aria-label={t('Режим подключения')}>
@@ -908,8 +908,8 @@ export function Jey2RayPage({
         <span><strong>{t('Диагностика')}</strong><small>{t('Ядро, процесс и порты')}</small></span>
         <b>→</b>
       </button>
-      <div className={`auto-connect-summary ${settings.autoConnectVpn ? 'is-on' : ''}`}><i /><span>Автоподключение {settings.autoConnectVpn ? t('включено') : t('выключено')}</span></div>
-      {runtime.lanShared && <div className="auto-connect-summary is-on lan-share-summary"><i /><span>Раздача в сеть{lanEndpoints.length ? ` · ${lanEndpoints[0].socks}` : ''}</span></div>}
+      <div className={`auto-connect-summary ${settings.autoConnectVpn ? 'is-on' : ''}`}><i /><span>{t('Автоподключение')} {settings.autoConnectVpn ? t('включено') : t('выключено')}</span></div>
+      {runtime.lanShared && <div className="auto-connect-summary is-on lan-share-summary"><i /><span>{t('Раздача в сеть')}{lanEndpoints.length ? ` · ${lanEndpoints[0].socks}` : ''}</span></div>}
       {!runtime.xrayReady && <div className="jey-note"><span>i</span><div><strong>{t('Подготовка VPN-ядра')}</strong><p>{xrayUpdate?.error || t('Выполняется загрузка Xray / sing-box. Кнопка подключения станет доступна после установки.')}</p></div></div>}
     </aside>
   </section>;

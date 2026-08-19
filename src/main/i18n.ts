@@ -341,6 +341,59 @@ const EN: Record<string, string> = {
   'Доступно обновление': 'An update is available',
 
   // --- Добавлено при доведении английского до конца ------------------------------
+  'Время подключения': 'Connected for',
+  'Все подписки обновлены · серверов': 'All subscriptions refreshed · servers',
+  'Выбрана стратегия': 'Profile selected:',
+  'Добавлено:': 'Added:',
+  'Защищённый маршрут к серверу': 'Secure route to',
+  'Использовано': 'Used',
+  'Истекла': 'Expired',
+  'Найдено профилей:': 'Profiles found:',
+  'Обновлено': 'Refreshed',
+  'Повторное сканирование: найдено модулей —': 'Rescan complete: modules found —',
+  'Подписка добавлена · серверов': 'Subscription added · servers',
+  'Подписка обновлена · серверов': 'Subscription refreshed · servers',
+  'Подписка: серверов': 'Subscription: servers',
+  'Раздача включена': 'Sharing enabled',
+  'Режим': 'Mode',
+  'Ручные': 'Manual',
+  'Требуют внимания:': 'Need attention:',
+  'включён · VPN переподключён': 'enabled · VPN reconnected',
+  'загрузка': 'downloading',
+  'интеграция в разработке': 'integration in progress',
+  'каждые': 'every',
+  'локальное устройство': 'local device',
+  'обновлено:': 'updated:',
+  ' · подключение перезапускается': ' · connection is restarting',
+  ' · применится при следующем подключении': ' · applies on the next connection',
+  'Автообновление: каждые': 'Auto-refresh: every',
+  'Без отдельных правил. Используется общий режим': 'No separate rules. The general mode is used:',
+  'Будут удалены все её серверы:': 'All of its servers will be removed:',
+  'Если какой-то сайт не открывается, попробуйте другой профиль. По умолчанию используется': 'If some site does not open, try another profile. The default one is',
+  'Истекает': 'Expires',
+  'Истекает сегодня': 'Expires today',
+  'По запросу': 'No matches for',
+  'Порт': 'Port',
+  'Раздача в сеть': 'Network sharing',
+  'Скачать ядро': 'Download core',
+  'Это действие нельзя отменить.': 'This action cannot be undone.',
+  'адрес скрыт': 'address hidden',
+  'дн.': 'days',
+  'добавлен': 'added',
+  'ещё': 'in',
+  'из': 'of',
+  'истекла': 'expired',
+  'модулей запущено': 'modules running',
+  'модуль перезапущен': 'module restarted',
+  'мс': 'ms',
+  'ничего не найдено.': 'nothing found.',
+  'подключено связанных доменов:': 'related domains included:',
+  'пунктов': 'checks',
+  'сегодня': 'today',
+  'удалён': 'removed',
+  'удалён из списка': 'removed from the list',
+  'уже есть в списке': 'is already in the list',
+  'ч.': 'h',
   'Доступна версия': 'Version available',
   'запущено': 'running',
   'модуль(ей) в ошибке': 'module(s) with errors',
@@ -574,6 +627,18 @@ export function setInterfaceLanguage(language: AppLanguage): void {
 
 export function interfaceLanguage(): AppLanguage {
   return activeLanguage;
+}
+
+/**
+ * Локаль для дат и чисел.
+ *
+ * Формат даты жёстко задавался как 'ru-RU' в каждом файле, поэтому в английском
+ * режиме даты и время оставались русскими: «19.08.2026» вместо «19/08/2026».
+ * Локаль берётся из выбранного языка в одном месте, чтобы не забыть очередной
+ * вызов Intl при добавлении нового экрана.
+ */
+export function dateLocale(): string {
+  return activeLanguage === 'en' ? 'en-GB' : 'ru-RU';
 }
 
 /** Перевод строки на выбранный язык. Неизвестная строка возвращается как есть. */
