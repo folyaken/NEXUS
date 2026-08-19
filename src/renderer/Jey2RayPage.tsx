@@ -9,7 +9,11 @@ import { dateLocale, t } from '../main/i18n';
 
 function cleanError(error: unknown): string {
   const raw = error instanceof Error ? error.message : String(error);
-  return raw.replace(/^Error invoking remote method '[^']+':\s*(?:Error:\s*)?/i, '').trim();
+  const text = raw.replace(/^Error invoking remote method '[^']+':\s*(?:Error:\s*)?/i, '').trim();
+  // Ошибки приходят из main-процесса готовой строкой по-русски: там текст
+  // служит ключом. Перевод применяется здесь — иначе в английском интерфейсе
+  // всплывала русская плашка поверх переведённого экрана.
+  return t(text);
 }
 
 const EMPTY_RUNTIME: VpnRuntime = {
@@ -116,6 +120,21 @@ function Signal({ ms }: { ms?: number | null }) {
     <span className={`server-signal ${tone}`}>{[1, 2, 3, 4].map((bar) => <i key={bar} className={bar <= level ? 'on' : ''} />)}</span>
     <em>{ms}</em>
   </span>;
+}
+
+/**
+ * Имя сервера для показа.
+ *
+ * displayName() собирает название из countryName, а его main-процесс отдаёт
+ * всегда по-русски: там страна служит ключом и от языка интерфейса не зависит.
+ * Поэтому перевод применяется здесь, при показе, к каждой части имени
+ * отдельно — «Нидерланды · Амстердам» превращается в «Netherlands · Амстердам»,
+ * где город остаётся как есть (его присылает провайдер).
+ */
+function localizedServerName(profile: VpnProfile): string {
+  const shown = displayName(profile).trim();
+  if (!shown) return shown;
+  return shown.split(/(\s*[·•|]\s*)/).map((part) => (/^\s*[·•|]\s*$/.test(part) ? part : t(part.trim()))).join('');
 }
 
 function profileLocation(profile: VpnProfile | null): { country: string; detail: string } {
@@ -375,7 +394,8 @@ export function Jey2RayPage({
     const profile = nodes.find((item) => item.id === id);
     const blocked = profile ? canConnect(profile) : t('Сервер не найден');
     if (blocked) {
-      onToast(blocked);
+      // Причина приходит из vpn-classify по-русски: там текст служит ключом.
+      onToast(t(blocked));
       return;
     }
     try {
@@ -845,11 +865,11 @@ export function Jey2RayPage({
           const live = runtime.status === 'connected' && runtime.activeProfileId === profile.id;
           const picked = selected?.id === profile.id;
           const blocked = canConnect(profile);
-          return <button key={profile.id} className={`server-row ${live ? 'is-live' : ''} ${picked ? 'is-active' : ''} ${blocked ? 'is-off' : ''}`} onClick={() => setSelectedId(profile.id)} onDoubleClick={() => { if (blocked) onToast(blocked); else void connect(profile.id); }}>
+          return <button key={profile.id} className={`server-row ${live ? 'is-live' : ''} ${picked ? 'is-active' : ''} ${blocked ? 'is-off' : ''}`} onClick={() => setSelectedId(profile.id)} onDoubleClick={() => { if (blocked) onToast(t(blocked)); else void connect(profile.id); }}>
             <Flag code={profile.country} />
             <span className="server-copy">
-              <strong>{displayName(profile)}</strong>
-              <small>{blocked || stackOf(profile)}</small>
+              <strong>{localizedServerName(profile)}</strong>
+              <small>{blocked ? t(blocked) : stackOf(profile)}</small>
             </span>
             {live ? <em className="server-on">{t('ВКЛ')}</em> : <Signal ms={profile.pingMs} />}
             <span className="server-go">›</span>

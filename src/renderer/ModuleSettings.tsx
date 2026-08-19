@@ -14,7 +14,10 @@ import { t } from '../main/i18n';
 
 function cleanError(error: unknown): string {
   const raw = error instanceof Error ? error.message : String(error);
-  return raw.replace(/^Error invoking remote method '[^']+':\s*(?:Error:\s*)?/i, '').trim();
+  const text = raw.replace(/^Error invoking remote method '[^']+':\s*(?:Error:\s*)?/i, '').trim();
+  // Ошибки приходят из main-процесса готовой строкой по-русски: там текст
+  // служит ключом, переводится он здесь, при показе.
+  return t(text);
 }
 
 /** Предпросмотр нормализации: человек вставляет ссылку, а в список идёт домен. */

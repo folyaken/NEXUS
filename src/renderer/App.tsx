@@ -71,7 +71,11 @@ function formatTime(value: string): string {
 
 function cleanError(error: unknown): string {
   const raw = error instanceof Error ? error.message : String(error);
-  return raw.replace(/^Error invoking remote method '[^']+':\s*(?:Error:\s*)?/i, '').trim();
+  const text = raw.replace(/^Error invoking remote method '[^']+':\s*(?:Error:\s*)?/i, '').trim();
+  // Ошибки приходят из main-процесса готовой строкой по-русски: там текст
+  // служит ключом. Перевод применяется здесь — иначе в английском интерфейсе
+  // всплывала русская плашка поверх переведённого экрана.
+  return translate(text);
 }
 
 function IconMark({ children }: { children: string }) {
@@ -86,6 +90,19 @@ function IconMark({ children }: { children: string }) {
  * отсутствует и показывается прямоугольником-заглушкой. Нарисованные значки
  * выглядят одинаково на любой системе и масштабируются без потери чёткости.
  */
+/**
+ * Значок обновления для кнопок сканирования.
+ *
+ * Тот же рисунок, что и у кнопки «Обновить» в Jey2Ray: сплошное кольцо со
+ * стрелкой. Прежняя версия рисовалась двумя тонкими линиями и на 16 пикселях
+ * смотрелась обрубленной палочкой.
+ */
+function RefreshGlyph() {
+  return <svg className="spin-ico" viewBox="0 0 24 24" aria-hidden="true">
+    <path fill="currentColor" d="M11.2 3.15A8.85 8.85 0 1 0 19 7.55l-1.95 1.15A6.55 6.55 0 1 1 11.2 5.45v2.7L17.45 5 11.2.65z" />
+  </svg>;
+}
+
 function StatGlyph({ name }: { name: string }) {
   if (name === 'modules') {
     return <svg viewBox="0 0 24 24" aria-hidden="true">
@@ -218,15 +235,17 @@ function ModuleSkeletons({ count }: { count: number }) {
 
 function StatCard({ label, value, note, glyph, tone, index, meter }: { label: string; value: string; note: string; glyph: string; tone: string; index: number; meter?: number | null }) {
   const spring = useSpring({ from: { opacity: 0, y: 12 }, to: { opacity: 1, y: 0 }, delay: 100 + index * 70, config: config.gentle });
-  return <animated.div className={`stat-card tone-${tone}`} style={{ opacity: spring.opacity, transform: spring.y.to((y) => `translateY(${y}px)`) }}>
-    <div className={`stat-icon ${tone}`}><StatGlyph name={glyph} /></div>
-    <div className="stat-body">
-      <span className="stat-label">{label}</span>
-      <strong>{value}</strong>
-      <span className="stat-note">{note}</span>
-      {/* Полоска показывает величину наглядно: число «73%» само по себе
-          ни с чем не сравнивается, а заполненность видна сразу. */}
-      {meter != null && <span className="stat-meter" aria-hidden="true"><i style={{ width: `${Math.max(0, Math.min(100, meter))}%` }} /></span>}
+  return <animated.div className="stat-card-shell" style={{ opacity: spring.opacity, transform: spring.y.to((y) => `translateY(${y}px)`) }}>
+    <div className={`stat-card tone-${tone}`}>
+      <div className={`stat-icon ${tone}`}><StatGlyph name={glyph} /></div>
+      <div className="stat-body">
+        <span className="stat-label">{label}</span>
+        <strong>{value}</strong>
+        <span className="stat-note">{note}</span>
+        {/* Полоска показывает величину наглядно: число «73%» само по себе
+            ни с чем не сравнивается, а заполненность видна сразу. */}
+        {meter != null && <span className="stat-meter" aria-hidden="true"><i style={{ width: `${Math.max(0, Math.min(100, meter))}%` }} /></span>}
+      </div>
     </div>
   </animated.div>;
 }
@@ -558,6 +577,9 @@ function App() {
   const [updates, setUpdates] = useState<UpdateInfo[]>(isDesktop ? [] : DEMO_UPDATES);
   // До первого ответа main-процесса интерфейс не должен выглядеть как «модулей нет».
   const [loadingModules, setLoadingModules] = useState(isDesktop);
+  // Отдельно от loadingModules: тот описывает только первую загрузку списка,
+  // а значок на кнопке должен крутиться при каждом повторном сканировании.
+  const [scanning, setScanning] = useState(false);
   // Search is intentionally hidden for now (CSS .search-box already exists).
   // const [query, setQuery] = useState('');
   const [moduleFilter, setModuleFilter] = useState<'all' | 'running' | 'stopped'>('all');
@@ -736,12 +758,19 @@ function App() {
   };
 
   const handleReload = async () => {
+    if (scanning) return;
+    setScanning(true);
     try {
       if (desktop) await window.nexus?.reloadModules();
       else setLogs((current) => [{ id: 'system', level: 'success', message: `${t('Повторное сканирование: найдено модулей —')} ${modules.length}`, timestamp: new Date().toISOString() }, ...current]);
       setLastScan(new Date().toISOString());
       setToast(t('Модули синхронизированы'));
     } catch (error) { setToast(error instanceof Error ? error.message : t('Ошибка сканирования')); }
+    finally {
+      // Оборот значка длится 1.1 с. Если ответ пришёл мгновенно, анимация
+      // оборвалась бы на середине и выглядела бы дёрганой — даём ей доиграть.
+      window.setTimeout(() => setScanning(false), 1100);
+    }
   };
 
   const handleSyncUpdates = async () => {
@@ -805,8 +834,8 @@ function App() {
         <span>{t('Открыть модули')}</span>
         <b><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 16 16 8M9.5 8H16v6.5" /></svg></b>
       </button>
-      <button className={`quiet-button ${loadingModules ? 'is-busy' : ''}`} onClick={handleReload}>
-        <span className="quiet-button-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20 12a8 8 0 1 1-2.4-5.7" /><path d="M20 4.5V10h-5.5" /></svg></span>
+      <button className={`quiet-button ${scanning ? 'is-spin' : ''}`} disabled={scanning} onClick={handleReload}>
+        <span className="quiet-button-icon"><RefreshGlyph /></span>
         {t('Сканировать заново')}
       </button>
     </div></div><HeroVisual /></section><section className="stats-grid"><StatCard label={t('ВСЕГО МОДУЛЕЙ')} value={String(modules.length).padStart(2, '0')} note={t('обнаружено локально')} glyph="modules" tone="cyan" index={0} /><StatCard label={t('АКТИВНЫЕ')} value={String(running).padStart(2, '0')} note={running ? t('контур запущен') : t('готовы к запуску')} glyph="active" tone="violet" index={1} meter={modules.length ? (running / modules.length) * 100 : 0} /><StatCard label={t('ЗДОРОВЬЕ')} value={`${modules.length ? Math.round((healthy / modules.length) * 100) : 100}%`} note={errors ? `${errors} ${t('с ошибкой')}` : t('без критических ошибок')} glyph="health" tone={errors ? 'red' : 'mint'} index={2} meter={modules.length ? Math.round((healthy / modules.length) * 100) : 100} /><StatCard label={t('ПОСЛЕДНИЙ СКАН')} value={lastScanLabel} note={settings.autoStart ? t('автозапуск включён') : t('автозапуск выключен')} glyph="scan" tone="amber" index={3} /></section><section className="section-heading"><div><span className="section-kicker">{t('ВАШИ ИНСТРУМЕНТЫ')}</span><h2>{t('Быстрый доступ')}</h2></div><button className="text-button" onClick={() => openPage('modules')}>
@@ -822,7 +851,7 @@ function App() {
         onStrategyChange={handleStrategyChange}
       />}
 
-      {page === 'modules' && !settingsModule && <section className="page-section"><div className="page-heading"><div><span className="section-kicker">{t('РЕЕСТР МОДУЛЕЙ')}</span><h1>{t('Все модули')}</h1><p>{t('Манифесты из')} <code>./modules</code> · {modules.length} {t('подключено')}</p></div><button className={`primary-button small ${loadingModules ? 'is-busy' : ''}`} onClick={handleReload}><span className="quiet-button-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20 12a8 8 0 1 1-2.4-5.7" /><path d="M20 4.5V10h-5.5" /></svg></span><b>{t('Сканировать')}</b></button></div><GithubUpdateStrip updates={updates} syncing={syncing} onSync={handleSyncUpdates} /><div className="filter-row"><span className="filter-label">{t('ФИЛЬТР:')}</span><button className={`filter-chip ${moduleFilter === 'all' ? 'active' : ''}`} onClick={() => setModuleFilter('all')}>{t('Все')} <b>{modules.length}</b></button><button className={`filter-chip ${moduleFilter === 'running' ? 'active' : ''}`} onClick={() => setModuleFilter('running')}>{t('Активные')} <b>{running}</b></button><button className={`filter-chip ${moduleFilter === 'stopped' ? 'active' : ''}`} onClick={() => setModuleFilter('stopped')}>{t('Остановлены')} <b>{modules.length - running}</b></button></div><div className="module-grid full">{loadingModules ? <ModuleSkeletons count={4} /> : filteredModules.map((module, index) => <ModuleCard key={module.id} module={module} index={index} onToggle={handleToggle} onStrategyChange={handleStrategyChange} onOpenSettings={openModuleSettings} t={t} />)}</div>{!loadingModules && filteredModules.length === 0 && <div className="empty-state"><span>⌕</span><h3>{t('Ничего не найдено')}</h3><p>{t('Смените фильтр или просканируйте modules ещё раз.')}</p></div>}</section>}
+      {page === 'modules' && !settingsModule && <section className="page-section"><div className="page-heading"><div><span className="section-kicker">{t('РЕЕСТР МОДУЛЕЙ')}</span><h1>{t('Все модули')}</h1><p>{t('Манифесты из')} <code>./modules</code> · {modules.length} {t('подключено')}</p></div><button className={`primary-button small ${scanning ? 'is-spin' : ''}`} disabled={scanning} onClick={handleReload}><span className="quiet-button-icon"><RefreshGlyph /></span><b>{t('Сканировать')}</b></button></div><GithubUpdateStrip updates={updates} syncing={syncing} onSync={handleSyncUpdates} /><div className="filter-row"><span className="filter-label">{t('ФИЛЬТР:')}</span><button className={`filter-chip ${moduleFilter === 'all' ? 'active' : ''}`} onClick={() => setModuleFilter('all')}>{t('Все')} <b>{modules.length}</b></button><button className={`filter-chip ${moduleFilter === 'running' ? 'active' : ''}`} onClick={() => setModuleFilter('running')}>{t('Активные')} <b>{running}</b></button><button className={`filter-chip ${moduleFilter === 'stopped' ? 'active' : ''}`} onClick={() => setModuleFilter('stopped')}>{t('Остановлены')} <b>{modules.length - running}</b></button></div><div className="module-grid full">{loadingModules ? <ModuleSkeletons count={4} /> : filteredModules.map((module, index) => <ModuleCard key={module.id} module={module} index={index} onToggle={handleToggle} onStrategyChange={handleStrategyChange} onOpenSettings={openModuleSettings} t={t} />)}</div>{!loadingModules && filteredModules.length === 0 && <div className="empty-state"><span>⌕</span><h3>{t('Ничего не найдено')}</h3><p>{t('Смените фильтр или просканируйте modules ещё раз.')}</p></div>}</section>}
 
       {page === 'jey2ray' && <Jey2RayPage settings={settings} updates={updates} syncing={syncing} onSync={handleSyncUpdates} onSettings={(next) => void persistSettings(next)} onToast={setToast} />}
 
@@ -845,7 +874,7 @@ function Settings({ settings, onChange }: {
     <div className="global-settings-hero">
       <span className="global-settings-hero-icon"><GearIcon /></span>
       <div><span>{t('ОБЩИЕ НАСТРОЙКИ')}</span><h2>{t('Интерфейс NEXUS')}</h2><p>{t('Эти параметры относятся ко всему приложению. Настройки VPN находятся внутри Jey2Ray.')}</p></div>
-      <div className="global-settings-badges"><span>RU</span><span>{t('Тёмная тема')}</span></div>
+      <div className="global-settings-badges"><span>{settings.language === 'en' ? 'EN' : 'RU'}</span><span>{t('Тёмная тема')}</span></div>
     </div>
 
     <div className="settings-layout global-settings-layout">

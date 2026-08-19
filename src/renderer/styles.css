@@ -1693,7 +1693,7 @@ kbd { padding: 3px 5px; border: 1px solid rgba(255,255,255,.1); border-radius: 5
    Теперь это SVG — они одинаковы везде и остаются чёткими при любом масштабе. */
 .stat-icon svg { width: 21px; height: 21px; fill: none; stroke: currentColor; stroke-linecap: round; stroke-linejoin: round; stroke-width: 1.7; }
 .stat-icon .glyph-soft { opacity: .45; stroke-width: 1.3; }
-.stat-icon { position: relative; overflow: hidden; border: 1px solid transparent; transition: transform .22s ease, box-shadow .22s ease; }
+.stat-icon { position: relative; overflow: hidden; border: 1px solid transparent; transition: transform .26s cubic-bezier(.22,.61,.36,1), box-shadow .26s ease; }
 /* Мягкий блик внутри плитки: плоская заливка выглядела дёшево. */
 .stat-icon:after { position: absolute; top: -55%; left: -25%; width: 90%; height: 150%; background: linear-gradient(115deg, rgba(255,255,255,.16), transparent 62%); content: ''; pointer-events: none; }
 .stat-icon.cyan { border-color: rgba(124,242,213,.22); background: linear-gradient(150deg, rgba(124,242,213,.2), rgba(124,242,213,.05)); box-shadow: inset 0 1px rgba(255,255,255,.1), 0 6px 16px rgba(60,190,170,.16); }
@@ -1704,11 +1704,18 @@ kbd { padding: 3px 5px; border: 1px solid rgba(255,255,255,.1); border-radius: 5
 .stat-icon.red { border-color: rgba(255,122,145,.26); background: linear-gradient(150deg, rgba(255,122,145,.2), rgba(255,122,145,.05)); color: var(--red); box-shadow: inset 0 1px rgba(255,255,255,.1), 0 6px 16px rgba(200,60,80,.18); }
 
 /* Карточка целиком отзывается на наведение: страница перестаёт быть «плакатом». */
-.stat-card { position: relative; overflow: hidden; transition: transform .22s ease, border-color .22s ease, box-shadow .22s ease; }
-.stat-card:before { position: absolute; top: 0; left: 0; width: 100%; height: 2px; background: linear-gradient(90deg, transparent, rgba(124,242,213,.5), transparent); content: ''; opacity: 0; transition: opacity .22s ease; }
-.stat-card:hover { border-color: rgba(140,161,255,.2); box-shadow: inset 0 1px rgba(255,255,255,.06), 0 20px 44px rgba(0,0,0,.22); transform: translateY(-2px); }
-.stat-card:hover:before { opacity: 1; }
-.stat-card:hover .stat-icon { transform: scale(1.06); }
+/* Карточка разделена на обёртку и саму плитку намеренно.
+   Пружина появления пишет transform прямо в атрибут style обёртки, а инлайновый
+   стиль сильнее любого правила CSS. Пока наведение задавало transform той же
+   карточке, плавный возврат не срабатывал: вверх плитка шла мягко, а обратно
+   возвращалась рывком. Теперь пружина двигает обёртку, а наведение — плитку,
+   и они больше не спорят за одно свойство. */
+.stat-card-shell { min-width: 0; }
+.stat-card { position: relative; height: 100%; overflow: hidden; transition: transform .26s cubic-bezier(.22,.61,.36,1), border-color .26s ease, box-shadow .26s ease; }
+.stat-card:before { position: absolute; top: 0; left: 0; width: 100%; height: 2px; background: linear-gradient(90deg, transparent, rgba(124,242,213,.5), transparent); content: ''; opacity: 0; transition: opacity .26s ease; }
+.stat-card-shell:hover .stat-card { border-color: rgba(140,161,255,.2); box-shadow: inset 0 1px rgba(255,255,255,.06), 0 20px 44px rgba(0,0,0,.22); transform: translateY(-3px); }
+.stat-card-shell:hover .stat-card:before { opacity: 1; }
+.stat-card-shell:hover .stat-icon { transform: scale(1.06) rotate(-3deg); }
 .stat-body { min-width: 0; flex: 1; }
 
 /* Полоска под числом: «73%» само по себе не с чем сравнить, а заполненность
@@ -1734,7 +1741,6 @@ kbd { padding: 3px 5px; border: 1px solid rgba(255,255,255,.1); border-radius: 5
 .quiet-button:hover { border-color: rgba(124,242,213,.2); background: rgba(124,242,213,.07); color: #e9fff9; }
 .quiet-button-icon { display: grid; width: 16px; height: 16px; place-items: center; color: var(--cyan); }
 .quiet-button-icon svg { width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-linecap: round; stroke-linejoin: round; stroke-width: 2; }
-.quiet-button.is-busy .quiet-button-icon { animation: nx-spin 1s linear infinite; }
 @keyframes nx-spin { to { transform: rotate(360deg); } }
 
 /* «Все модули»: раньше это был просто текст со стрелкой — он терялся рядом с
@@ -1773,7 +1779,6 @@ kbd { padding: 3px 5px; border: 1px solid rgba(255,255,255,.1); border-radius: 5
   .app-frame:not(.motion-force) .text-button-arrow,
   .app-frame:not(.motion-force) .stat-meter i { transition: none; }
   .app-frame:not(.motion-force) .primary-button:after { display: none; }
-  .app-frame:not(.motion-force) .quiet-button.is-busy .quiet-button-icon { animation: none; }
 }
 .app-frame.motion-off .stat-card,
 .app-frame.motion-off .stat-icon,
@@ -1783,11 +1788,38 @@ kbd { padding: 3px 5px; border: 1px solid rgba(255,255,255,.1); border-radius: 5
 .app-frame.motion-off .text-button-arrow,
 .app-frame.motion-off .stat-meter i { transition: none; }
 .app-frame.motion-off .primary-button:after { display: none; }
-.app-frame.motion-off .quiet-button.is-busy .quiet-button-icon { animation: none; }
 
 /* Значок обновления в кнопке «Сканировать» на странице модулей: тот же приём,
    что и на главной — символ шрифта заменён значком, вращается во время работы. */
 .primary-button.small .quiet-button-icon { color: inherit; }
-.primary-button.small.is-busy .quiet-button-icon { animation: nx-spin 1s linear infinite; }
-@media (prefers-reduced-motion: reduce) { .app-frame:not(.motion-force) .primary-button.small.is-busy .quiet-button-icon { animation: none; } }
-.app-frame.motion-off .primary-button.small.is-busy .quiet-button-icon { animation: none; }
+
+/* Кнопки сканирования: тот же оборот значка, что у кнопки «Обновить» в Jey2Ray.
+   Раньше значок вращался по флагу первой загрузки списка, который при нажатии
+   уже сброшен, — то есть не вращался вообще. */
+.quiet-button-icon .spin-ico { width: 16px; height: 16px; transform-origin: 50% 50%; }
+.quiet-button.is-spin,
+.primary-button.small.is-spin { color: var(--cyan); }
+.primary-button.small.is-spin { color: #121827; }
+.quiet-button.is-spin .spin-ico,
+.primary-button.small.is-spin .spin-ico { animation: refresh-turn 1.1s cubic-bezier(.4,.05,.15,1) 1 both; }
+.quiet-button:disabled,
+.primary-button.small:disabled { cursor: default; }
+/* Значок слегка доворачивается при наведении — подсказка, что кнопка живая. */
+.quiet-button .spin-ico,
+.primary-button.small .spin-ico { transition: transform .3s cubic-bezier(.22,.61,.36,1); }
+.quiet-button:hover:not(:disabled) .spin-ico,
+.primary-button.small:hover:not(:disabled) .spin-ico { transform: rotate(-38deg); }
+.appearance-graphite .quiet-button.is-spin { color: #d6d6d6; }
+
+@media (prefers-reduced-motion: reduce) {
+  .app-frame:not(.motion-force) .quiet-button.is-spin .spin-ico,
+  .app-frame:not(.motion-force) .primary-button.small.is-spin .spin-ico { animation: none; }
+  .app-frame:not(.motion-force) .quiet-button .spin-ico,
+  .app-frame:not(.motion-force) .primary-button.small .spin-ico { transition: none; }
+  .app-frame:not(.motion-force) .stat-card-shell:hover .stat-icon { transform: none; }
+}
+.app-frame.motion-off .quiet-button.is-spin .spin-ico,
+.app-frame.motion-off .primary-button.small.is-spin .spin-ico { animation: none; }
+.app-frame.motion-off .quiet-button .spin-ico,
+.app-frame.motion-off .primary-button.small .spin-ico { transition: none; }
+.app-frame.motion-off .stat-card-shell:hover .stat-icon { transform: none; }
