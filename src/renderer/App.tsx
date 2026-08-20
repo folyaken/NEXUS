@@ -980,9 +980,28 @@ function Settings({ settings, onChange }: {
         </div>
         <div className="global-preference-row appearance-preference-row">
           <div><strong>{t('Оформление')}</strong><p>{t('Выберите характер акцентов интерфейса.')}</p></div>
-          <div className="appearance-options" role="radiogroup" aria-label={t('Оформление NEXUS')}>
-            <button type="button" role="radio" aria-checked={settings.appearance === 'indigo'} className={settings.appearance === 'indigo' ? 'active' : ''} onClick={() => onChange({ ...settings, appearance: 'indigo' })}><i className="indigo" />{t('Индиго')}</button>
-            <button type="button" role="radio" aria-checked={settings.appearance === 'graphite'} className={settings.appearance === 'graphite' ? 'active' : ''} onClick={() => onChange({ ...settings, appearance: 'graphite' })}><i className="graphite" />{t('Графит')}</button>
+          {/* Переключатель оформления — кружки цветов, а не подписи.
+              Цвет объясняет тему быстрее слова, а три полноценные кнопки в
+              ряд заняли бы всю строку. Название показывается у выбранного и
+              при наведении на остальные: так понятно, что именно выбираешь. */}
+          <div className="theme-dots" role="radiogroup" aria-label={t('Оформление NEXUS')}>
+            {([
+              ['indigo', t('Индиго')],
+              ['graphite', t('Графит')],
+              ['crimson', t('Багровое')],
+            ] as const).map(([id, label]) => <button
+              key={id}
+              type="button"
+              role="radio"
+              aria-checked={settings.appearance === id}
+              aria-label={label}
+              title={label}
+              className={`theme-dot theme-${id} ${settings.appearance === id ? 'is-active' : ''}`}
+              onClick={() => onChange({ ...settings, appearance: id })}
+            >
+              <i />
+              <span className="theme-dot-label">{label}</span>
+            </button>)}
           </div>
         </div>
       </div>

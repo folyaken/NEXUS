@@ -194,7 +194,7 @@ export type MotionPreference = 'full' | 'reduced';
 export interface AppSettings {
   language: AppLanguage;
   theme: 'dark';
-  appearance: 'indigo' | 'graphite';
+  appearance: 'indigo' | 'graphite' | 'crimson';
   /** Анимации интерфейса: по настройке Windows, всегда или никогда. */
   motion: MotionPreference;
   /** Запускать NEXUS вместе с Windows. */

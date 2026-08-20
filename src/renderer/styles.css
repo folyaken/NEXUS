@@ -2226,3 +2226,143 @@ kbd { padding: 3px 5px; border: 1px solid rgba(255,255,255,.1); border-radius: 5
   .app-frame:not(.motion-force) .server-row.is-best .server-crown { animation: none; }
 }
 .app-frame.motion-off .server-row.is-best .server-crown { animation: none; }
+
+/* ============================================================================
+   Оформление «Багровое»: чёрный фон с красными акцентами
+   ==========================================================================*/
+
+/*
+  Тема задаётся только переменными цвета — как и остальной интерфейс.
+
+  Графиту понадобилось больше двух сотен отдельных правил, но там задача была
+  особой: строгая серость, где любой цветной акцент нужно было погасить
+  поимённо. Здесь наоборот — акценты остаются, меняется лишь их оттенок,
+  поэтому переменных достаточно. Меньше правил — меньше мест, где новый экран
+  окажется не перекрашен.
+*/
+.appearance-crimson {
+  --bg: #0b0708;
+  --panel: rgba(30,18,20,.74);
+  --line: rgba(255,138,150,.11);
+  --text: #f6ecee;
+  --muted: #a8929a;
+  --muted-2: #6f5b62;
+  /* Основной акцент — тёплый красный. Он заменяет бирюзовый и используется в
+     кнопках, выделениях и активных состояниях. */
+  --cyan: #ff6b7f;
+  --violet: #c2506a;
+  --amber: #ffab5e;
+  --red: #ff5470;
+  --mint: #ff7d8f;
+  --shadow: 0 24px 70px rgba(0,0,0,.42);
+}
+
+/* Фон и подсветки: холодные пятна интерфейса заменяются тёплыми, иначе на
+   чёрно-красном они выглядят инородными синими кляксами. */
+.appearance-crimson .app-shell {
+  background:
+    radial-gradient(circle at 76% -12%, rgba(220,60,80,.13), transparent 32%),
+    radial-gradient(circle at 42% 110%, rgba(150,30,50,.1), transparent 32%),
+    var(--bg);
+}
+.appearance-crimson .ambient-one { background: #c62f4c; opacity: .14; }
+.appearance-crimson .ambient-two { background: #7a1226; opacity: .12; }
+.appearance-crimson .window-bar { border-color: rgba(255,138,150,.12); background: #171012; color: #a8929a; }
+.appearance-crimson .sidebar { border-color: rgba(255,138,150,.1); background: linear-gradient(180deg, rgba(24,14,16,.94), rgba(14,9,10,.8)); }
+
+/* Значок и логотип: фирменная зелёно-фиолетовая лента на красном фоне
+   смотрится чужеродно, поэтому в этой теме она тоже красная. */
+.appearance-crimson .brand-orb { border-color: rgba(255,107,127,.4); background: linear-gradient(140deg, rgba(255,107,127,.2), rgba(194,80,106,.18)); box-shadow: inset 0 1px 1px rgba(255,255,255,.14), 0 0 26px rgba(255,90,110,.16); color: #ff8f9f; }
+.appearance-crimson .nexus-infinity-mark .nexus-ribbon { stroke: #ff6b7f; }
+.appearance-crimson .nexus-infinity-mark .nexus-ribbon-shadow { stroke: #96233c; }
+.appearance-crimson .nexus-infinity-mark .nexus-ribbon-core { fill: #ffb3bf; stroke: rgba(255,230,234,.9); }
+
+.appearance-crimson .workspace-avatar,
+.appearance-crimson .user-avatar { background: linear-gradient(135deg, #ff7d8f, #b93a56); color: #1a0d10; }
+.appearance-crimson .primary-button { background: linear-gradient(130deg, #ff8090, #c04a63); color: #1a0d10; box-shadow: inset 0 1px 1px rgba(255,255,255,.4), 0 10px 28px rgba(200,60,85,.22); }
+.appearance-crimson .about-install-button.is-ready { background: linear-gradient(130deg, #ff8090, #c04a63); color: #1a0d10; }
+.appearance-crimson .toggle.is-on { background: #e8546b; }
+
+/* Полоса прокрутки: по умолчанию она бирюзово-фиолетовая. */
+.appearance-crimson *::-webkit-scrollbar-thumb { background: linear-gradient(180deg, rgba(255,107,127,.75), rgba(150,35,60,.75)); box-shadow: 0 0 12px rgba(255,90,110,.2); }
+.appearance-crimson *::-webkit-scrollbar-thumb:hover { background: linear-gradient(180deg, #ff8090, #b93a56); }
+
+/* Флаги серверов остаются цветными: это единственное место, где чужие цвета
+   уместны — страну узнают именно по ним. */
+.appearance-crimson .server-flag-svg { filter: none; }
+
+/* ============================================================================
+   Переключатель оформления: цветные кружки
+   ==========================================================================*/
+
+.theme-dots { display: inline-flex; align-items: center; gap: 6px; }
+
+/* Кнопка сжата до кружка. Подпись лежит внутри и раскрывается шириной, а не
+   появляется отдельным всплывающим окном: соседние кружки при этом плавно
+   отодвигаются, и ничего не перекрывается. */
+.theme-dot {
+  display: inline-flex;
+  align-items: center;
+  gap: 0;
+  height: 30px;
+  padding: 0 5px;
+  border: 1px solid rgba(255,255,255,.08);
+  border-radius: 999px;
+  background: rgba(255,255,255,.02);
+  color: #b9c5d6;
+  font-size: 11px;
+  transition: gap .22s ease, padding .22s ease, border-color .22s ease, background .22s ease;
+}
+.theme-dot i {
+  display: block;
+  width: 18px;
+  height: 18px;
+  flex: 0 0 18px;
+  border-radius: 50%;
+  box-shadow: inset 0 1px 1px rgba(255,255,255,.28), 0 2px 6px rgba(0,0,0,.35);
+  transition: transform .22s ease, box-shadow .22s ease;
+}
+/* Каждый кружок окрашен в акцент своей темы — по нему её и узнают. */
+.theme-dot.theme-indigo i { background: linear-gradient(140deg, #7cf2d5, #8b6cff); }
+.theme-dot.theme-graphite i { background: linear-gradient(140deg, #e6e6e6, #6f6f6f); }
+.theme-dot.theme-crimson i { background: linear-gradient(140deg, #ff8090, #8f1e33); }
+
+/* Подпись скрыта нулевой шириной: так она участвует в разметке и раскрывается
+   плавно. Через display её анимировать нельзя. */
+.theme-dot-label {
+  overflow: hidden;
+  max-width: 0;
+  opacity: 0;
+  white-space: nowrap;
+  transition: max-width .22s ease, opacity .18s ease;
+}
+
+.theme-dot:hover { border-color: rgba(255,255,255,.16); background: rgba(255,255,255,.05); }
+.theme-dot:hover i { transform: scale(1.08); }
+/* Название показывается у выбранной темы всегда, у остальных — при наведении
+   и при переходе с клавиатуры. */
+.theme-dot:hover .theme-dot-label,
+.theme-dot:focus-visible .theme-dot-label,
+.theme-dot.is-active .theme-dot-label { max-width: 110px; opacity: 1; }
+.theme-dot:hover,
+.theme-dot:focus-visible,
+.theme-dot.is-active { gap: 7px; padding: 0 12px 0 5px; }
+
+.theme-dot.is-active { border-color: rgba(255,255,255,.2); background: rgba(255,255,255,.06); color: var(--text); }
+.theme-dot.is-active i { box-shadow: inset 0 1px 1px rgba(255,255,255,.35), 0 0 0 2px var(--bg), 0 0 0 3.5px currentColor; }
+.theme-dot:focus-visible { outline: 2px solid var(--cyan); outline-offset: 2px; }
+
+/* Цвет обводки активного кружка берётся из темы, которую он включает, а не из
+   текущей: иначе выбранный «Багровый» подсвечивался бы бирюзовым. */
+.theme-dot.theme-indigo.is-active { color: #7cf2d5; }
+.theme-dot.theme-graphite.is-active { color: #d6d6d6; }
+.theme-dot.theme-crimson.is-active { color: #ff6b7f; }
+
+@media (prefers-reduced-motion: reduce) {
+  .app-frame:not(.motion-force) .theme-dot,
+  .app-frame:not(.motion-force) .theme-dot i,
+  .app-frame:not(.motion-force) .theme-dot-label { transition: none; }
+}
+.app-frame.motion-off .theme-dot,
+.app-frame.motion-off .theme-dot i,
+.app-frame.motion-off .theme-dot-label { transition: none; }

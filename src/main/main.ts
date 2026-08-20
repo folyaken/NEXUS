@@ -105,7 +105,9 @@ function normalizeSettings(raw: Partial<AppSettings>): AppSettings {
   return {
     language: raw.language === 'en' ? 'en' : 'ru',
     theme: 'dark',
-    appearance: raw.appearance === 'graphite' ? 'graphite' : 'indigo',
+    // Неизвестное значение приводится к индиго: так интерфейс останется
+    // читаемым, даже если настройки правили вручную.
+    appearance: raw.appearance === 'graphite' || raw.appearance === 'crimson' ? raw.appearance : 'indigo',
     // Полное движение по умолчанию: у части пользователей Windows глобально
     // гасит анимации, и интерфейс выглядел сломанным, хотя работал верно.
     // Значение 'system' осталось от прежней настройки «как в Windows». Пункт

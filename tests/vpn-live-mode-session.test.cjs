@@ -79,7 +79,8 @@ assert.match(types, /theme: 'dark'/);
 assert.match(types, /appearance: 'indigo' \| 'graphite'/);
 assert.match(types, /vpnFragmentation: boolean/);
 assert.match(types, /vpnFragmentation: true/);
-assert.match(main, /appearance: raw\.appearance === 'graphite' \? 'graphite' : 'indigo'/);
+// Третье оформление добавлено: проверка не должна закреплять ровно два.
+assert.match(main, /appearance: raw\.appearance === 'graphite' \|\| raw\.appearance === 'crimson'/);
 assert.match(main, /vpnFragmentation: raw\.vpnFragmentation !== false/, 'old settings must migrate to enabled fragmentation');
 assert.match(vpnManager, /fragmentation = true/);
 assert.match(vpnManager, /buildXrayConfig\(profile\.params, port, mode, activeSplitApps, activeAppRouting, fragmentation, allowLan, dnsServers, usableRules\)/);
