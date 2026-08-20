@@ -109,6 +109,20 @@ function main() {
 
   run('npm', ['run', 'build'], true);
 
+  // Папка release очищается перед сборкой.
+  //
+  // electron-builder не удаляет прежние файлы, и за десяток версий там
+  // скапливаются сотни мегабайт: установщики всех прошлых сборок, их blockmap
+  // и распакованный каталог win-unpacked. Найти среди них свежий файл тяжело,
+  // а случайно выложить в релиз старый — легко. Всё нужное уже лежит в
+  // репозитории релизов, локальные копии не нужны.
+  const releaseOutput = path.join(root, 'release');
+  if (fs.existsSync(releaseOutput)) {
+    const removed = fs.readdirSync(releaseOutput).length;
+    fs.rmSync(releaseOutput, { recursive: true, force: true });
+    if (removed) console.log(`Очищено файлов прошлых сборок: ${removed}`);
+  }
+
   // `--publish never` означает «собрать файлы, но никуда не загружать»:
   // готовые файлы выкладываются вручную. Токен GitHub в сборке не участвует.
   runBuilder(['electron-builder', '--win', '--x64', '--publish', 'never', ...builderPublishArgs()]);

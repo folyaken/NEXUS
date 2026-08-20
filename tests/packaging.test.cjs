@@ -241,3 +241,16 @@ assert.ok(fs.existsSync(path.join(root, 'scripts', 'check-build-config.cjs')));
 // Вывод сборки сохраняется в файл: причина падения уезжает за край окна консоли.
 assert.match(releaseScript, /build-log\.txt/, 'полный вывод сборки обязан сохраняться в файл');
 assert.match(releaseScript, /function runBuilder/);
+
+// --- Лишние цели сборки ---------------------------------------------------------
+// Кроме установщика собиралась ещё portable-версия. В релизы она ни разу не
+// выкладывалась, а место в папке release занимала наравне с установщиком: за
+// десяток версий там скопилось больше гигабайта файлов с похожими именами,
+// среди которых легко перепутать свежий и старый.
+const winTargets = build.win.target.map((item) => (typeof item === 'string' ? item : item.target));
+assert.deepEqual(winTargets, ['nsis'], 'собирается только установщик — portable не публикуется');
+
+// Папка release очищается перед сборкой: electron-builder прежние файлы не
+// удаляет, и они накапливаются от версии к версии.
+const releaseScriptSource = fs.readFileSync(path.join(root, 'scripts', 'build-release.cjs'), 'utf8');
+assert.match(releaseScriptSource, /fs\.rmSync\(releaseOutput/, 'папка release обязана очищаться перед сборкой');
