@@ -190,6 +190,12 @@ kbd { padding: 3px 5px; border: 1px solid rgba(255,255,255,.1); border-radius: 5
 .jey-name { margin-top: 0; }
 .jey-toolbar-actions { display: flex; align-items: center; gap: 14px; }
 .jey-autostart { display: flex; align-items: center; gap: 10px; margin-top: 16px; padding: 0; background: transparent; color: #9aa8bb; font-size: 12px; }
+/* Цвет переключателя модулей.
+   Раньше он приходил из JavaScript вписанным в разметку и поэтому не менялся
+   вместе с оформлением. Теперь состояние задаётся здесь, и тема его красит. */
+.toggle { background: #252d3c; box-shadow: inset 3px 3px 6px rgba(0,0,0,.32), inset -2px -2px 4px rgba(255,255,255,.04), 0 5px 14px rgba(0,0,0,.24); transition: background .2s ease, box-shadow .2s ease; }
+.toggle.is-on { background: #5ce7b0; box-shadow: inset 3px 3px 6px rgba(0,0,0,.18), 0 0 22px rgba(92,231,176,.35); }
+
 .jey-autostart .toggle { width: 40px; height: 22px; padding: 2px; }
 .jey-autostart .toggle.is-on { background: linear-gradient(130deg, #5b67f1, #7cf2d5); }
 .jey-autostart .toggle:not(.is-on) { background: #1c2332; }
@@ -991,6 +997,20 @@ kbd { padding: 3px 5px; border: 1px solid rgba(255,255,255,.1); border-radius: 5
 .about-hero-card { position: relative; display: grid; grid-template-columns: 150px minmax(0,1fr) auto; align-items: center; gap: 20px; margin-top: 27px; padding: 30px; overflow: hidden; border: 1px solid rgba(140,161,255,.12); border-radius: 22px; background: radial-gradient(circle at 87% 20%, rgba(124,242,213,.1), transparent 26%), linear-gradient(125deg, rgba(32,42,63,.86), rgba(18,24,37,.88) 60%, rgba(42,37,76,.55)); box-shadow: 0 22px 55px rgba(0,0,0,.2), inset 0 1px rgba(255,255,255,.065); }
 .about-mark { display: grid; width: 150px; height: 114px; place-items: center; filter: drop-shadow(0 16px 20px rgba(0,0,0,.28)); }
 .about-mark svg { width: 154px; height: 119px; overflow: visible; }
+/* Цвета градиентов логотипа и графика нагрузки.
+   Раньше они стояли прямо в разметке SVG (stopColor), куда таблица стилей не
+   дотягивается, и логотип оставался зелёно-фиолетовым в любой теме. Вынесено
+   в стиль, чтобы оформление перекрашивало и его. */
+.gr-face-a { stop-color: #92f3b7; }
+.gr-face-b { stop-color: #39c77d; }
+.gr-side-a { stop-color: #7e63e8; }
+.gr-side-b { stop-color: #4c358e; }
+.gr-orbit-a { stop-color: #6ee9a2; }
+.gr-orbit-b { stop-color: #a98cff; }
+.gr-orbit-c { stop-color: #7154dc; }
+.gr-pulse-a { stop-color: #71f4b8; }
+.gr-pulse-b { stop-color: #71f4b8; }
+
 .showcase-orbit { fill: none; stroke: url(#showcase-orbit); stroke-linecap: round; }
 .showcase-orbit.orbit-back { stroke-width: 4; opacity: .46; stroke-dasharray: 25 7; }
 .showcase-orbit.orbit-front { stroke-width: 5; filter: drop-shadow(0 0 5px rgba(148,122,255,.42)); }
@@ -2226,70 +2246,6 @@ kbd { padding: 3px 5px; border: 1px solid rgba(255,255,255,.1); border-radius: 5
   .app-frame:not(.motion-force) .server-row.is-best .server-crown { animation: none; }
 }
 .app-frame.motion-off .server-row.is-best .server-crown { animation: none; }
-
-/* ============================================================================
-   Оформление «Багровое»: чёрный фон с красными акцентами
-   ==========================================================================*/
-
-/*
-  Тема задаётся только переменными цвета — как и остальной интерфейс.
-
-  Графиту понадобилось больше двух сотен отдельных правил, но там задача была
-  особой: строгая серость, где любой цветной акцент нужно было погасить
-  поимённо. Здесь наоборот — акценты остаются, меняется лишь их оттенок,
-  поэтому переменных достаточно. Меньше правил — меньше мест, где новый экран
-  окажется не перекрашен.
-*/
-.appearance-crimson {
-  --bg: #0b0708;
-  --panel: rgba(30,18,20,.74);
-  --line: rgba(255,138,150,.11);
-  --text: #f6ecee;
-  --muted: #a8929a;
-  --muted-2: #6f5b62;
-  /* Основной акцент — тёплый красный. Он заменяет бирюзовый и используется в
-     кнопках, выделениях и активных состояниях. */
-  --cyan: #ff6b7f;
-  --violet: #c2506a;
-  --amber: #ffab5e;
-  --red: #ff5470;
-  --mint: #ff7d8f;
-  --shadow: 0 24px 70px rgba(0,0,0,.42);
-}
-
-/* Фон и подсветки: холодные пятна интерфейса заменяются тёплыми, иначе на
-   чёрно-красном они выглядят инородными синими кляксами. */
-.appearance-crimson .app-shell {
-  background:
-    radial-gradient(circle at 76% -12%, rgba(220,60,80,.13), transparent 32%),
-    radial-gradient(circle at 42% 110%, rgba(150,30,50,.1), transparent 32%),
-    var(--bg);
-}
-.appearance-crimson .ambient-one { background: #c62f4c; opacity: .14; }
-.appearance-crimson .ambient-two { background: #7a1226; opacity: .12; }
-.appearance-crimson .window-bar { border-color: rgba(255,138,150,.12); background: #171012; color: #a8929a; }
-.appearance-crimson .sidebar { border-color: rgba(255,138,150,.1); background: linear-gradient(180deg, rgba(24,14,16,.94), rgba(14,9,10,.8)); }
-
-/* Значок и логотип: фирменная зелёно-фиолетовая лента на красном фоне
-   смотрится чужеродно, поэтому в этой теме она тоже красная. */
-.appearance-crimson .brand-orb { border-color: rgba(255,107,127,.4); background: linear-gradient(140deg, rgba(255,107,127,.2), rgba(194,80,106,.18)); box-shadow: inset 0 1px 1px rgba(255,255,255,.14), 0 0 26px rgba(255,90,110,.16); color: #ff8f9f; }
-.appearance-crimson .nexus-infinity-mark .nexus-ribbon { stroke: #ff6b7f; }
-.appearance-crimson .nexus-infinity-mark .nexus-ribbon-shadow { stroke: #96233c; }
-.appearance-crimson .nexus-infinity-mark .nexus-ribbon-core { fill: #ffb3bf; stroke: rgba(255,230,234,.9); }
-
-.appearance-crimson .workspace-avatar,
-.appearance-crimson .user-avatar { background: linear-gradient(135deg, #ff7d8f, #b93a56); color: #1a0d10; }
-.appearance-crimson .primary-button { background: linear-gradient(130deg, #ff8090, #c04a63); color: #1a0d10; box-shadow: inset 0 1px 1px rgba(255,255,255,.4), 0 10px 28px rgba(200,60,85,.22); }
-.appearance-crimson .about-install-button.is-ready { background: linear-gradient(130deg, #ff8090, #c04a63); color: #1a0d10; }
-.appearance-crimson .toggle.is-on { background: #e8546b; }
-
-/* Полоса прокрутки: по умолчанию она бирюзово-фиолетовая. */
-.appearance-crimson *::-webkit-scrollbar-thumb { background: linear-gradient(180deg, rgba(255,107,127,.75), rgba(150,35,60,.75)); box-shadow: 0 0 12px rgba(255,90,110,.2); }
-.appearance-crimson *::-webkit-scrollbar-thumb:hover { background: linear-gradient(180deg, #ff8090, #b93a56); }
-
-/* Флаги серверов остаются цветными: это единственное место, где чужие цвета
-   уместны — страну узнают именно по ним. */
-.appearance-crimson .server-flag-svg { filter: none; }
 
 /* ============================================================================
    Переключатель оформления: цветные кружки

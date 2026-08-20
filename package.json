@@ -1,7 +1,7 @@
 {
   "name": "nexus-network-tools",
-  "version": "1.4.3",
-  "patchLevel": 91,
+  "version": "1.4.4",
+  "patchLevel": 92,
   "private": true,
   "description": "NEXUS - network tools for Windows",
   "license": "SEE LICENSE IN LICENSE",
@@ -14,7 +14,7 @@
     "package:win": "node scripts/check-build-config.cjs && node scripts/make-installer-art.cjs && node scripts/ensure-xray.cjs && node scripts/ensure-singbox.cjs && node scripts/ensure-wintun.cjs && node scripts/prepare-wincodesign.cjs && node scripts/prepare-license.cjs && npm run build && electron-builder --win --x64",
     "postinstall": "node scripts/ensure-xray.cjs && node scripts/ensure-singbox.cjs",
     "dev:web": "vite --host 0.0.0.0",
-    "build": "npm run build:main && vite build",
+    "build": "npm run theme:crimson && npm run build:main && vite build",
     "build:main": "tsc -p tsconfig.main.json",
     "test:split-tunnel": "npm run build:main && node tests/split-tunnel-config.test.cjs",
     "test:subscription-security": "npm run build:main && node tests/subscription-security.test.cjs",
@@ -35,7 +35,8 @@
     "channel:set": "node scripts/update-channel.cjs set",
     "release:win": "node scripts/build-release.cjs",
     "post": "node scripts/release-post.cjs",
-    "snapshot": "node scripts/make-clean-snapshot.cjs"
+    "snapshot": "node scripts/make-clean-snapshot.cjs",
+    "theme:crimson": "node scripts/make-crimson-theme.cjs"
   },
   "build": {
     "appId": "com.folyaken.nexus",

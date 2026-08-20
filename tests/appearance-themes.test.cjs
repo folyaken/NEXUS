@@ -16,27 +16,106 @@ assert.equal(DEFAULT_SETTINGS.appearance, 'indigo', 'по умолчанию о�
 // Испорченное значение не должно оставлять интерфейс без темы.
 assert.match(main, /raw\.appearance === 'graphite' \|\| raw\.appearance === 'crimson' \? raw\.appearance : 'indigo'/);
 
-// --- Тема задаётся переменными, а не сотней правил -----------------------------------
-// Графиту понадобилось больше двух сотен отдельных правил: там гасили каждый
-// цветной акцент поимённо. Здесь акценты остаются, меняется оттенок — значит
-// переменных достаточно. Чем меньше правил, тем меньше шансов, что новый экран
-// окажется не перекрашен.
-const crimsonBlock = styles.slice(styles.indexOf('.appearance-crimson {'));
-const variables = crimsonBlock.slice(0, crimsonBlock.indexOf('}'));
-for (const name of ['--bg', '--panel', '--line', '--text', '--muted', '--cyan', '--violet', '--red', '--mint', '--shadow']) {
+// --- Тема считается из основного стиля ------------------------------------------------
+// Первая версия «Багрового» опиралась на одни переменные цвета, и этого не
+// хватило: сотни правил задают цвет напрямую, переменных они не знают, и
+// экраны оставались наполовину сине-зелёными. Перекрашивать их руками — та же
+// ловушка, что с «Графитом»: новый экран забудут. Поэтому тема создаётся из
+// самого стиля, а тест сторожит, что созданное не разошлось с исходником.
+const crimson = fs.readFileSync(path.join(root, 'src', 'renderer', 'crimson.css'), 'utf8');
+const { buildBlock, parseRules, repaint } = require(path.join(root, 'scripts', 'crimson-theme.cjs'));
+
+assert.equal(crimson.trim(), buildBlock(styles).trim(),
+  'crimson.css устарел — выполните npm run theme:crimson');
+
+// Тема подключается после основного стиля, иначе базовые цвета перебьют её.
+const entry = fs.readFileSync(path.join(root, 'src', 'renderer', 'main.tsx'), 'utf8');
+assert.ok(entry.indexOf("import './crimson.css'") > entry.indexOf("import './styles.css'"),
+  'тема обязана подключаться после основного стиля');
+
+// Переменные оформления обязаны быть перекрашены все до одной.
+const rootBlock = crimson.slice(crimson.indexOf('.appearance-crimson {'));
+const variables = rootBlock.slice(0, rootBlock.indexOf('}'));
+for (const name of ['--bg', '--panel', '--text', '--muted', '--cyan', '--violet', '--amber', '--red', '--mint']) {
   assert.ok(variables.includes(`${name}:`), `в теме должна быть переменная ${name}`);
 }
-const crimsonRules = (styles.match(/\.appearance-crimson/g) || []).length;
-assert.ok(crimsonRules < 40, `тема должна опираться на переменные, а не на правила (сейчас ${crimsonRules})`);
 
-// Холодные пятна фона обязаны перекрашиваться: на чёрно-красном синие кляксы
-// выглядят инородно.
-assert.match(styles, /\.appearance-crimson \.ambient-one/);
-assert.match(styles, /\.appearance-crimson \.app-shell/);
-// Полоса прокрутки по умолчанию бирюзово-фиолетовая — её тоже нужно перекрасить.
-assert.match(styles, /\.appearance-crimson \*::-webkit-scrollbar-thumb/);
+// --- Ни одного непрокрашенного места --------------------------------------------------
+// Главная жалоба была именно такой: «очень много элементов не докрашены».
+// Проверяем поимённо — каждое правило основного стиля, где есть цвет, обязано
+// иметь пару в теме.
+const COLOUR = /#[0-9a-fA-F]{8}\b|#[0-9a-fA-F]{6}\b|#[0-9a-fA-F]{3,4}\b|rgba?\([^)]*\)/g;
+const missing = [];
+for (const rule of parseRules(styles)) {
+  if (rule.at) continue;
+  if (/\.appearance-(graphite|crimson)\b/.test(rule.selector)) continue;
+  if (/server-flag|theme-dot|appearance-options i|tg-brand|discord|brand-logo/.test(rule.selector)) continue;
+  const repaintable = (rule.body.match(COLOUR) || []).some((token) => repaint(token) !== token);
+  if (!repaintable) continue;
+  const first = rule.selector.split(',')[0].trim().replace(/\s+/g, ' ');
+  const expected = first === ':root'
+    ? '.appearance-crimson'
+    : first.startsWith('.app-frame')
+      ? first.replace('.app-frame', '.app-frame.appearance-crimson')
+      : `.appearance-crimson ${first}`;
+  // Селектор может стоять как в начале правила, так и в перечислении через
+  // запятую — проверяем оба вида записи.
+  if (!crimson.includes(`${expected} `) && !crimson.includes(`${expected},`)) missing.push(first);
+}
+assert.deepEqual(missing, [], `в оформлении «Багровое» не перекрашены: ${missing.slice(0, 12).join(' | ')}`);
+
+// --- Гамма строго чёрно-красная -------------------------------------------------------
+// Тема двухцветная: чёрный корпус и красные акценты. Любой цвет, где красная
+// доля не наибольшая, означает уцелевший синий или зелёный островок.
+const readRgb = (token) => {
+  if (token[0] === '#') {
+    let hex = token.slice(1);
+    if (hex.length === 3 || hex.length === 4) hex = hex.split('').map((c) => c + c).join('');
+    return [0, 2, 4].map((i) => parseInt(hex.slice(i, i + 2), 16));
+  }
+  const parts = token.match(/[\d.]+/g).map(Number);
+  return [parts[0], parts[1], parts[2]];
+};
+const foreign = [];
+for (const token of crimson.match(COLOUR) || []) {
+  const [r, g, b] = readRgb(token);
+  const spread = Math.max(r, g, b) - Math.min(r, g, b);
+  if (spread > 18 && (g > r || b > r)) foreign.push(token);
+}
+assert.deepEqual([...new Set(foreign)], [], `в теме остались не красные цвета: ${foreign.slice(0, 10).join(' ')}`);
+
+// Чёрный и белый не перекрашиваются: это тени и блики, они дают объём и
+// уместны в любой теме. Розовая дымка вместо теней выглядела бы грязно.
+assert.equal(repaint('rgba(0,0,0,.3)'), 'rgba(0,0,0,.3)');
+assert.equal(repaint('#ffffff'), '#ffffff');
+// А вот бирюзовый и фиолетовый обязаны стать красными.
+for (const token of ['#7cf2d5', '#a895ff', '#71f4b8']) {
+  const [r, g, b] = readRgb(repaint(token));
+  assert.ok(r > g && r > b, `${token} должен стать красным`);
+}
+// Состояния остаются различимы: предупреждение теплее ошибки, иначе «внимание»
+// и «сбой» сольются в один цвет и смысл подсветки пропадёт.
+assert.notEqual(repaint('#f8c76c'), repaint('#ff718f'));
+
+// --- Цвета, до которых таблица стилей не дотягивалась ----------------------------------
+// Переключатель модулей красился прямо из JavaScript и оставался зелёным в
+// любой теме, а градиенты логотипа стояли атрибутами внутри SVG.
+assert.doesNotMatch(app, /background: checked \? '#/, 'цвет переключателя обязан жить в стиле');
+assert.match(styles, /\.toggle\.is-on \{[^}]*background: #5ce7b0/);
+// Исключение — логотип Telegram: чужой товарный знак перекрашивать нельзя,
+// поэтому его градиент остаётся прописанным в разметке.
+const ownGradients = app.slice(0, app.indexOf('id="tg-brand"'));
+assert.doesNotMatch(ownGradients, /stopColor="#/, 'цвета градиентов обязаны задаваться классами');
+for (const name of ['gr-face-a', 'gr-side-a', 'gr-orbit-a', 'gr-pulse-a']) {
+  assert.match(styles, new RegExp(`\\.${name} \\{ stop-color:`), `градиенту ${name} нужен цвет в стиле`);
+}
+
+// Мерцание короны лучшего сервера задано ключевыми кадрами, приписать их теме
+// селектором нельзя — для неё заведён отдельный набор кадров.
+assert.match(crimson, /@keyframes crown-glow-crimson/);
+
 // Флаги серверов остаются цветными: страну узнают именно по ним.
-assert.match(styles, /\.appearance-crimson \.server-flag-svg \{ filter: none; \}/);
+assert.match(crimson, /\.appearance-crimson \.server-flag-svg/);
 
 // --- Переключатель кружками ------------------------------------------------------------
 assert.match(app, /className="theme-dots"/);

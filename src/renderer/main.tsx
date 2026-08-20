@@ -2,6 +2,9 @@ import React, { Component, type ErrorInfo, type ReactNode } from 'react';
 import ReactDOM from 'react-dom/client';
 import App from './App';
 import './styles.css';
+// Оформление «Багровое» подключается после основного стиля: тема перекрывает
+// базовые цвета порядком правил, без !important.
+import './crimson.css';
 
 class RenderErrorBoundary extends Component<{ children: ReactNode }, { error: Error | null }> {
   state = { error: null as Error | null };

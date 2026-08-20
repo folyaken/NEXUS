@@ -146,9 +146,9 @@ function NexusMark() {
 function NexusShowcaseMark() {
   return <svg className="nexus-showcase-mark" viewBox="0 0 220 170" aria-hidden="true">
     <defs>
-      <linearGradient id="showcase-n-front" x1="65" y1="39" x2="154" y2="132" gradientUnits="userSpaceOnUse"><stop stopColor="#92f3b7" /><stop offset="1" stopColor="#39c77d" /></linearGradient>
-      <linearGradient id="showcase-n-side" x1="76" y1="58" x2="163" y2="140" gradientUnits="userSpaceOnUse"><stop stopColor="#7e63e8" /><stop offset="1" stopColor="#4c358e" /></linearGradient>
-      <linearGradient id="showcase-orbit" x1="35" y1="130" x2="192" y2="42" gradientUnits="userSpaceOnUse"><stop stopColor="#6ee9a2" /><stop offset=".52" stopColor="#a98cff" /><stop offset="1" stopColor="#7154dc" /></linearGradient>
+      <linearGradient id="showcase-n-front" x1="65" y1="39" x2="154" y2="132" gradientUnits="userSpaceOnUse"><stop className="gr-face-a" /><stop className="gr-face-b" offset="1" /></linearGradient>
+      <linearGradient id="showcase-n-side" x1="76" y1="58" x2="163" y2="140" gradientUnits="userSpaceOnUse"><stop className="gr-side-a" /><stop className="gr-side-b" offset="1" /></linearGradient>
+      <linearGradient id="showcase-orbit" x1="35" y1="130" x2="192" y2="42" gradientUnits="userSpaceOnUse"><stop className="gr-orbit-a" /><stop className="gr-orbit-b" offset=".52" /><stop className="gr-orbit-c" offset="1" /></linearGradient>
     </defs>
     <ellipse className="showcase-orbit orbit-back" cx="111" cy="87" rx="89" ry="42" transform="rotate(-18 111 87)" />
     <path className="showcase-n-extrusion" d="M66 128V45h27l42 52V45h27v83h-27L93 76v52H66Z" transform="translate(7 7)" />
@@ -195,9 +195,15 @@ function StatusDot({ tone }: { tone: Tone }) {
   return <span className={`status-dot ${tone}`} />;
 }
 
+/*
+ * Цвет переключателя раньше задавался прямо здесь, из JavaScript. Из-за этого
+ * он оставался зелёным в любом оформлении: оформление живёт в таблице стилей,
+ * а вписанный в разметку цвет её перебивает. Теперь из кода приходит только
+ * положение бегунка, а цвет и свечение берутся из стиля — и тема их меняет.
+ */
 function Toggle({ checked, onChange, busy = false, disabled = false }: { checked: boolean; onChange: () => void; busy?: boolean; disabled?: boolean }) {
-  const spring = useSpring({ x: checked ? 21 : 0, background: checked ? '#5ce7b0' : '#252d3c', shadow: checked ? '0 0 22px rgba(92,231,176,.35)' : '0 5px 14px rgba(0,0,0,.24)', config: config.gentle });
-  return <animated.button className={`toggle ${checked ? 'is-on' : ''}`} aria-label={checked ? translate('Выключить модуль') : translate('Включить модуль')} disabled={busy || disabled} onClick={onChange} style={{ background: spring.background, boxShadow: spring.shadow }}><animated.span className="toggle-knob" style={{ transform: spring.x.to((x) => `translateX(${x}px)`) }} /></animated.button>;
+  const spring = useSpring({ x: checked ? 21 : 0, config: config.gentle });
+  return <animated.button className={`toggle ${checked ? 'is-on' : ''}`} aria-label={checked ? translate('Выключить модуль') : translate('Включить модуль')} disabled={busy || disabled} onClick={onChange}><animated.span className="toggle-knob" style={{ transform: spring.x.to((x) => `translateX(${x}px)`) }} /></animated.button>;
 }
 
 /**
@@ -261,7 +267,7 @@ function StatCard({ label, value, note, glyph, tone, index, meter }: { label: st
 function PulsePanel({ running, total, errors }: { running: number; total: number; errors: number }) {
   const progress = total ? Math.round((running / total) * 100) : 0;
   const spring = useSpring({ from: { opacity: 0, x: 12 }, to: { opacity: 1, x: 0 }, delay: 260, config: config.gentle });
-  return <animated.aside className="pulse-panel" style={{ opacity: spring.opacity, transform: spring.x.to((x) => `translateX(${x}px)`) }}><div className="panel-topline"><span className="mini-label">SYSTEM PULSE</span><span className="live-badge"><StatusDot tone={errors ? 'red' : running ? 'green' : 'muted'} /> {errors ? 'ALERT' : 'LIVE'}</span></div><div className="pulse-title"><div><strong>{errors ? translate('Есть ошибки') : running ? translate('Контур активен') : translate('Контур готов')}</strong><span>{running} {translate('из')} {total} {translate('модулей запущено')}</span></div><span className="pulse-score">{progress}%</span></div><div className="pulse-chart" aria-hidden="true"><svg viewBox="0 0 330 110" preserveAspectRatio="none"><defs><linearGradient id="pulseFill" x1="0" x2="0" y1="0" y2="1"><stop offset="0" stopColor="#71f4b8" stopOpacity=".34" /><stop offset="1" stopColor="#71f4b8" stopOpacity="0" /></linearGradient></defs><path className="chart-grid" d="M0 22H330 M0 54H330 M0 86H330" /><path className="chart-fill" d="M0 78 C20 76, 23 58, 42 66 S66 94, 87 63 S111 34, 133 55 S160 78, 180 48 S204 31, 225 53 S247 80, 270 39 S300 50, 330 23 L330 110 L0 110 Z" /><path className="chart-line" d="M0 78 C20 76, 23 58, 42 66 S66 94, 87 63 S111 34, 133 55 S160 78, 180 48 S204 31, 225 53 S247 80, 270 39 S300 50, 330 23" /></svg></div><div className="pulse-foot"><span><i className="legend-line mint" /> {translate('Запущено')}</span><span>{errors ? `${errors} ошиб. ` : ''}{running}/{total}</span></div></animated.aside>;
+  return <animated.aside className="pulse-panel" style={{ opacity: spring.opacity, transform: spring.x.to((x) => `translateX(${x}px)`) }}><div className="panel-topline"><span className="mini-label">SYSTEM PULSE</span><span className="live-badge"><StatusDot tone={errors ? 'red' : running ? 'green' : 'muted'} /> {errors ? 'ALERT' : 'LIVE'}</span></div><div className="pulse-title"><div><strong>{errors ? translate('Есть ошибки') : running ? translate('Контур активен') : translate('Контур готов')}</strong><span>{running} {translate('из')} {total} {translate('модулей запущено')}</span></div><span className="pulse-score">{progress}%</span></div><div className="pulse-chart" aria-hidden="true"><svg viewBox="0 0 330 110" preserveAspectRatio="none"><defs><linearGradient id="pulseFill" x1="0" x2="0" y1="0" y2="1"><stop className="gr-pulse-a" offset="0" stopOpacity=".34" /><stop className="gr-pulse-b" offset="1" stopOpacity="0" /></linearGradient></defs><path className="chart-grid" d="M0 22H330 M0 54H330 M0 86H330" /><path className="chart-fill" d="M0 78 C20 76, 23 58, 42 66 S66 94, 87 63 S111 34, 133 55 S160 78, 180 48 S204 31, 225 53 S247 80, 270 39 S300 50, 330 23 L330 110 L0 110 Z" /><path className="chart-line" d="M0 78 C20 76, 23 58, 42 66 S66 94, 87 63 S111 34, 133 55 S160 78, 180 48 S204 31, 225 53 S247 80, 270 39 S300 50, 330 23" /></svg></div><div className="pulse-foot"><span><i className="legend-line mint" /> {translate('Запущено')}</span><span>{errors ? `${errors} ошиб. ` : ''}{running}/{total}</span></div></animated.aside>;
 }
 
 // Орбиты вращаются средствами CSS. Две бесконечные пружины держали JavaScript
