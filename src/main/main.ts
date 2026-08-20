@@ -9,6 +9,7 @@ import { isElevated, relaunchElevated } from './elevation';
 import { companionCount } from './dpi-companions';
 import { DNS_PROVIDERS, isValidDnsAddress, resolveDnsServers } from './dns-servers';
 import { normalizeRoutingRules } from './routing-rules';
+import { windowsVersionName } from './windows-version';
 import { COMMUNITY_LINKS, TELEGRAM_CHANNEL, isAllowedCommunityUrl } from './community';
 import { addDpiHost, readDpiHostlist, removeDpiHost } from './dpi-hostlist';
 import { clearSystemProxy, clearSystemProxySync } from './system-proxy';
@@ -779,7 +780,10 @@ function coreVersion(executable: string, product: 'xray' | 'sing-box'): Promise<
 }
 
 function operatingSystemName(): string {
-  if (process.platform === 'win32') return `Windows ${os.release()}`;
+  // Windows 11 сообщает о себе как «10.0.x»: ядро осталось десятым, отличается
+  // только номер сборки. Без разбора в «О программе» у всех показывалась
+  // «Windows 10» — в том числе на одиннадцатой.
+  if (process.platform === 'win32') return windowsVersionName(os.release());
   if (process.platform === 'darwin') return `macOS ${os.release()}`;
   return `${os.type()} ${os.release()}`;
 }

@@ -5,17 +5,206 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta name="theme-color" content="#090d16" />
     <title>NEXUS — Network Control Plane</title>
+    <style>
+      /*
+        Заставка запуска.
+
+        Стили и разметка лежат прямо здесь, а не в отдельном файле, намеренно:
+        всё, что подключается ссылкой, начинает грузиться уже после разбора
+        страницы. Заставка должна появиться в первый же кадр, иначе смысл
+        теряется — именно чёрное окно на старте и выглядело как зависание.
+
+        Особенно это заметно после установки обновления: программа закрывается,
+        затем открывается снова, и несколько секунд человек видит пустоту.
+      */
+      :root { color-scheme: dark; }
+      html, body { margin: 0; height: 100%; background: #090d16; }
+
+      #nexus-boot {
+        position: fixed;
+        z-index: 9999;
+        inset: 0;
+        display: grid;
+        place-items: center;
+        background:
+          radial-gradient(circle at 30% 18%, rgba(124, 242, 213, .1), transparent 42%),
+          radial-gradient(circle at 74% 82%, rgba(139, 108, 255, .13), transparent 45%),
+          #090d16;
+        font-family: "Segoe UI", system-ui, sans-serif;
+        transition: opacity .45s ease;
+      }
+      /* Класс появляется, когда интерфейс готов: заставка плавно растворяется,
+         а не исчезает рывком. */
+      #nexus-boot.is-done { opacity: 0; pointer-events: none; }
+
+      .nexus-boot-inner { display: grid; justify-items: center; gap: 20px; }
+
+      /* Знак NEXUS: та же лента, что в окне программы и на значке. */
+      .nexus-boot-mark { position: relative; display: grid; width: 108px; height: 108px; place-items: center; }
+      .nexus-boot-mark svg { width: 74px; height: 74px; overflow: visible; }
+      .nexus-boot-ribbon {
+        fill: none;
+        stroke: url(#nexus-boot-gradient);
+        stroke-width: 2.4;
+        stroke-linecap: square;
+        stroke-linejoin: bevel;
+        /* Лента прочерчивается при запуске: штрих равен длине контура, сдвиг
+           уводит его за край, анимация возвращает обратно. */
+        stroke-dasharray: 64;
+        stroke-dashoffset: 64;
+        animation: nexus-draw 1.4s cubic-bezier(.65, 0, .35, 1) forwards;
+        filter: drop-shadow(0 0 8px rgba(105, 233, 157, .45));
+      }
+      .nexus-boot-core { fill: #9af3b9; opacity: 0; animation: nexus-core 0.5s ease .95s forwards; }
+
+      /* Кольцо вокруг знака — «дыхание», пока идёт запуск. */
+      .nexus-boot-ring {
+        position: absolute;
+        inset: 0;
+        border: 1px solid rgba(124, 242, 213, .18);
+        border-radius: 50%;
+        animation: nexus-ring 2.4s ease-in-out infinite;
+      }
+
+      .nexus-boot-name {
+        color: #eef4ff;
+        font-size: 21px;
+        font-weight: 700;
+        letter-spacing: .34em;
+        text-indent: .34em;
+        opacity: 0;
+        animation: nexus-fade .6s ease .55s forwards;
+      }
+
+      /* Полоса запуска: бегунок ходит внутри дорожки. Реального процента у
+         старта нет, поэтому честнее показать движение, чем врать процентами. */
+      .nexus-boot-track {
+        position: relative;
+        width: 168px;
+        height: 3px;
+        overflow: hidden;
+        border-radius: 999px;
+        background: rgba(255, 255, 255, .07);
+        opacity: 0;
+        animation: nexus-fade .6s ease .75s forwards;
+      }
+      .nexus-boot-track i {
+        position: absolute;
+        top: 0;
+        left: 0;
+        width: 42%;
+        height: 100%;
+        border-radius: 999px;
+        background: linear-gradient(90deg, transparent, #71f4b8, #7cf2d5, transparent);
+        animation: nexus-slide 1.35s ease-in-out infinite;
+      }
+
+      .nexus-boot-status {
+        min-height: 14px;
+        color: #6d7c92;
+        font-size: 11px;
+        letter-spacing: .05em;
+        opacity: 0;
+        animation: nexus-fade .6s ease .95s forwards;
+      }
+
+      @keyframes nexus-draw { to { stroke-dashoffset: 0; } }
+      @keyframes nexus-core { to { opacity: 1; } }
+      @keyframes nexus-fade { to { opacity: 1; } }
+      @keyframes nexus-ring {
+        0%, 100% { transform: scale(1); opacity: .5; }
+        50% { transform: scale(1.07); opacity: .18; }
+      }
+      @keyframes nexus-slide {
+        0% { transform: translateX(-110%); }
+        100% { transform: translateX(340%); }
+      }
+
+      /* Windows умеет глобально гасить анимации. Уважаем настройку: заставка
+         остаётся, но без движения — иначе она выглядит сломанной. */
+      @media (prefers-reduced-motion: reduce) {
+        .nexus-boot-ribbon { animation: none; stroke-dashoffset: 0; }
+        .nexus-boot-core, .nexus-boot-name, .nexus-boot-track, .nexus-boot-status { animation: none; opacity: 1; }
+        .nexus-boot-ring, .nexus-boot-track i { animation: none; }
+        .nexus-boot-track i { width: 100%; }
+      }
+    </style>
   </head>
   <body>
     <div id="root"></div>
+
+    <div id="nexus-boot" role="status" aria-live="polite">
+      <div class="nexus-boot-inner">
+        <div class="nexus-boot-mark">
+          <span class="nexus-boot-ring"></span>
+          <svg viewBox="0 0 24 24" aria-hidden="true">
+            <defs>
+              <linearGradient id="nexus-boot-gradient" x1="4" y1="6" x2="20" y2="18" gradientUnits="userSpaceOnUse">
+                <stop offset="0" stop-color="#7cf2d5" />
+                <stop offset="0.55" stop-color="#69e99d" />
+                <stop offset="1" stop-color="#8b6cff" />
+              </linearGradient>
+            </defs>
+            <path class="nexus-boot-ribbon" d="M4.2 13.6v-4l3-3 4.8 5.2 4.8-5.2 3 3v4l-3 3-4.8-5.2-4.8 5.2-3-3Z" />
+            <circle class="nexus-boot-core" cx="12" cy="11.8" r="1" />
+          </svg>
+        </div>
+        <div class="nexus-boot-name">NEXUS</div>
+        <div class="nexus-boot-track"><i></i></div>
+        <div class="nexus-boot-status" id="nexus-boot-status">Запуск…</div>
+      </div>
+    </div>
+
     <script>
-      window.setTimeout(function () {
+      (function () {
+        var boot = document.getElementById('nexus-boot');
+        var status = document.getElementById('nexus-boot-status');
         var root = document.getElementById('root');
-        if (root && !root.children.length) {
-          root.innerHTML = '<div style="min-height:100vh;display:grid;place-items:center;padding:40px;color:#edf2fb;background:#090d16;font:14px Segoe UI,sans-serif"><div style="max-width:680px;padding:28px;border:1px solid rgba(255,113,143,.35);border-radius:18px;background:#151c2a"><h1 style="margin:0;font-size:24px">Renderer не загрузился</h1><p style="color:#ff9aad;line-height:1.6">Не удалось выполнить dist/assets/index-*.js. Пересоберите проект командой npm run build и проверьте, что в dist/index.html пути начинаются с ./assets/.</p></div></div>';
+        if (!boot || !root) return;
+
+        // Подписи меняются по ходу запуска: неподвижный текст через несколько
+        // секунд начинает выглядеть как зависание.
+        var steps = ['Запуск…', 'Проверка модулей…', 'Почти готово…'];
+        var step = 0;
+        var ticker = window.setInterval(function () {
+          step += 1;
+          if (status && step < steps.length) status.textContent = steps[step];
+        }, 1200);
+
+        function hide() {
+          window.clearInterval(ticker);
+          boot.classList.add('is-done');
+          // Узел удаляется после затухания: оставлять его поверх интерфейса
+          // нельзя — он перехватывал бы нажатия.
+          window.setTimeout(function () {
+            if (boot.parentNode) boot.parentNode.removeChild(boot);
+          }, 500);
         }
-      }, 2500);
+
+        // Ждём, пока React отрисует интерфейс. Наблюдатель надёжнее таймера:
+        // на медленной машине окно готово позже, на быстрой — раньше.
+        var observer = new MutationObserver(function () {
+          if (root.children.length) {
+            observer.disconnect();
+            hide();
+          }
+        });
+        observer.observe(root, { childList: true });
+
+        // Страховка: если интерфейс так и не появился, заставку всё равно
+        // убираем — иначе окно осталось бы с ней навсегда, и человек не увидел
+        // бы сообщение об ошибке под ней.
+        window.setTimeout(function () {
+          if (!root.children.length) {
+            observer.disconnect();
+            window.clearInterval(ticker);
+            root.innerHTML = '<div style="min-height:100vh;display:grid;place-items:center;padding:40px;color:#edf2fb;background:#090d16;font:14px Segoe UI,sans-serif"><div style="max-width:680px;padding:28px;border:1px solid rgba(255,113,143,.35);border-radius:18px;background:#151c2a"><h1 style="margin:0;font-size:24px">Не удалось загрузить интерфейс</h1><p style="color:#ff9aad;line-height:1.6">Пересоберите проект командой npm run build и проверьте, что в dist/index.html пути начинаются с ./assets/.</p></div></div>';
+            hide();
+          }
+        }, 8000);
+      })();
     </script>
+
     <script type="module" src="./src/renderer/main.tsx"></script>
   </body>
 </html>
