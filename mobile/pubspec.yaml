@@ -13,6 +13,9 @@ dependencies:
   # State management
   provider: ^6.1.2
 
+  # Анимации (чистый Dart, без нативного кода)
+  flutter_animate: ^4.5.0
+
   # Storage & data
   shared_preferences: ^2.2.3
   sqflite: ^2.3.3

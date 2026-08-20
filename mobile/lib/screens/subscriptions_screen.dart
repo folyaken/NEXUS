@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_animate/flutter_animate.dart';
 import 'package:provider/provider.dart';
 
 import '../core/l10n.dart';
@@ -9,48 +10,84 @@ import '../widgets/neu_card.dart';
 import '../widgets/pulse_dot.dart';
 import 'add_subscription_screen.dart';
 
-/// Список подписок: добавление, обновление, удаление.
-class SubscriptionsScreen extends StatelessWidget {
-  const SubscriptionsScreen({super.key});
+/// Список подписок как вкладка (без собственного Scaffold).
+class SubscriptionsView extends StatelessWidget {
+  const SubscriptionsView({super.key});
 
   @override
   Widget build(BuildContext context) {
     final t = AppLocalizations.of(context);
     final manager = context.watch<SubscriptionManager>();
 
-    return Scaffold(
-      appBar: AppBar(title: Text(t.t('subs.title'))),
-      body: manager.subscriptions.isEmpty
-          ? Center(
+    return ListView(
+      padding: const EdgeInsets.fromLTRB(18, 14, 18, 24),
+      children: [
+        Row(
+          children: [
+            Expanded(
               child: Text(
-                t.t('vpn.noProfiles'),
-                style: const TextStyle(color: AppColors.textSecondary),
+                t.t('subs.title'),
+                style: const TextStyle(
+                  fontSize: 24,
+                  fontWeight: FontWeight.w800,
+                  color: AppColors.textPrimary,
+                ),
               ),
-            )
-          : ListView.builder(
-              padding: const EdgeInsets.all(16),
-              itemCount: manager.subscriptions.length,
-              itemBuilder: (context, i) {
-                final sub = manager.subscriptions[i];
-                return Padding(
-                  padding: const EdgeInsets.only(bottom: 12),
-                  child: _SubscriptionCard(subscription: sub),
-                );
-              },
             ),
-      floatingActionButton: FloatingActionButton(
-        backgroundColor: AppColors.primaryCyan,
-        foregroundColor: const Color(0xFF0A0E1A),
-        onPressed: () {
-          Navigator.push(
-            context,
-            MaterialPageRoute(
-              builder: (_) => const AddSubscriptionScreen(),
+            IconButton(
+              onPressed: () => Navigator.push(
+                context,
+                MaterialPageRoute(builder: (_) => const AddSubscriptionScreen()),
+              ),
+              icon: const Icon(Icons.add_circle_rounded,
+                  size: 26, color: AppColors.primaryCyan),
             ),
-          );
-        },
-        child: const Icon(Icons.add),
-      ),
+          ],
+        ).animate().fadeIn(duration: 350.ms),
+        const SizedBox(height: 10),
+        if (manager.subscriptions.isEmpty)
+          NeuCard(
+            radius: 20,
+            child: Column(
+              children: [
+                const Icon(Icons.rss_feed_rounded,
+                    size: 40, color: AppColors.textMuted),
+                const SizedBox(height: 10),
+                Text(
+                  t.t('vpn.noProfiles'),
+                  style: const TextStyle(
+                    fontWeight: FontWeight.w700,
+                    fontSize: 15,
+                    color: AppColors.textPrimary,
+                  ),
+                ),
+              ],
+            ),
+          )
+        else
+          ...List.generate(manager.subscriptions.length, (i) {
+            return Padding(
+              padding: const EdgeInsets.only(bottom: 12),
+              child: _SubscriptionCard(subscription: manager.subscriptions[i]),
+            ).animate().fadeIn(
+                  duration: 400.ms,
+                  delay: Duration(milliseconds: 80 + i * 70),
+                ).slideY(begin: 0.06, end: 0);
+          }),
+      ],
+    );
+  }
+}
+
+/// Полноэкранная версия (для навигации push).
+class SubscriptionsScreen extends StatelessWidget {
+  const SubscriptionsScreen({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(title: Text(AppLocalizations.of(context).t('subs.title'))),
+      body: const SubscriptionsView(),
     );
   }
 }
@@ -66,7 +103,7 @@ class _SubscriptionCard extends StatelessWidget {
     final manager = context.read<SubscriptionManager>();
 
     return NeuCard(
-      radius: 18,
+      radius: 20,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -75,6 +112,7 @@ class _SubscriptionCard extends StatelessWidget {
               Expanded(
                 child: Text(
                   subscription.title,
+                  overflow: TextOverflow.ellipsis,
                   style: const TextStyle(
                     fontSize: 15,
                     fontWeight: FontWeight.w700,
@@ -93,7 +131,7 @@ class _SubscriptionCard extends StatelessWidget {
               ),
             ],
           ),
-          const SizedBox(height: 8),
+          const SizedBox(height: 12),
           _metric(t.t('subs.traffic'), _formatBytes(subscription.totalBytes)),
           _metric(
             t.t('subs.expires'),
@@ -101,13 +139,16 @@ class _SubscriptionCard extends StatelessWidget {
                 ? '∞'
                 : _formatDate(subscription.expiresAt!),
           ),
-          _metric(t.t('subs.interval'), '${subscription.updateHours} ${t.t('common.hours')}'),
-          const SizedBox(height: 8),
+          _metric(
+            t.t('subs.interval'),
+            '${subscription.updateHours} ${t.t('common.hours')}',
+          ),
+          const SizedBox(height: 10),
           Row(
             children: [
               TextButton.icon(
                 onPressed: () => manager.refresh(subscription.id),
-                icon: const Icon(Icons.refresh, size: 18),
+                icon: const Icon(Icons.refresh_rounded, size: 18),
                 label: Text(t.t('subs.refresh')),
                 style: TextButton.styleFrom(
                   foregroundColor: AppColors.primaryCyan,
@@ -116,7 +157,7 @@ class _SubscriptionCard extends StatelessWidget {
               const Spacer(),
               TextButton.icon(
                 onPressed: () => manager.remove(subscription.id),
-                icon: const Icon(Icons.delete_outline, size: 18),
+                icon: const Icon(Icons.delete_outline_rounded, size: 18),
                 label: Text(t.t('subs.remove')),
                 style: TextButton.styleFrom(
                   foregroundColor: AppColors.red,
@@ -130,7 +171,7 @@ class _SubscriptionCard extends StatelessWidget {
   }
 
   Widget _metric(String label, String value) => Padding(
-        padding: const EdgeInsets.symmetric(vertical: 2),
+        padding: const EdgeInsets.symmetric(vertical: 3),
         child: Row(
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
@@ -139,7 +180,9 @@ class _SubscriptionCard extends StatelessWidget {
                     fontSize: 11, color: AppColors.textMuted)),
             Text(value,
                 style: const TextStyle(
-                    fontSize: 12, color: AppColors.textPrimary)),
+                    fontSize: 12,
+                    fontWeight: FontWeight.w600,
+                    color: AppColors.textPrimary)),
           ],
         ),
       );

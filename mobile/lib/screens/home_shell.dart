@@ -2,12 +2,14 @@ import 'package:flutter/material.dart';
 
 import '../core/l10n.dart';
 import '../core/theme.dart';
+import '../widgets/animated_background.dart';
+import '../widgets/neu_card.dart';
 import 'dashboard_screen.dart';
-import 'jey2ray_screen.dart';
 import 'modules_screen.dart';
 import 'settings_screen.dart';
+import 'subscriptions_screen.dart';
 
-/// Каркас с нижней неоморфной навигацией.
+/// Каркас: живой фон + экраны с плавным переходом + компактная нижняя навигация.
 class HomeShell extends StatefulWidget {
   const HomeShell({super.key});
 
@@ -21,51 +23,105 @@ class _HomeShellState extends State<HomeShell> {
   static const _pages = [
     DashboardScreen(),
     ModulesScreen(),
-    Jey2RayScreen(),
+    SubscriptionsView(),
     SettingsScreen(),
   ];
 
   @override
   Widget build(BuildContext context) {
     final t = AppLocalizations.of(context);
+
     final labels = [
       t.t('nav.dashboard'),
       t.t('nav.modules'),
-      t.t('nav.vpn'),
+      t.t('subs.title'),
       t.t('nav.settings'),
     ];
     final icons = [
-      Icons.dashboard_rounded,
+      Icons.space_dashboard_rounded,
       Icons.widgets_rounded,
-      Icons.public_rounded,
-      Icons.settings_rounded,
+      Icons.rss_feed_rounded,
+      Icons.tune_rounded,
     ];
 
     return Scaffold(
-      body: IndexedStack(index: _index, children: _pages),
-      bottomNavigationBar: SafeArea(
-        child: Container(
-          margin: const EdgeInsets.fromLTRB(14, 0, 14, 12),
-          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 8),
-          decoration: Neu.card(radius: 26, depth: 8),
+      body: AnimatedBackground(
+        child: SafeArea(
+          bottom: false,
+          child: AnimatedSwitcher(
+            duration: const Duration(milliseconds: 340),
+            switchInCurve: Curves.easeOutCubic,
+            switchOutCurve: Curves.easeInCubic,
+            transitionBuilder: (child, animation) {
+              return FadeTransition(
+                opacity: animation,
+                child: SlideTransition(
+                  position: Tween<Offset>(
+                    begin: const Offset(0.015, 0.02),
+                    end: Offset.zero,
+                  ).animate(animation),
+                  child: child,
+                ),
+              );
+            },
+            child: KeyedSubtree(
+              key: ValueKey(_index),
+              child: _pages[_index],
+            ),
+          ),
+        ),
+      ),
+      bottomNavigationBar: _BottomNav(
+        index: _index,
+        labels: labels,
+        icons: icons,
+        onTap: (i) => setState(() => _index = i),
+      ),
+    );
+  }
+}
+
+/// Компактная плавающая навигация с маленькими кнопками.
+class _BottomNav extends StatelessWidget {
+  const _BottomNav({
+    required this.index,
+    required this.labels,
+    required this.icons,
+    required this.onTap,
+  });
+
+  final int index;
+  final List<String> labels;
+  final List<IconData> icons;
+  final ValueChanged<int> onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return SafeArea(
+      top: false,
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(16, 4, 16, 12),
+        child: NeuCard(
+          radius: 24,
+          padding: const EdgeInsets.all(6),
           child: Row(
-            children: List.generate(4, (i) {
-              final selected = i == _index;
+            children: List.generate(icons.length, (i) {
+              final selected = i == index;
               return Expanded(
                 child: GestureDetector(
                   behavior: HitTestBehavior.opaque,
-                  onTap: () => setState(() => _index = i),
+                  onTap: () => onTap(i),
                   child: AnimatedContainer(
-                    duration: const Duration(milliseconds: 200),
-                    padding: const EdgeInsets.symmetric(vertical: 10),
+                    duration: const Duration(milliseconds: 240),
+                    curve: Curves.easeOutCubic,
+                    margin: const EdgeInsets.symmetric(horizontal: 3),
+                    padding: const EdgeInsets.symmetric(vertical: 8),
                     decoration: BoxDecoration(
-                      borderRadius: BorderRadius.circular(18),
-                      gradient: selected
-                          ? const LinearGradient(
-                              colors: [
-                                Color(0x2900D4AA), // cyan ~16%
-                                Color(0x296C63FF), // violet ~16%
-                              ],
+                      borderRadius: BorderRadius.circular(16),
+                      gradient: selected ? AppColors.brandSoft : null,
+                      border: selected
+                          ? Border.all(
+                              color: AppColors.primaryCyan.withOpacity(0.35),
                             )
                           : null,
                     ),
@@ -74,16 +130,18 @@ class _HomeShellState extends State<HomeShell> {
                       children: [
                         Icon(
                           icons[i],
-                          size: 24,
+                          size: 20,
                           color: selected
                               ? AppColors.primaryCyan
                               : AppColors.textMuted,
                         ),
-                        const SizedBox(height: 4),
+                        const SizedBox(height: 3),
                         Text(
                           labels[i],
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
                           style: TextStyle(
-                            fontSize: 10,
+                            fontSize: 9,
                             fontWeight: selected
                                 ? FontWeight.w700
                                 : FontWeight.w500,

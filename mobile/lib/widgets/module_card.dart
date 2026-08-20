@@ -34,11 +34,17 @@ class ModuleCard extends StatelessWidget {
         ModuleStatus.stopped => AppColors.textMuted,
       };
 
+  Color get _accent => switch (module.id) {
+        ModuleId.dpi => AppColors.primaryCyan,
+        ModuleId.tgProxy => AppColors.primaryPurple,
+        ModuleId.vpn => AppColors.mint,
+      };
+
   @override
   Widget build(BuildContext context) {
     return NeuCard(
       onTap: onTap,
-      radius: 20,
+      radius: 22,
       padding: const EdgeInsets.all(16),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -47,22 +53,25 @@ class ModuleCard extends StatelessWidget {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Container(
-                width: 44,
-                height: 44,
+                width: 46,
+                height: 46,
                 decoration: BoxDecoration(
-                  borderRadius: BorderRadius.circular(13),
-                  gradient: const LinearGradient(
+                  borderRadius: BorderRadius.circular(14),
+                  gradient: LinearGradient(
                     begin: Alignment.topLeft,
                     end: Alignment.bottomRight,
                     colors: [
-                      AppColors.cardLight,
-                      AppColors.cardDark,
+                      _accent.withOpacity(0.28),
+                      _accent.withOpacity(0.05),
                     ],
                   ),
-                  boxShadow: Neu.shadows(depth: 4, radius: 12),
+                  border: Border.all(
+                    color: _accent.withOpacity(0.35),
+                    width: 1,
+                  ),
                 ),
                 alignment: Alignment.center,
-                child: Text(module.icon, style: const TextStyle(fontSize: 20)),
+                child: Text(module.icon, style: const TextStyle(fontSize: 21)),
               ),
               const SizedBox(width: 12),
               Expanded(
@@ -77,7 +86,7 @@ class ModuleCard extends StatelessWidget {
                         color: AppColors.textPrimary,
                       ),
                     ),
-                    const SizedBox(height: 4),
+                    const SizedBox(height: 5),
                     Row(
                       children: [
                         PulseDot(
@@ -89,10 +98,7 @@ class ModuleCard extends StatelessWidget {
                         Expanded(
                           child: Text(
                             statusLabel,
-                            style: TextStyle(
-                              fontSize: 11,
-                              color: _statusColor,
-                            ),
+                            style: TextStyle(fontSize: 11, color: _statusColor),
                           ),
                         ),
                       ],
@@ -106,16 +112,16 @@ class ModuleCard extends StatelessWidget {
               ),
             ],
           ),
-          const SizedBox(height: 12),
+          const SizedBox(height: 13),
           Text(
             description,
             style: const TextStyle(
               fontSize: 12,
-              height: 1.4,
+              height: 1.45,
               color: AppColors.textSecondary,
             ),
           ),
-          const SizedBox(height: 12),
+          const SizedBox(height: 13),
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [

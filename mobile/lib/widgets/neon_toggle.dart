@@ -2,13 +2,13 @@ import 'package:flutter/material.dart';
 
 import '../core/theme.dart';
 
-/// Неоновый тумблер с неоморфной дорожкой и плавной анимацией.
+/// Неоновый тумблер: градиентная дорожка + свечение + плавный ход.
 class NeonToggle extends StatelessWidget {
   const NeonToggle({
     super.key,
     required this.value,
     required this.onChanged,
-    this.size = 52,
+    this.size = 54,
     this.busy = false,
   });
 
@@ -19,15 +19,15 @@ class NeonToggle extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final double height = size * 0.5;
     final double width = size;
+    final double height = size * 0.5;
     final double knob = height * 0.72;
 
     return GestureDetector(
       onTap: busy ? null : () => onChanged(!value),
       child: AnimatedContainer(
-        duration: const Duration(milliseconds: 220),
-        curve: Curves.easeOutCubic,
+        duration: const Duration(milliseconds: 260),
+        curve: Curves.easeOutBack,
         width: width,
         height: height,
         decoration: BoxDecoration(
@@ -40,9 +40,9 @@ class NeonToggle extends StatelessWidget {
           boxShadow: [
             BoxShadow(
               color: value
-                  ? AppColors.primaryCyan.withOpacity( 0.45)
-                  : AppColors.shadowDark,
-              blurRadius: value ? 14 : 6,
+                  ? AppColors.primaryCyan.withOpacity(0.5)
+                  : Colors.black.withOpacity(0.4),
+              blurRadius: value ? 18 : 6,
               offset: const Offset(0, 2),
             ),
           ],
@@ -50,10 +50,9 @@ class NeonToggle extends StatelessWidget {
         child: Stack(
           children: [
             AnimatedAlign(
-              duration: const Duration(milliseconds: 220),
-              curve: Curves.easeOutCubic,
-              alignment:
-                  value ? Alignment.centerRight : Alignment.centerLeft,
+              duration: const Duration(milliseconds: 260),
+              curve: Curves.easeOutBack,
+              alignment: value ? Alignment.centerRight : Alignment.centerLeft,
               child: Container(
                 margin: const EdgeInsets.symmetric(horizontal: 5),
                 width: knob,
@@ -61,9 +60,7 @@ class NeonToggle extends StatelessWidget {
                 decoration: const BoxDecoration(
                   shape: BoxShape.circle,
                   color: Colors.white,
-                  boxShadow: [
-                    BoxShadow(color: Colors.black26, blurRadius: 4),
-                  ],
+                  boxShadow: [BoxShadow(color: Colors.black26, blurRadius: 4)],
                 ),
               ),
             ),

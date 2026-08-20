@@ -22,7 +22,7 @@ class AppLocalizations {
   static const Map<String, Map<String, String>> _data = {
     'ru': {
       // навигация
-      'nav.dashboard': 'Панель',
+      'nav.dashboard': 'Обзор',
       'nav.modules': 'Модули',
       'nav.vpn': 'Jey2Ray',
       'nav.settings': 'Настройки',
@@ -109,7 +109,7 @@ class AppLocalizations {
       'common.hours': 'часа(ов)',
     },
     'en': {
-      'nav.dashboard': 'Dashboard',
+      'nav.dashboard': 'Overview',
       'nav.modules': 'Modules',
       'nav.vpn': 'Jey2Ray',
       'nav.settings': 'Settings',

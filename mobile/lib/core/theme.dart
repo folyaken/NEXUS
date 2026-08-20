@@ -1,15 +1,15 @@
 import 'package:flutter/material.dart';
 
-/// Палитра NEXUS Mobile (неоновые акценты + неоморфная тёмная тема).
+/// Палитра NEXUS Mobile — глубокая тёмная база + неоновые акценты.
 class AppColors {
   AppColors._();
 
   static const Color primaryCyan = Color(0xFF00D4AA);
   static const Color primaryPurple = Color(0xFF6C63FF);
-  static const Color backgroundDark = Color(0xFF0A0E1A);
-  static const Color backgroundLight = Color(0xFF121828);
-  static const Color cardDark = Color(0xFF151C2A);
-  static const Color cardLight = Color(0xFF1B2434);
+  static const Color backgroundDark = Color(0xFF05070E);
+  static const Color backgroundLight = Color(0xFF0D1420);
+  static const Color cardDark = Color(0xFF111827);
+  static const Color cardLight = Color(0xFF1B2536);
   static const Color textPrimary = Color(0xFFEDF2FB);
   static const Color textSecondary = Color(0xFF8A97AC);
   static const Color textMuted = Color(0xFF5A6A82);
@@ -18,75 +18,60 @@ class AppColors {
   static const Color amber = Color(0xFFF8C76C);
   static const Color red = Color(0xFFFF718F);
 
-  /// Цвета неоморфных теней: светлая сверху-слева, тёмная снизу-справа.
-  static const Color shadowLight = Color(0x1FFFFFFF);
-  static const Color shadowDark = Color(0xFF05070D);
-
   static const LinearGradient brandGradient = LinearGradient(
     begin: Alignment.topLeft,
     end: Alignment.bottomRight,
     colors: [primaryCyan, primaryPurple],
   );
+
+  static const LinearGradient brandSoft = LinearGradient(
+    begin: Alignment.topLeft,
+    end: Alignment.bottomRight,
+    colors: [Color(0x2600D4AA), Color(0x266C63FF)],
+  );
+
+  /// Цвет протокола VPN.
+  static Color protocolColor(String protocol) => switch (protocol) {
+        'vless' => primaryCyan,
+        'vmess' => primaryPurple,
+        'trojan' => amber,
+        'shadowsocks' => mint,
+        'hysteria2' => const Color(0xFFB28CFF),
+        _ => primaryCyan,
+      };
 }
 
-/// Неоморфный стиль карточки (как в десктопном NEXUS, но мягче).
+/// Неоморфные/стеклянные тени и вдавленные поля.
 class Neu {
   Neu._();
 
   static List<BoxShadow> shadows({
-    double depth = 6,
-    double radius = 24,
-    Color light = AppColors.shadowLight,
-    Color dark = AppColors.shadowDark,
+    double depth = 8,
+    double radius = 28,
   }) {
     return [
       BoxShadow(
-        color: light,
-        offset: Offset(-depth * 0.5, -depth * 0.5),
-        blurRadius: radius * 0.6,
+        color: Colors.black.withOpacity(0.55),
+        offset: Offset(0, depth),
+        blurRadius: radius,
       ),
       BoxShadow(
-        color: dark,
-        offset: Offset(depth, depth),
-        blurRadius: radius,
+        color: Colors.white.withOpacity(0.04),
+        offset: Offset(-1, -1),
+        blurRadius: 4,
       ),
     ];
   }
 
-  static BoxDecoration card({
-    Color color = AppColors.cardDark,
-    double depth = 6,
-    double radius = 20,
-  }) {
-    return BoxDecoration(
-      color: color,
-      borderRadius: BorderRadius.circular(radius),
-      boxShadow: shadows(depth: depth, radius: radius * 1.2),
-      border: Border.all(color: Colors.white.withOpacity( 0.05)),
-    );
-  }
-
-  /// Вдавленный (concave) фон — для переключателей и внутренних полей.
+  /// Вдавленный (concave) фон для внутренних полей.
   static BoxDecoration inset({
     Color color = AppColors.backgroundDark,
     double radius = 14,
-    double depth = 3,
   }) {
     return BoxDecoration(
       color: color,
       borderRadius: BorderRadius.circular(radius),
-      boxShadow: [
-        BoxShadow(
-          color: AppColors.shadowDark,
-          offset: Offset(depth, depth),
-          blurRadius: depth * 2,
-        ),
-        BoxShadow(
-          color: AppColors.shadowLight,
-          offset: Offset(-depth * 0.5, -depth * 0.5),
-          blurRadius: depth * 2,
-        ),
-      ],
+      border: Border.all(color: Colors.white.withOpacity(0.06)),
     );
   }
 }
@@ -96,7 +81,6 @@ ThemeData buildNexusTheme() {
     useMaterial3: true,
     brightness: Brightness.dark,
     scaffoldBackgroundColor: AppColors.backgroundDark,
-    fontFamily: 'Roboto',
   );
 
   return base.copyWith(
@@ -109,7 +93,8 @@ ThemeData buildNexusTheme() {
     textTheme: const TextTheme(
       headlineMedium: TextStyle(
         color: AppColors.textPrimary,
-        fontWeight: FontWeight.w700,
+        fontWeight: FontWeight.w800,
+        letterSpacing: -0.5,
       ),
       titleLarge: TextStyle(
         color: AppColors.textPrimary,
@@ -124,10 +109,13 @@ ThemeData buildNexusTheme() {
       elevation: 0,
       foregroundColor: AppColors.textPrimary,
     ),
-    bottomNavigationBarTheme: const BottomNavigationBarThemeData(
-      backgroundColor: AppColors.cardDark,
-      selectedItemColor: AppColors.primaryCyan,
-      unselectedItemColor: AppColors.textMuted,
+    snackBarTheme: SnackBarThemeData(
+      backgroundColor: AppColors.cardLight,
+      contentTextStyle: const TextStyle(color: AppColors.textPrimary),
+      behavior: SnackBarBehavior.floating,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
     ),
+    splashFactory: InkRipple.splashFactory,
+    highlightColor: AppColors.primaryCyan.withOpacity(0.08),
   );
 }

@@ -42,7 +42,9 @@ Xcode project и т.д.). Предоставленные в этом репоз�
 | Тёмная тема + неон (cyan `#00D4AA`, violet `#6C63FF`) | `lib/core/theme.dart` |
 | Неоморфизм (двойные тени) | `lib/widgets/neu_card.dart` (`Neu.card` / `Neu.inset`) |
 | Анимации | `AnimatedContainer`, `AnimatedSwitcher`, `NeonToggle`, `PulseDot` |
-| Нижняя навигация | `lib/screens/home_shell.dart` |
+| Нижняя навигация (компактная, «Обзор» = Jey2Ray) | `lib/screens/home_shell.dart` |
+| Живой анимированный фон + glass-карточки | `widgets/animated_background.dart`, `widgets/neu_card.dart` |
+| Анимации появления/переходов | `flutter_animate` |
 | Модуль «Обход DPI» + список сайтов | `ModuleManager` + `ModulesScreen` |
 | Модуль «TG WS Proxy» | `ModuleManager` (foreground service — `NexusVpnService`) |
 | Jey2Ray: VLESS/VMess/Trojan/SS/Hysteria2 | `lib/services/profile_parser.dart` |
@@ -83,8 +85,8 @@ mobile/
 │   │   ├── module_manager.dart
 │   │   └── storage_service.dart  # SharedPreferences + SQLite
 │   ├── state/settings_controller.dart
-│   ├── screens/                  # home_shell, dashboard, modules,
-│   │                             # jey2ray, settings, logs, subscriptions,
+│   ├── screens/                  # home_shell, dashboard (Обзор=Jey2Ray),
+│   │                             # modules, settings, logs, subscriptions,
 │   │                             # add_subscription, qr_scan
 │   └── widgets/                  # neu_card, neon_toggle, pulse_dot,
 │                                 # stat_card, module_card, power_orb
@@ -149,7 +151,8 @@ mobile/
 
 ## 🧪 Что уже работает без нативных зависимостей
 
-- Полная навигация и все экраны;
+- Полная навигация и все экраны (главный экран «Обзор» — Jey2Ray VPN);
+- анимированный фон, glass-карточки, плавные переходы и появление элементов;
 - добавление профилей по ссылке (`vless://`, `vmess://`, `trojan://`, `ss://`, `hy2://`);
 - QR-сканирование;
 - подписки (добавление, обновление, удаление) с парсингом base64 и Clash YAML;
