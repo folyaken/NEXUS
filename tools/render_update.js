@@ -14,12 +14,12 @@ fs.mkdirSync(TMP, { recursive: true });
 fs.mkdirSync(path.dirname(OUT), { recursive: true });
 
 /* ================= EDIT THESE PER RELEASE ================= */
-const VERSION = 'v1.1.9';
+const VERSION = '1.3.1';
 const CHANGES = [
-  { c: '#7cf2d5', t: 'Режим TUN — весь трафик через VPN' },
-  { c: '#a895ff', t: 'Раздельная маршрутизация по программам' },
-  { c: '#71f4b8', t: 'Раздача в локальную сеть (Allow LAN)' },
-  { c: '#f8c76c', t: 'Обновление в один клик' },
+  { c: '#7cf2d5', t: 'Hysteria2 — новый протокол через sing-box' },
+  { c: '#a895ff', t: 'Пинг-тест серверов и спидометр задержки' },
+  { c: '#71f4b8', t: 'Автовыбор самого быстрого сервера' },
+  { c: '#f8c76c', t: 'Фиксы Reality, панель и подписки' },
 ];
 /* ============================================================ */
 
@@ -137,7 +137,7 @@ over(canvas, tmp('_urule'), LX, 258, canvas);
 /* ---- left column: "что нового" ---- */
 A = [canvas];
 txt(LX, 318, 15, F.monoM, C.muted2, 'ЧТО НОВОГО', 1.8);
-txt(LX, 356, 26, F.interB, C.text, 'В этой версии');
+txt(LX, 356, 26, F.interB, C.text, 'В версиях 1.3.0 и 1.3.1');
 CHANGES.forEach((f, i) => {
   const y = 404 + i * 46;
   fill(f.c); stroke('none'); circle(LX + 6, y - 5, 5);
@@ -163,7 +163,7 @@ const [vw, vh] = gradText(tmp('_uver'), VERSION, F.sgB, 120, '#7cf2d5', '#a895ff
 over(canvas, tmp('_uver'), OCX - vw / 4, OCY - vh / 4, canvas);
 
 // caption under version (centered)
-centerText(OCX, 560, 15, F.monoM, C.muted, 'Windows · Linux');
+centerText(OCX, 560, 15, F.monoM, C.muted, '1.3.0 → 1.3.1');
 
 /* ---- CTA pill (right bottom) — only when a real button can't be attached ---- */
 if (!NO_BUTTON) {
@@ -185,7 +185,7 @@ txt(132, 710, 15, F.interM, C.muted, 'NEXUS — Network Control Plane');
 run(A, canvas);
 const gh = tmp('_ugh');
 run(['-background', 'none', '-font', F.monoM, '-pointsize', String(S(15)), '-fill', C.cyan,
-  '-gravity', 'center', 'label:github.com/folyaken/NEXUS', gh]);
+  '-gravity', 'center', 'label:github.com/folyaken/NEXUS-releases', gh]);
 const [ghw, ghh] = sizeOf(gh);
 run([canvas, '(', gh, ')', '-geometry', `+${2296 - ghw}+${Math.round(2 * 703 - ghh / 2)}`, '-composite', canvas]);
 
