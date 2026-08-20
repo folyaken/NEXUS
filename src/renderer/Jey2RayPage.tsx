@@ -7,6 +7,7 @@ import { SubscriptionManager, type SubscriptionAction } from './SubscriptionMana
 import AppPicker from './AppPicker';
 import { dateLocale, t } from '../main/i18n';
 import { DNS_PROVIDERS, isValidDnsAddress } from '../main/dns-servers';
+import { MAX_ROUTING_RULES, ROUTING_PRESETS, isValidRoutingValue } from '../main/routing-rules';
 
 function cleanError(error: unknown): string {
   const raw = error instanceof Error ? error.message : String(error);
@@ -194,6 +195,8 @@ export function Jey2RayPage({
   // Свой адрес DNS редактируется черновиком: сохранять на каждое нажатие
   // клавиши нельзя — недописанный адрес оборвал бы разрешение имён.
   const [dnsDraft, setDnsDraft] = useState(settings.vpnDnsCustom ?? '');
+  const [ruleDraft, setRuleDraft] = useState('');
+  const [ruleOutbound, setRuleOutbound] = useState<'proxy' | 'direct' | 'block'>('direct');
   const subscriptionImportInFlight = useRef(false);
   const desktop = Boolean(window.nexus);
   const xrayUpdate = updates.find((item) => item.id === 'jey2ray');
@@ -207,6 +210,48 @@ export function Jey2RayPage({
   const appRouting: VpnAppRoutingMode = mode === 'tun' && splitApps.length ? storedAppRouting : 'system';
   const appRoutingActive = appRouting === 'include' || appRouting === 'exclude';
   const routeSettingsLocked = runtime.status === 'connecting' || runtime.status === 'connected';
+
+  const routingRules = settings.vpnRoutingRules ?? [];
+
+  const updateRoutingRules = (next: typeof routingRules) => {
+    onSettings({ ...settings, vpnRoutingRules: next });
+  };
+
+  const addRoutingRule = (presetValue?: string) => {
+    const value = (presetValue ?? ruleDraft).trim();
+    if (!value) return;
+    // Проверяем до сохранения: неверная строка не даёт ядру запуститься, и VPN
+    // перестаёт подключаться — с виду без причины.
+    if (!isValidRoutingValue(value)) {
+      onToast(t('Неверный адрес. Пример: example.com, *.example.com или 10.0.0.0/8'));
+      return;
+    }
+    if (routingRules.some((rule) => rule.value.toLowerCase() === value.toLowerCase())) {
+      onToast(t('Такое правило уже есть'));
+      return;
+    }
+    if (routingRules.length >= MAX_ROUTING_RULES) {
+      onToast(t('Достигнут предел числа правил'));
+      return;
+    }
+    // Готовые наборы почти всегда нужны для прямого доступа, кроме рекламы —
+    // её логичнее блокировать. Это лишь начальное значение, его видно и можно
+    // сменить прямо в списке.
+    const outbound = presetValue
+      ? (presetValue.includes('ads') ? 'block' as const : 'direct' as const)
+      : ruleOutbound;
+    updateRoutingRules([...routingRules, { id: `rule-${Date.now().toString(36)}`, value, outbound, enabled: true }]);
+    if (!presetValue) setRuleDraft('');
+    onToast(`${t('Правило добавлено')}${runtime.status === 'connected' ? t(' · подключение перезапускается') : ''}`);
+  };
+
+  const moveRoutingRule = (index: number, shift: number) => {
+    const target = index + shift;
+    if (target < 0 || target >= routingRules.length) return;
+    const next = [...routingRules];
+    [next[index], next[target]] = [next[target], next[index]];
+    updateRoutingRules(next);
+  };
   const lanEndpoints = runtime.lanEndpoints ?? [];
 
   useEffect(() => {
@@ -788,17 +833,86 @@ export function Jey2RayPage({
       </> : settingsTab === 'routing' ? <>
         {/* Вкладка-заготовка. Показываем честно, что раздел готовится:
             пустая вкладка без объяснений выглядит как поломка. */}
-        <section className="app-settings-card routing-empty-card">
+        <section className="app-settings-card">
           <div className="app-settings-card-head compact">
-            <div><span className="settings-step">01</span><div><h3>{t('Правила маршрутизации')}</h3><p>{t('Отправляйте одни сайты напрямую, другие — через VPN, третьи блокируйте.')}</p></div></div>
+            <div><span className="settings-step">01</span><div><h3>{t('Правила маршрутизации')}</h3><p>{t('Одни сайты идут напрямую, другие через VPN, третьи не открываются вовсе. Работает только для VPN.')}</p></div></div>
           </div>
-          <div className="routing-empty-state">
+
+          <div className="routing-add-row">
+            <input
+              value={ruleDraft}
+              onChange={(event) => setRuleDraft(event.target.value)}
+              onKeyDown={(event) => { if (event.key === 'Enter') addRoutingRule(); }}
+              placeholder={t('example.com, *.example.com или 10.0.0.0/8')}
+              aria-label={t('Домен или адрес')}
+              spellCheck={false}
+            />
+            <div className="routing-outbound-picker" role="radiogroup" aria-label={t('Куда направить')}>
+              {(['proxy', 'direct', 'block'] as const).map((value) => <button
+                key={value}
+                type="button"
+                role="radio"
+                aria-checked={ruleOutbound === value}
+                className={`routing-outbound-chip is-${value} ${ruleOutbound === value ? 'is-active' : ''}`}
+                onClick={() => setRuleOutbound(value)}
+              >{value === 'proxy' ? t('Через VPN') : value === 'direct' ? t('Напрямую') : t('Блокировать')}</button>)}
+            </div>
+            <button type="button" className="ghost-action" disabled={!ruleDraft.trim()} onClick={addRoutingRule}>{t('Добавить')}</button>
+          </div>
+
+          {/* Готовые наборы: перечислять тысячи адресов вручную бессмысленно,
+              их списки уже собраны внутри ядра. */}
+          <div className="routing-presets">
+            <span className="routing-presets-label">{t('Готовые наборы')}</span>
+            <div className="routing-presets-list">
+              {ROUTING_PRESETS.map((preset) => <button
+                key={preset.value}
+                type="button"
+                className="routing-preset-chip"
+                disabled={routingRules.some((rule) => rule.value === preset.value)}
+                title={t(preset.description)}
+                onClick={() => addRoutingRule(preset.value)}
+              >{t(preset.title)}</button>)}
+            </div>
+          </div>
+
+          {routingRules.length ? <ul className="routing-rule-list">
+            {routingRules.map((rule, index) => <li key={rule.id} className={`routing-rule ${rule.enabled ? '' : 'is-off'}`}>
+              {/* Номер показывает приоритет: срабатывает первое совпавшее правило. */}
+              <span className="routing-rule-order">{index + 1}</span>
+              <span className="routing-rule-value" title={rule.value}>{rule.value}</span>
+              <span className={`routing-rule-outbound is-${rule.outbound}`}>
+                {rule.outbound === 'proxy' ? t('Через VPN') : rule.outbound === 'direct' ? t('Напрямую') : t('Блокировать')}
+              </span>
+              <button
+                type="button"
+                className="routing-rule-move"
+                disabled={index === 0}
+                aria-label={t('Поднять правило выше')}
+                onClick={() => moveRoutingRule(index, -1)}
+              ><svg viewBox="0 0 24 24" aria-hidden><path d="m6 14 6-6 6 6" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" /></svg></button>
+              <button
+                type="button"
+                className={`settings-toggle small ${rule.enabled ? 'is-on' : ''}`}
+                aria-label={rule.enabled ? t('Выключить правило') : t('Включить правило')}
+                onClick={() => updateRoutingRules(routingRules.map((item) => item.id === rule.id ? { ...item, enabled: !item.enabled } : item))}
+              ><i /></button>
+              <button
+                type="button"
+                className="routing-rule-remove"
+                aria-label={`${t('Удалить')} ${rule.value}`}
+                onClick={() => updateRoutingRules(routingRules.filter((item) => item.id !== rule.id))}
+              ><svg viewBox="0 0 24 24" aria-hidden><path d="m7 7 10 10M17 7 7 17" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" /></svg></button>
+            </li>)}
+          </ul> : <div className="routing-empty-state">
             <span className="routing-empty-icon">
-              <svg viewBox="0 0 24 24" aria-hidden><path d="M4 5v6a4 4 0 0 0 4 4h10M4 19h5" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" /><path d="m15 11 3 4-3 4" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" /></svg>
+              <svg viewBox="0 0 24 24" aria-hidden><path d="M4 5v6a4 4 0 0 0 4 4h10M4 19h5" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" /><path d="m15 11 3 4-3 4" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" /></svg>
             </span>
-            <strong>{t('Раздел готовится')}</strong>
-            <p>{t('Здесь появятся правила вида «домен → напрямую, через VPN или блокировать», в том числе групповые: все российские сайты, соцсети, реклама.')}</p>
-          </div>
+            <strong>{t('Правил пока нет')}</strong>
+            <p>{t('Весь трафик идёт через VPN. Добавьте правило или выберите готовый набор выше.')}</p>
+          </div>}
+
+          <p className="fragmentation-note">{t('Правила применяются сверху вниз: срабатывает первое подходящее. Изменения вступают в силу сразу — активное подключение перезапустится.')}</p>
         </section>
       </> : <>
         {routeSettingsLocked && <div className="app-settings-lock">

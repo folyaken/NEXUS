@@ -1,0 +1,128 @@
+const assert = require('node:assert/strict');
+const fs = require('node:fs');
+const path = require('node:path');
+
+const root = path.resolve(__dirname, '..');
+const jey = fs.readFileSync(path.join(root, 'src', 'renderer', 'Jey2RayPage.tsx'), 'utf8');
+const styles = fs.readFileSync(path.join(root, 'src', 'renderer', 'styles.css'), 'utf8');
+const main = fs.readFileSync(path.join(root, 'src', 'main', 'main.ts'), 'utf8');
+const {
+  ROUTING_PRESETS, MAX_ROUTING_RULES, isValidRoutingValue,
+  normalizeRoutingRules, xrayRoutingRules, singboxRoutingRules,
+} = require(path.join(root, 'dist-electron', 'routing-rules.js'));
+const { buildXrayConfig } = require(path.join(root, 'dist-electron', 'xray-config.js'));
+const { DEFAULT_SETTINGS } = require(path.join(root, 'dist-electron', 'types.js'));
+const { hasTranslation } = require(path.join(root, 'dist-electron', 'i18n.js'));
+
+// --- Проверка того, что вводит пользователь -------------------------------------
+// Неверная строка не даёт ядру запуститься, и VPN перестаёт подключаться —
+// с виду без причины. Поэтому значение проверяется до сохранения.
+for (const good of [
+  'example.com', '*.example.com', 'sub.domain.example.com',
+  '10.0.0.0/8', '192.168.1.1', 'geosite:ru', 'geoip:private',
+  'full:exact.example.com', 'regexp:.*\\.example\\.com',
+]) {
+  assert.equal(isValidRoutingValue(good), true, `должно приниматься: ${good}`);
+}
+for (const bad of ['', '   ', 'просто текст', 'http://example.com', '999.1.1.1', '10.0.0.0/64', 'geosite:', '..', 'a'.repeat(220)]) {
+  assert.equal(isValidRoutingValue(bad), false, `должно отклоняться: ${bad}`);
+}
+
+// --- Чтение сохранённых правил ------------------------------------------------------
+assert.deepEqual(normalizeRoutingRules(null), [], 'испорченные настройки не должны ронять запуск');
+assert.deepEqual(normalizeRoutingRules('строка'), []);
+// Мусор отбрасывается, а рабочие правила остаются.
+const mixed = normalizeRoutingRules([
+  { value: 'example.com', outbound: 'direct', enabled: true },
+  { value: 'сломано', outbound: 'proxy' },
+  { value: 'example.com', outbound: 'block' },
+  { value: '10.0.0.0/8', outbound: 'мусор' },
+]);
+assert.equal(mixed.length, 2, 'битые и повторяющиеся правила отбрасываются');
+assert.equal(mixed[1].outbound, 'proxy', 'неизвестное направление приводится к «через VPN»');
+assert.ok(mixed.every((rule) => rule.id), 'у каждого правила должен быть ключ');
+// Список не должен разрастаться бесконтрольно.
+const many = normalizeRoutingRules(Array.from({ length: 150 }, (_, i) => ({ value: `site${i}.com`, outbound: 'direct' })));
+assert.equal(many.length, MAX_ROUTING_RULES);
+
+// --- Превращение в конфигурацию ядра ---------------------------------------------------
+const rules = [
+  { id: '1', value: 'geosite:ru', outbound: 'direct', enabled: true },
+  { id: '2', value: '10.0.0.0/8', outbound: 'direct', enabled: true },
+  { id: '3', value: 'ads.example.com', outbound: 'block', enabled: true },
+  { id: '4', value: 'off.example.com', outbound: 'proxy', enabled: false },
+];
+const xray = xrayRoutingRules(rules);
+assert.equal(xray.length, 3, 'выключенное правило в конфигурацию не попадает');
+// Домены и адреса описываются разными полями — перепутать нельзя.
+assert.deepEqual(xray[0], { type: 'field', domain: ['geosite:ru'], outboundTag: 'direct' });
+assert.deepEqual(xray[1], { type: 'field', ip: ['10.0.0.0/8'], outboundTag: 'direct' });
+assert.equal(xray[2].outboundTag, 'block');
+
+// Порядок сохраняется: ядро применяет первое совпавшее правило, поэтому
+// положение в списке и есть приоритет.
+const ordered = xrayRoutingRules([
+  { id: 'a', value: 'a.com', outbound: 'block', enabled: true },
+  { id: 'b', value: 'b.com', outbound: 'direct', enabled: true },
+]);
+assert.deepEqual(ordered.map((rule) => rule.domain[0]), ['a.com', 'b.com']);
+
+// Правила пользователя обязаны идти раньше правил по программам: иначе те
+// перехватят весь трафик туннеля, и до доменов дело не дойдёт.
+const config = buildXrayConfig(
+  { address: 'example.com', port: 443, protocol: 'vless', uuid: 'x', security: 'tls' },
+  10808, 'tun', [{ executable: 'game.exe', path: 'C:/game.exe' }], 'include', true, false, [], rules,
+);
+const configRules = config.routing.rules;
+assert.ok(configRules.length > 3);
+assert.equal(configRules[0].domain[0], 'geosite:ru', 'правила пользователя идут первыми');
+// Для правил по адресам нужен разбор имени в IP, иначе geoip не срабатывает.
+assert.equal(config.routing.domainStrategy, 'IPIfNonMatch');
+
+// Без правил поведение прежнее — лишней секции в конфигурации не появляется.
+const plain = buildXrayConfig(
+  { address: 'example.com', port: 443, protocol: 'vless', uuid: 'x', security: 'tls' },
+  10808, 'proxy', [], 'system', true, false, [], [],
+);
+assert.equal(plain.routing, undefined, 'без правил секция routing не нужна');
+
+// sing-box: групповые наборы пропускаются — они требуют отдельных файлов, и
+// ядро с ними просто не запустится.
+const singbox = singboxRoutingRules(rules);
+assert.ok(!singbox.some((rule) => JSON.stringify(rule).includes('geosite')), 'geosite в sing-box не поддерживается');
+assert.ok(singbox.some((rule) => rule.action === 'reject'), 'блокировка обязана работать');
+
+// --- Настройки ---------------------------------------------------------------------------
+assert.deepEqual(DEFAULT_SETTINGS.vpnRoutingRules, [], 'по умолчанию правил нет');
+assert.match(main, /vpnRoutingRules: normalizeRoutingRules\(raw\.vpnRoutingRules\)/);
+// Правила попадают в конфигурацию при старте ядра, поэтому их изменение
+// перезапускает активную сессию — иначе они бы не действовали до переподключения.
+assert.match(main, /const routingChanged = /);
+assert.match(main, /dnsChanged \|\| routingChanged/);
+assert.match(main, /settings\.vpnRoutingRules,/, 'правила обязаны доходить до менеджера VPN');
+
+// --- Интерфейс --------------------------------------------------------------------------------
+assert.match(jey, /const addRoutingRule = /);
+assert.match(jey, /if \(!isValidRoutingValue\(value\)\)/, 'адрес проверяется до сохранения');
+assert.match(jey, /Такое правило уже есть/, 'повтор ничего не изменит — сработает первое');
+assert.match(jey, /const moveRoutingRule = /, 'порядок правил обязан меняться: это приоритет');
+assert.match(jey, /ROUTING_PRESETS\.map/);
+assert.match(jey, /routing-rule-order/, 'номер показывает приоритет правила');
+// Значок пустого состояния раньше растягивался во всю карточку: у SVG не было
+// заданного размера.
+assert.match(styles, /\.routing-empty-icon svg \{[^}]*width: 22px/);
+assert.match(styles, /\.routing-empty-icon \{[^}]*width: 44px/);
+// Направления различаются цветом — он читается быстрее подписи.
+for (const tone of ['is-proxy', 'is-direct', 'is-block']) {
+  assert.ok(styles.includes(`.routing-rule-outbound.${tone}`), `нужен цвет для ${tone}`);
+}
+assert.match(styles, /\.routing-outbound-chip:focus-visible/, 'выбор доступен с клавиатуры');
+
+// Наборы понятны без документации.
+for (const preset of ROUTING_PRESETS) {
+  assert.ok(preset.title.trim() && preset.description.trim());
+  assert.equal(hasTranslation('en', preset.title), true, `нужен перевод: ${preset.title}`);
+  assert.equal(hasTranslation('en', preset.description), true, `нужен перевод описания: ${preset.title}`);
+}
+
+console.log('Routing rules checks passed.');

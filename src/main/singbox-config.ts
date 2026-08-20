@@ -1,5 +1,6 @@
 import { inboundListenAddress } from './lan-share';
 import { singboxDnsSection } from './dns-servers';
+import { singboxRoutingRules, type RoutingRule } from './routing-rules';
 import { singboxProcessNames, singboxProcessPaths } from './split-tunnel';
 import type { VpnAppRoutingMode, VpnLinkParams, VpnSplitApp } from './types';
 
@@ -11,6 +12,7 @@ export function buildSingboxConfig(
   appRouting: VpnAppRoutingMode = 'include',
   allowLan = false,
   dnsServers: string[] = [],
+  routingRules: RoutingRule[] = [],
 ): Record<string, unknown> {
   const listen = inboundListenAddress(allowLan);
   const inbounds: Record<string, unknown>[] = [
@@ -64,7 +66,8 @@ export function buildSingboxConfig(
     }],
     route: {
       auto_detect_interface: true,
-      rules: splitRules,
+      // Правила пользователя идут первыми: срабатывает первое совпавшее.
+      rules: [...singboxRoutingRules(routingRules), ...splitRules],
       final: 'proxy',
     },
   };

@@ -2060,3 +2060,79 @@ kbd { padding: 3px 5px; border: 1px solid rgba(255,255,255,.1); border-radius: 5
 .app-frame.motion-off .about-update-plane { animation: none; transition: none; }
 .app-frame.motion-off .about-update-flight:before { transition: none; }
 .app-frame.motion-off .about-update-landed-mark { animation: none; }
+
+/* ============================================================================
+   Правила маршрутизации VPN
+   ==========================================================================*/
+
+/* Строка добавления правила. */
+.routing-add-row { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 14px; }
+.routing-add-row input { flex: 1 1 210px; min-width: 0; padding: 10px 12px; border: 1px solid rgba(255,255,255,.09); border-radius: 11px; outline: none; background: rgba(0,0,0,.22); color: #e4ebf5; font-family: var(--font-data); font-size: 11px; }
+.routing-add-row input:focus { border-color: rgba(124,242,213,.35); }
+
+/* Куда направить: три состояния с говорящими цветами — зелёный «через VPN»,
+   синий «напрямую», красный «блокировать». Цвет читается быстрее подписи. */
+.routing-outbound-picker { display: flex; gap: 5px; }
+.routing-outbound-chip { padding: 8px 11px; border: 1px solid rgba(255,255,255,.08); border-radius: 10px; background: rgba(255,255,255,.02); color: #8593a8; font-size: 10.5px; white-space: nowrap; transition: border-color .18s ease, background .18s ease, color .18s ease; }
+.routing-outbound-chip:hover { color: #cbd5e3; }
+.routing-outbound-chip:focus-visible { outline: 2px solid var(--cyan); outline-offset: 2px; }
+.routing-outbound-chip.is-active.is-proxy { border-color: rgba(113,244,184,.4); background: rgba(113,244,184,.12); color: #9df3c8; }
+.routing-outbound-chip.is-active.is-direct { border-color: rgba(140,161,255,.42); background: rgba(140,161,255,.12); color: #b3c1ff; }
+.routing-outbound-chip.is-active.is-block { border-color: rgba(255,122,145,.42); background: rgba(255,122,145,.12); color: #ff9fb0; }
+
+/* Готовые наборы. */
+.routing-presets { margin-top: 13px; }
+.routing-presets-label { display: block; color: #6f7d91; font-family: var(--font-data); font-size: 9px; letter-spacing: .12em; }
+.routing-presets-list { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+.routing-preset-chip { padding: 7px 11px; border: 1px dashed rgba(140,161,255,.24); border-radius: 999px; background: rgba(255,255,255,.02); color: #a7b4c8; font-size: 10.5px; transition: border-color .18s ease, background .18s ease, color .18s ease; }
+.routing-preset-chip:hover:not(:disabled) { border-color: rgba(124,242,213,.4); background: rgba(124,242,213,.08); color: #d8fff3; }
+/* Уже добавленный набор гасится: повтор ничего не изменит, сработает первое. */
+.routing-preset-chip:disabled { opacity: .35; cursor: default; }
+
+/* Список правил. */
+.routing-rule-list { display: grid; gap: 7px; margin: 14px 0 0; padding: 0; list-style: none; }
+.routing-rule { display: flex; align-items: center; gap: 9px; padding: 9px 11px; border: 1px solid rgba(255,255,255,.06); border-radius: 12px; background: rgba(255,255,255,.022); }
+.routing-rule.is-off { opacity: .45; }
+/* Номер = приоритет: срабатывает первое совпавшее правило. */
+.routing-rule-order { display: grid; width: 20px; height: 20px; flex: 0 0 auto; place-items: center; border-radius: 6px; background: rgba(255,255,255,.05); color: #7f8b9f; font-family: var(--font-data); font-size: 9.5px; }
+.routing-rule-value { flex: 1; min-width: 0; overflow: hidden; color: #dbe4f1; font-family: var(--font-data); font-size: 11px; text-overflow: ellipsis; white-space: nowrap; }
+.routing-rule-outbound { flex: 0 0 auto; padding: 4px 9px; border-radius: 7px; font-size: 9.5px; white-space: nowrap; }
+.routing-rule-outbound.is-proxy { background: rgba(113,244,184,.13); color: #8fe9bd; }
+.routing-rule-outbound.is-direct { background: rgba(140,161,255,.13); color: #a9b8ff; }
+.routing-rule-outbound.is-block { background: rgba(255,122,145,.13); color: #ff9fb0; }
+.routing-rule-move,
+.routing-rule-remove { display: grid; width: 24px; height: 24px; flex: 0 0 auto; place-items: center; border-radius: 7px; background: transparent; color: #758197; transition: background .18s ease, color .18s ease; }
+.routing-rule-move svg,
+.routing-rule-remove svg { width: 14px; height: 14px; }
+.routing-rule-move:hover:not(:disabled) { background: rgba(255,255,255,.06); color: #d6dfec; }
+.routing-rule-move:disabled { opacity: .25; cursor: default; }
+.routing-rule-remove:hover { background: rgba(255,122,145,.12); color: #ff9fb0; }
+.settings-toggle.small { flex: 0 0 auto; width: 34px; height: 19px; }
+.settings-toggle.small i { width: 13px; height: 13px; }
+.settings-toggle.small.is-on i { transform: translateX(15px); }
+
+/* Пустое состояние. Значок раньше растягивался во всю карточку: у SVG не было
+   заданного размера, и он занимал всю доступную ширину. */
+.routing-empty-state { display: grid; justify-items: center; gap: 7px; margin-top: 16px; padding: 26px 18px; border: 1px dashed rgba(255,255,255,.08); border-radius: 14px; text-align: center; }
+.routing-empty-icon { display: grid; width: 44px; height: 44px; place-items: center; border-radius: 13px; background: rgba(140,161,255,.08); color: #8ea0ff; }
+.routing-empty-icon svg { width: 22px; height: 22px; }
+.routing-empty-state strong { color: #cdd7e6; font-size: 12.5px; }
+.routing-empty-state p { max-width: 380px; color: #7f8b9f; font-size: 11px; line-height: 1.55; }
+
+.appearance-graphite .routing-outbound-chip.is-active.is-proxy,
+.appearance-graphite .routing-outbound-chip.is-active.is-direct { border-color: rgba(226,226,226,.3); background: rgba(226,226,226,.1); color: #e2e2e2; }
+.appearance-graphite .routing-rule-outbound.is-proxy,
+.appearance-graphite .routing-rule-outbound.is-direct { background: rgba(226,226,226,.1); color: #d6d6d6; }
+.appearance-graphite .routing-preset-chip:hover:not(:disabled) { border-color: rgba(226,226,226,.3); background: rgba(226,226,226,.07); color: #ececec; }
+.appearance-graphite .routing-empty-icon { background: rgba(226,226,226,.08); color: #d6d6d6; }
+
+@media (prefers-reduced-motion: reduce) {
+  .app-frame:not(.motion-force) .routing-outbound-chip,
+  .app-frame:not(.motion-force) .routing-preset-chip,
+  .app-frame:not(.motion-force) .routing-rule-move,
+  .app-frame:not(.motion-force) .routing-rule-remove { transition: none; }
+}
+.app-frame.motion-off .routing-outbound-chip,
+.app-frame.motion-off .routing-preset-chip,
+.app-frame.motion-off .routing-rule-move,
+.app-frame.motion-off .routing-rule-remove { transition: none; }

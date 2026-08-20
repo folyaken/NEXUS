@@ -8,6 +8,7 @@ import os from 'node:os';
 import { isElevated, relaunchElevated } from './elevation';
 import { companionCount } from './dpi-companions';
 import { DNS_PROVIDERS, isValidDnsAddress, resolveDnsServers } from './dns-servers';
+import { normalizeRoutingRules } from './routing-rules';
 import { COMMUNITY_LINKS, TELEGRAM_CHANNEL, isAllowedCommunityUrl } from './community';
 import { addDpiHost, readDpiHostlist, removeDpiHost } from './dpi-hostlist';
 import { clearSystemProxy, clearSystemProxySync } from './system-proxy';
@@ -126,6 +127,7 @@ function normalizeSettings(raw: Partial<AppSettings>): AppSettings {
     // продолжит работать, даже если настройки испорчены вручную.
     vpnDnsProvider: DNS_PROVIDERS.some((item) => item.id === raw.vpnDnsProvider) ? String(raw.vpnDnsProvider) : 'system',
     vpnDnsCustom: typeof raw.vpnDnsCustom === 'string' && isValidDnsAddress(raw.vpnDnsCustom) ? raw.vpnDnsCustom.trim() : '',
+    vpnRoutingRules: normalizeRoutingRules(raw.vpnRoutingRules),
   };
 }
 
@@ -304,6 +306,7 @@ async function connectVpnProfile(
     settings.vpnFragmentation,
     settings.vpnAllowLan,
     resolveDnsServers(settings.vpnDnsProvider, settings.vpnDnsCustom),
+    settings.vpnRoutingRules,
   );
   await saveSettings({ ...settings, lastVpnProfileId: profileId });
   return runtime;
@@ -870,14 +873,18 @@ function wireIpc(): void {
   ipcMain.handle('settings:save', async (_event, next: AppSettings) => {
     const previousAllowLan = settings.vpnAllowLan;
     const previousDns = `${settings.vpnDnsProvider}|${settings.vpnDnsCustom}`;
+    const previousRouting = JSON.stringify(settings.vpnRoutingRules);
     const saved = await saveSettings(next ?? settings);
     // Слушающий адрес входов и справочник имён задаются при старте ядра,
     // поэтому их переключение применяется перезапуском активной сессии. Без
     // этого выбранный DNS начал бы работать только после ручного переподключения,
     // и человек решил бы, что настройка не действует.
     const dnsChanged = `${saved.vpnDnsProvider}|${saved.vpnDnsCustom}` !== previousDns;
+    // Правила маршрутизации попадают в конфигурацию при старте ядра, поэтому
+    // их изменение тоже требует перезапуска сессии.
+    const routingChanged = JSON.stringify(saved.vpnRoutingRules) !== previousRouting;
     const current = vpn?.runtime();
-    if ((saved.vpnAllowLan !== previousAllowLan || dnsChanged) && current?.status === 'connected' && current.activeProfileId) {
+    if ((saved.vpnAllowLan !== previousAllowLan || dnsChanged || routingChanged) && current?.status === 'connected' && current.activeProfileId) {
       await connectVpnProfile(current.activeProfileId, settings.vpnMode, current.connectedAt);
     }
     return saved;

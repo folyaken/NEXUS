@@ -1,3 +1,4 @@
+import type { RoutingRule } from './routing-rules';
 import type { LanEndpoint } from './lan-share';
 
 export type { LanEndpoint };
@@ -216,6 +217,8 @@ export interface AppSettings {
   vpnDnsProvider: string;
   /** Свой адрес DNS — используется, когда выбран вариант 'custom'. */
   vpnDnsCustom: string;
+  /** Правила маршрутизации VPN: домен или адрес → куда направить. */
+  vpnRoutingRules: RoutingRule[];
 }
 
 export const DEFAULT_SETTINGS: AppSettings = {
@@ -238,6 +241,7 @@ export const DEFAULT_SETTINGS: AppSettings = {
   vpnSplitApps: [],
   vpnDnsProvider: 'system',
   vpnDnsCustom: '',
+  vpnRoutingRules: [],
 };
 
 export interface VpnLinkParams {

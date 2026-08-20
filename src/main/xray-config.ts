@@ -1,5 +1,6 @@
 import { inboundListenAddress } from './lan-share';
 import { xrayDnsSection } from './dns-servers';
+import { xrayRoutingRules, type RoutingRule } from './routing-rules';
 import { xrayProcessSelectors } from './split-tunnel';
 import type { VpnAppRoutingMode, VpnLinkParams, VpnSplitApp } from './types';
 
@@ -154,6 +155,7 @@ export function buildXrayConfig(
   fragmentation = true,
   allowLan = false,
   dnsServers: string[] = [],
+  routingRules: RoutingRule[] = [],
 ): Record<string, unknown> {
   const listen = inboundListenAddress(allowLan);
   const inbounds: Record<string, unknown>[] = [{
@@ -189,13 +191,22 @@ export function buildXrayConfig(
   const process = mode === 'tun' && appRouting !== 'system' ? xrayProcessSelectors(splitApps) : [];
   const selectedOutbound = appRouting === 'exclude' ? 'direct' : 'proxy';
   const fallbackOutbound = appRouting === 'exclude' ? 'proxy' : 'direct';
-  const routing = process.length ? {
-    domainStrategy: 'AsIs',
-    rules: [
-      { type: 'field', process: ['self/', 'xray/'], outboundTag: 'direct' },
-      { type: 'field', inboundTag: ['tun-in'], process, outboundTag: selectedOutbound },
-      { type: 'field', inboundTag: ['tun-in'], outboundTag: fallbackOutbound },
-    ],
+  // Правила пользователя идут первыми: ядро применяет первое совпавшее, то
+  // есть положение в списке и есть приоритет. Правила по программам работают
+  // только в режиме TUN, поэтому добавляются после — иначе они перехватывали бы
+  // весь трафик туннеля и правила по доменам никогда бы не сработали.
+  const userRules = xrayRoutingRules(routingRules);
+  const splitRules = process.length ? [
+    { type: 'field', process: ['self/', 'xray/'], outboundTag: 'direct' },
+    { type: 'field', inboundTag: ['tun-in'], process, outboundTag: selectedOutbound },
+    { type: 'field', inboundTag: ['tun-in'], outboundTag: fallbackOutbound },
+  ] : [];
+  const allRules = [...userRules, ...splitRules];
+  const routing = allRules.length ? {
+    // IPIfNonMatch нужен для правил по адресам: без него домен не проверяется
+    // против geoip-наборов, и правило «российские адреса» не срабатывает.
+    domainStrategy: userRules.length ? 'IPIfNonMatch' : 'AsIs',
+    rules: allRules,
   } : undefined;
 
   const proxyOutbound: Record<string, unknown> = { tag: 'proxy', ...outbound(params) };
