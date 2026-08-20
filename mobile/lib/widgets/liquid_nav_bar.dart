@@ -22,25 +22,25 @@ class LiquidNavItem {
   final Color? color;
 }
 
-/// «Жидкая» нижняя навигация (liquid / gooey).
+/// «Жидкая» нижняя навигация (liquid / gooey) — по референсу
+/// video_2026-08-20_20-35-01.mp4.
 ///
-/// Компоновка: активный указатель — цветной кружок (свой цвет у каждой
-/// вкладки), который СИДИТ НАД верхней кромкой панели, утопленный низом в
-/// глубокой «ямке» (U-выемка в кромке следует за кружком). Иконка внутри
-/// кружка — ЧЁРНАЯ, иконки в ряду — серые.
+/// Компоновка: цветной кружок (свой цвет у вкладки) паркуется НА верхней
+/// кромке панели: ≈2/3 над ней, ≈1/3 утоплена в панель. Под кружком в
+/// кромке выдавлена плавная «ямка» (косинусная лунка, концентричная
+/// кружку — всегда ровная). Иконка внутри кружка — почти чёрная, иконки
+/// ряда — серые.
 ///
-/// Цикл анимации (560 мс):
-///  1) SINK: кружок мягко сплющивается в «пилюлю» на кромке панели;
-///  2) TRAVEL: пилюля съезжает к новой позиции, слегка вытягиваясь по
-///     скорости (squash & stretch, ограничен), позади — капля-хвост,
-///     склеенная goo-слоем (blur + альфа-порог); цвет плавно перетекает
-///     в цвет новой вкладки;
-///  3) POP: тело выпрыгивает вверх с лёгким перелётом (elasticOut),
-///     goo-шея к кромке тянется и рвётся, ямка разъезжается под ним;
+/// Цикл анимации (560 мс), строго по референсу:
+///  1) SINK: круг физично оседает на кромку, превращаясь в компактную
+///     линзу (≈1.4× ширины, ≈0.38 высоты — НЕ «колбаска»);
+///  2) TRAVEL: линза едет по кромке, слегка релаксируя по мере движения
+///     (sx ≈1.38 → 1.28), малая живая растяжка от скорости, капля-хвост
+///     через goo-слой (blur + альфа-порог), цвет перетекает в цвет
+///     целевой вкладки;
+///  3) POP: на месте тело выпрыгивает вверх с лёгким перелётом
+///     (elasticOut), goo-шея тянется и рвётся, ямка разъезжается;
 ///  4) новая чёрная иконка всплывает внутри кружка.
-///
-/// API: LiquidNavItem(icon, label, color?) / LiquidNavBar(index, items,
-/// onChanged).
 class LiquidNavBar extends StatefulWidget {
   const LiquidNavBar({
     super.key,
@@ -60,20 +60,20 @@ class LiquidNavBar extends StatefulWidget {
 class _LiquidNavBarState extends State<LiquidNavBar>
     with SingleTickerProviderStateMixin {
   // -- геометрия --
-  static const double _overhang = 40; // зона НАД панелью
+  static const double _overhang = 44; // зона НАД панелью
   static const double _barH = 64; // высота панели
-  static const double _totalH = _overhang + _barH; // 104
+  static const double _totalH = _overhang + _barH; // 108
   static const double _bubble = 46; // диаметр круга
   static const double _radius = _bubble / 2;
-  static const double _sinkDepth = 14; // низ круга утоплен в панель
   static const double _gooBlur = 6;
 
   // Край панели (верхняя кромка) в координатах виджета.
   static const double _edgeY = _overhang;
-  // Y центра круга в парковке (над кромкой).
-  static const double _parkY = _overhang - _sinkDepth; // 26
-  // Y центра «пилюли» в движении (лежит на кромке).
-  static const double _slugY = _overhang + 1; // 41
+  // Центр круга в парковке: низ утоплен под кромку на _sinkDepth.
+  static const double _sinkDepth = 14;
+  static const double _parkY = _edgeY - _sinkDepth; // 30
+  // Центр эллипса в движении — практически НА кромке.
+  static const double _slugY = _edgeY; // 44
 
   // -- окна фаз (t: 0 → 1) --
   static const double _sinkEnd = 0.20;
@@ -81,7 +81,7 @@ class _LiquidNavBarState extends State<LiquidNavBar>
   static const double _travelEnd = 0.78;
   static const double _popStart = 0.70;
 
-  /// Цвет иконки внутри круга — почти чёрный (в тон фону).
+  /// Иконка внутри круга — почти чёрная (в тон фону), как в референсе.
   static const Color _iconInBubble = Color(0xFF0A0E1A);
 
   late final AnimationController _controller = AnimationController(
@@ -135,7 +135,7 @@ class _LiquidNavBarState extends State<LiquidNavBar>
 
   static double _clamp01(double v) => v.clamp(0.0, 1.0).toDouble();
 
-  /// «Круглость» k: 1 — припаркованный круг, 0 — пилюля на кромке.
+  /// «Круглость» k: 1 — припаркованный круг, 0 — эллипс на кромке.
   double _roundness(double t) {
     final sink = 1.0 - Curves.easeInCubic.transform(_clamp01(t / _sinkEnd));
     final pop = Curves.elasticOut
@@ -189,12 +189,12 @@ class _LiquidNavBarState extends State<LiquidNavBar>
               const dtFrame = 16.7 / 560;
               final vx = (span * (_travelT(_clamp01(t + dtFrame)) - m)).abs();
 
-              // k: 1 = круг над панелью, 0 = пилюля на кромке.
+              // k: 1 = круг над панелью, 0 = эллипс на кромке.
               final k = _roundness(t);
               final kSoft = k.clamp(0.0, 1.15).toDouble();
               final k01 = _clamp01(k);
 
-              // Цвет шарика: перетекает в цвет целевой вкладки посреди пути.
+              // Цвет шарика перетекает в цвет целевой вкладки посреди пути.
               final fade = _fade(t);
               final gooColor = !_animating
                   ? _itemColor(_currentIndex)
@@ -203,24 +203,30 @@ class _LiquidNavBarState extends State<LiquidNavBar>
                           fade) ??
                       _itemColor(_currentIndex));
 
-              // Центр тела: пилюля на кромке (k=0) ↔ круг над панелью (k=1).
+              // Центр тела: на кромке (k=0) ↔ припаркован над ней (k=1).
               final cy = _slugY + (_parkY - _slugY) * kSoft;
 
-              // Деформации — МЯГКИЕ: пилюля ~sx1.35 / sy0.58, плюс
-              // ограниченное растяжение от скорости.
+              // «Физичный» squash (по референсу): в полёте — ТОЛСТАЯ
+              // КОРОТКАЯ линза ≈1.3–1.45× диаметра в ширину и ~0.36–0.40
+              // в высоту, лежащая строча на кромке; чуть релаксирует к
+              // концу пути; небольшая живая растяжка от скорости.
+              final travelRelax = Curves.easeOut.transform(m);
+              final flatStretch = 0.38 - 0.10 * travelRelax; // 0.38 → 0.28
               final stretchV =
-                  math.min(0.45, vx * 0.02 / (0.35 + 0.65 * k01));
-              final popOver = math.max(0.0, k - 1); // перелёт при приземлении
-              final sx = 1 + (1 - k01) * 0.35 + stretchV - popOver * 0.15;
-              final sy = (1 - (1 - k01) * 0.42) / (1 + 0.35 * stretchV) +
-                  popOver * 0.35;
+                  math.min(0.12, vx * 0.006 / (0.5 + 0.5 * k01));
+              final popOver = math.max(0.0, k - 1);
+              final sx =
+                  1 + (1 - k01) * flatStretch + stretchV - popOver * 0.15;
+              final sy =
+                  (1 - (1 - k01) * 0.62) / (1 + 0.5 * stretchV) +
+                      popOver * 0.40;
 
               // Капля-хвост (только в движении).
               final speedFactor = (vx / 16).clamp(0.0, 1.0).toDouble();
               final flatness = 1 - k01;
               final xLag = fromX + span * _travelT(t, 0.09);
 
-              // Шея к кромке: тянется при отрыве/прилипании.
+              // Шея к кромке при отрыве/прилипании.
               final neckW = 2 * _radius * 0.42 * (1 - k01) + 5;
               final neckTop = cy + _radius * sy * 0.7 - 2;
               const neckBottom = _edgeY + 3;
@@ -242,7 +248,8 @@ class _LiquidNavBarState extends State<LiquidNavBar>
               return Stack(
                 clipBehavior: Clip.none,
                 children: [
-                  // 1) Панель с глубокой «ямкой», следующей за кружком.
+                  // 1) Панель с плавной «ямкой» (косинусная лунка), следующей
+                  //    за кружком.
                   Positioned(
                     left: 0,
                     right: 0,
@@ -251,8 +258,8 @@ class _LiquidNavBarState extends State<LiquidNavBar>
                     child: CustomPaint(
                       painter: _BarPainter(
                         notchX: x,
-                        notchDepth: 20 * k01,
-                        notchHalfW: 23 * (0.55 + 0.45 * k01),
+                        notchDepth: 12 * k01,
+                        notchHalfW: 18 * (0.62 + 0.38 * k01),
                       ),
                     ),
                   ),
@@ -279,8 +286,8 @@ class _LiquidNavBarState extends State<LiquidNavBar>
                               scaleX: sx,
                               scaleY: sy,
                               edgeY: _edgeY,
-                              trail: Offset(xLag, _slugY - 2),
-                              trailRadius: 8 * speedFactor * flatness,
+                              trail: Offset(xLag, _slugY - 1),
+                              trailRadius: 7 * speedFactor * flatness,
                               neck: neck,
                               weldWidth: 30 * k01,
                             ),
@@ -335,7 +342,7 @@ class _LiquidNavBarState extends State<LiquidNavBar>
     );
   }
 
-  /// ЧЁРНАЯ иконка внутри круга; в плоской пилюле прячется.
+  /// ЧЁРНАЯ иконка внутри круга; в плоском эллипсе прячется.
   /// Кроссфейд старая→новая по ходу перелёта.
   Widget _bubbleIcon(List<LiquidNavItem> items, double k) {
     final visibility = _clamp01((k - 0.28) / 0.35);
@@ -374,8 +381,10 @@ class _LiquidNavBarState extends State<LiquidNavBar>
   }
 }
 
-/// Панель со скруглением и глубокой U-«ямкой» на верхней кромке —
-/// ямка следует за кружком и глубже всего, когда он припаркован.
+/// Панель с «ямкой» — плавной косинусной лункой в верхней кромке.
+/// Лунка концентрична кружку (ширина ≈ хорда круга на уровне кромки),
+/// поэтому посадка всегда РОВНАЯ, без перекосов. Дно пологое, стыки с
+/// кромкой касательные (нулевой наклон) — гладко при любой глубине.
 class _BarPainter extends CustomPainter {
   _BarPainter({
     required this.notchX,
@@ -384,29 +393,37 @@ class _BarPainter extends CustomPainter {
   });
 
   final double notchX;
-  final double notchDepth; // 0..20
+  final double notchDepth; // 0..12 (≈ глубина утопления круга + запас)
   final double notchHalfW;
 
   static const double _r = 26;
+  static const int _segments = 24; // дискретизация косинуса
 
   @override
   void paint(Canvas canvas, Size size) {
     final w = size.width;
     final h = size.height;
 
-    // Контур: скруглённый прямоугольник с U-ямкой в верхней кромке.
     final path = Path()..moveTo(_r, 0);
     double cx = 0;
     if (notchDepth > 0.25) {
-      final d = notchDepth;
       final hw = notchHalfW;
-      cx = notchX.clamp(hw * 1.9 + 2, w - hw * 1.9 - 2);
-      path
-        ..lineTo(cx - hw * 1.9, 0)
-        // крутые стенки + округлое дно → ощущение «вдавили»
-        ..cubicTo(cx - hw * 1.05, d * 0.06, cx - hw * 0.58, d * 0.95, cx, d)
-        ..cubicTo(cx + hw * 0.58, d * 0.95, cx + hw * 1.05, d * 0.06,
-            cx + hw * 1.9, 0);
+      cx = notchX.clamp(hw + 3, w - hw - 3);
+      final left = cx - hw;
+      path.lineTo(left, 0);
+      // Лунка как косинусная лоба: d(x) = D * (0.5 + 0.5*cos(pi*t)),
+      // t ∈ [-1..1]. Касательная нулевая и в стыках, и на дне.
+      double px = left, py = 0;
+      for (var s = 1; s <= _segments; s++) {
+        final tt = -1.0 + 2.0 * s / _segments; // -1..1
+        final nx = cx + hw * tt;
+        final ny = notchDepth * (0.5 + 0.5 * math.cos(math.pi * tt));
+        // n-точечная ломаная сглажена малым шагом — визуально идеальная кривая.
+        path.quadraticBezierTo(px, py, (px + nx) / 2, (py + ny) / 2);
+        px = (px + nx) / 2;
+        py = (py + ny) / 2;
+      }
+      path.lineTo(cx + hw, 0);
     }
     path
       ..lineTo(w - _r, 0)
@@ -432,17 +449,17 @@ class _BarPainter extends CustomPainter {
       ).createShader(Rect.fromLTWH(0, 0, w, h));
     canvas.drawPath(path, fill);
 
-    // Перманентная внутренняя тень в ямке — объём «вдавленности».
+    // Внутренняя тень в ямке — объём «вдавленности».
     if (notchDepth > 0.5) {
       canvas.save();
       canvas.clipPath(path);
       final pit = Paint()
-        ..color = Colors.black.withOpacity(0.50)
-        ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 6);
+        ..color = Colors.black.withOpacity(0.45)
+        ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 7);
       canvas.drawOval(
         Rect.fromCenter(
-          center: Offset(cx, notchDepth * 0.9),
-          width: notchHalfW * 2.6,
+          center: Offset(cx, notchDepth * 0.85),
+          width: notchHalfW * 2.2,
           height: 12,
         ),
         pit,
