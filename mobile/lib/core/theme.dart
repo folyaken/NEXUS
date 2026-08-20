@@ -18,6 +18,10 @@ class AppColors {
   static const Color amber = Color(0xFFF8C76C);
   static const Color red = Color(0xFFFF718F);
 
+  /// Цвета нижней навигации.
+  static const Color navBackground = Color(0xFF0A0E1A);
+  static const Color navInactive = Color(0xFF8A94A6);
+
   static const LinearGradient brandGradient = LinearGradient(
     begin: Alignment.topLeft,
     end: Alignment.bottomRight,

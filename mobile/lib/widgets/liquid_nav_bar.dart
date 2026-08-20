@@ -9,22 +9,21 @@ class LiquidNavItem {
   const LiquidNavItem({
     required this.icon,
     required this.label,
-    this.accent = AppColors.primaryCyan,
   });
 
   final IconData icon;
   final String label;
-  final Color accent;
 }
 
 /// «Жидкая» нижняя навигация (liquid / gooey effect).
 ///
-/// Над активной иконкой — круглый пузырь с иконкой внутри. При переключении:
+/// Над активной иконкой — круглый пузырь (#6C63FF) с белой иконкой внутри.
+/// При переключении:
 ///  1) пузырь сплющивается по горизонтали (scaleX 1 → 0.55);
 ///  2) плавно скользит к новой иконке;
 ///  3) снова становится кругом;
-///  4) иконка «поднимается» в пузырь (старая — опускается на место);
-///  5) пузырь слегка «продавливает» панель (дип по вертикали).
+///  4) иконка меняется (старая «тонет», новая «всплывает»);
+///  5) пузырь слегка «продавливает» панель (ямка + дип).
 class LiquidNavBar extends StatefulWidget {
   const LiquidNavBar({
     super.key,
@@ -43,13 +42,15 @@ class LiquidNavBar extends StatefulWidget {
 
 class _LiquidNavBarState extends State<LiquidNavBar>
     with SingleTickerProviderStateMixin {
-  static const double _bubble = 46; // размер пузыря (круг)
+  static const double _bubble = 46; // размер пузыря
   static const double _iconCenterY = 26; // вертикальный центр иконок
   static const double _barHeight = 68;
 
+  static const Color _bubbleColor = Color(0xFF6C63FF);
+
   late final AnimationController _controller = AnimationController(
     vsync: this,
-    duration: const Duration(milliseconds: 620),
+    duration: const Duration(milliseconds: 380),
   );
 
   late int _currentIndex = widget.index;
@@ -91,39 +92,39 @@ class _LiquidNavBarState extends State<LiquidNavBar>
     super.dispose();
   }
 
-  // ---- фазы анимации ----
+  // ---- фазы ----
 
-  /// 1 → 0.55 (0..0.2), держится (0.2..0.8), 0.55 → 1 (0.8..1).
+  /// 1 → 0.55 (0..0.22), держится (0.22..0.78), 0.55 → 1 (0.78..1).
   double _squash(double t) {
-    if (t < 0.2) return 1.0 - 0.45 * (t / 0.2);
-    if (t < 0.8) return 0.55;
-    return 0.55 + 0.45 * ((t - 0.8) / 0.2);
+    if (t < 0.22) return 1.0 - 0.45 * (t / 0.22);
+    if (t < 0.78) return 0.55;
+    return 0.55 + 0.45 * ((t - 0.78) / 0.22);
   }
 
-  /// Скольжение по горизонтали (0.25..0.75), ease-in-out.
+  /// Скольжение по горизонтали (0.25..0.75).
   double _move(double t) {
     if (t <= 0.25) return 0.0;
     if (t >= 0.75) return 1.0;
     return Curves.easeInOutCubic.transform((t - 0.25) / 0.5);
   }
 
-  /// «Продавливание»: лёгкий дип в моменты сжатия/расширения.
+  /// «Продавливание»: дип в моменты сжатия/расширения.
   double _press(double t) {
-    final a = math.exp(-math.pow((t - 0.22) / 0.07, 2).toDouble());
-    final b = math.exp(-math.pow((t - 0.78) / 0.07, 2).toDouble());
-    return 6.0 * (a + b);
+    final a = math.exp(-math.pow((t - 0.24) / 0.06, 2).toDouble());
+    final b = math.exp(-math.pow((t - 0.76) / 0.06, 2).toDouble());
+    return 5.0 * (a + b);
   }
 
-  /// Кроссфейд иконки внутри пузыря (0.42..0.58).
-  double _fade(double t) => ((t - 0.42) / 0.16).clamp(0.0, 1.0);
+  /// Кроссфейд иконки внутри пузыря.
+  double _fade(double t) => ((t - 0.45) / 0.12).clamp(0.0, 1.0);
 
   /// Прозрачность иконки в ряду (0 = она «в пузыре»).
   double _rowIconOpacity(int i) {
     if (!_animating) return i == _currentIndex ? 0.0 : 1.0;
     final t = _controller.value;
-    if (i == _fromIndex) return (t / 0.25).clamp(0.0, 1.0);
+    if (i == _fromIndex) return (t / 0.22).clamp(0.0, 1.0);
     if (i == _currentIndex) {
-      return (1.0 - (t - 0.75) / 0.25).clamp(0.0, 1.0);
+      return (1.0 - (t - 0.78) / 0.22).clamp(0.0, 1.0);
     }
     return 1.0;
   }
@@ -136,9 +137,9 @@ class _LiquidNavBarState extends State<LiquidNavBar>
       height: _barHeight,
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(26),
-        color: AppColors.cardDark.withOpacity(0.85),
+        color: AppColors.navBackground.withOpacity(0.92),
         border: Border.all(color: Colors.white.withOpacity(0.06)),
-        boxShadow: Neu.shadows(depth: 14, radius: 30),
+        boxShadow: Neu.shadows(depth: 16, radius: 32),
       ),
       child: LayoutBuilder(
         builder: (context, constraints) {
@@ -153,16 +154,37 @@ class _LiquidNavBarState extends State<LiquidNavBar>
               final x = fromX + (toX - fromX) * _move(t);
               final sx = _animating ? _squash(t) : 1.0;
               final press = _animating ? _press(t) : 0.0;
+              final bubbleTop = _iconCenterY - _bubble / 2 + press;
 
               return Stack(
                 clipBehavior: Clip.none,
                 children: [
+                  // «Ямка» под пузырём — тёмное пятно, продавленное в панели.
+                  Positioned(
+                    left: x - 26,
+                    top: _iconCenterY + _bubble / 2 - 4 + press,
+                    child: Opacity(
+                      opacity: ((_press(t)) / 5).clamp(0.0, 1.0) * 0.9,
+                      child: Container(
+                        width: 52,
+                        height: 10,
+                        decoration: BoxDecoration(
+                          gradient: RadialGradient(
+                            colors: [
+                              Colors.black.withOpacity(0.55),
+                              Colors.transparent,
+                            ],
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                  // Ряд иконок
                   Row(
                     children: List.generate(items.length, (i) {
-                      final item = items[i];
                       return Expanded(
                         child: _NavItemView(
-                          item: item,
+                          item: items[i],
                           iconOpacity: _rowIconOpacity(i),
                           selected: i == _currentIndex,
                           onTap: () => _onTap(i),
@@ -170,12 +192,13 @@ class _LiquidNavBarState extends State<LiquidNavBar>
                       );
                     }),
                   ),
+                  // Пузырь
                   Positioned(
                     left: x - _bubble / 2,
-                    top: _iconCenterY - _bubble / 2 + press,
+                    top: bubbleTop,
                     child: Transform.scale(
                       scaleX: sx,
-                      scaleY: 1.0 + (1.0 - sx) * 0.5,
+                      scaleY: 1.0 + (1.0 - sx) * 0.45,
                       child: _Bubble(icon: _bubbleIcon(items)),
                     ),
                   ),
@@ -205,14 +228,14 @@ class _LiquidNavBarState extends State<LiquidNavBar>
           Opacity(
             opacity: (1 - fade).clamp(0.0, 1.0),
             child: Transform.translate(
-              offset: Offset(0, fade * 14),
+              offset: Offset(0, fade * 16),
               child: Icon(oldIcon, color: white, size: 20),
             ),
           ),
           Opacity(
             opacity: fade.clamp(0.0, 1.0),
             child: Transform.translate(
-              offset: Offset(0, -(1 - fade) * 14),
+              offset: Offset(0, -(1 - fade) * 16),
               child: Icon(newIcon, color: white, size: 20),
             ),
           ),
@@ -243,8 +266,8 @@ class _Bubble extends StatelessWidget {
         border: Border.all(color: Colors.white.withOpacity(0.18)),
         boxShadow: [
           BoxShadow(
-            color: const Color(0xFF6C63FF).withOpacity(0.55),
-            blurRadius: 20,
+            color: _LiquidNavBarState._bubbleColor.withOpacity(0.55),
+            blurRadius: 22,
             spreadRadius: 1,
           ),
           BoxShadow(
@@ -285,7 +308,11 @@ class _NavItemView extends StatelessWidget {
             height: 26,
             child: Opacity(
               opacity: iconOpacity.clamp(0.0, 1.0),
-              child: Icon(item.icon, size: 22, color: item.accent),
+              child: Icon(
+                item.icon,
+                size: 22,
+                color: AppColors.navInactive,
+              ),
             ),
           ),
           const SizedBox(height: 4),
@@ -294,7 +321,7 @@ class _NavItemView extends StatelessWidget {
             style: TextStyle(
               fontSize: 9,
               fontWeight: selected ? FontWeight.w700 : FontWeight.w500,
-              color: selected ? item.accent : AppColors.textMuted,
+              color: selected ? AppColors.textPrimary : AppColors.navInactive,
             ),
             child: Text(
               item.label,

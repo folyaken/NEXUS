@@ -42,7 +42,7 @@ Xcode project и т.д.). Предоставленные в этом репоз�
 | Тёмная тема + неон (cyan `#00D4AA`, violet `#6C63FF`) | `lib/core/theme.dart` |
 | Неоморфизм (двойные тени) | `lib/widgets/neu_card.dart` (`Neu.card` / `Neu.inset`) |
 | Анимации | `AnimatedContainer`, `AnimatedSwitcher`, `NeonToggle`, `PulseDot` |
-| Нижняя навигация (компактная, «Обзор» = Jey2Ray) | `lib/screens/home_shell.dart` |
+| «Жидкая» нижняя навигация (5 вкладок: Обзор · Модули · Подписки · Jey2Ray · Настройки) | `widgets/liquid_nav_bar.dart` |
 | Живой анимированный фон + glass-карточки | `widgets/animated_background.dart`, `widgets/neu_card.dart` |
 | Анимации появления/переходов | `flutter_animate` |
 | Модуль «Обход DPI» + список сайтов | `ModuleManager` + `ModulesScreen` |
@@ -85,7 +85,7 @@ mobile/
 │   │   ├── module_manager.dart
 │   │   └── storage_service.dart  # SharedPreferences + SQLite
 │   ├── state/settings_controller.dart
-│   ├── screens/                  # home_shell, dashboard (Обзор=Jey2Ray),
+│   ├── screens/                  # home_shell, dashboard (Обзор), jey2ray (VPN),
 │   │                             # modules, settings, logs, subscriptions,
 │   │                             # add_subscription, qr_scan
 │   └── widgets/                  # neu_card, neon_toggle, pulse_dot,
@@ -151,7 +151,7 @@ mobile/
 
 ## 🧪 Что уже работает без нативных зависимостей
 
-- Полная навигация и все экраны (главный экран «Обзор» — Jey2Ray VPN);
+- Полная навигация и все экраны (Обзор + отдельная вкладка Jey2Ray);
 - анимированный фон, glass-карточки, плавные переходы и появление элементов;
 - добавление профилей по ссылке (`vless://`, `vmess://`, `trojan://`, `ss://`, `hy2://`);
 - QR-сканирование;

@@ -1,15 +1,15 @@
 import 'package:flutter/material.dart';
 
 import '../core/l10n.dart';
-import '../core/theme.dart';
 import '../widgets/animated_background.dart';
 import '../widgets/liquid_nav_bar.dart';
 import 'dashboard_screen.dart';
+import 'jey2ray_screen.dart';
 import 'modules_screen.dart';
 import 'settings_screen.dart';
 import 'subscriptions_screen.dart';
 
-/// Каркас: живой фон + экраны с плавным переходом + анимированная навигация.
+/// Каркас: живой фон + 5 экранов с плавным переходом + «жидкая» навигация.
 class HomeShell extends StatefulWidget {
   const HomeShell({super.key});
 
@@ -24,6 +24,7 @@ class _HomeShellState extends State<HomeShell> {
     DashboardScreen(),
     ModulesScreen(),
     SubscriptionsView(),
+    Jey2RayScreen(),
     SettingsScreen(),
   ];
 
@@ -39,17 +40,18 @@ class _HomeShellState extends State<HomeShell> {
       LiquidNavItem(
         icon: Icons.widgets_rounded,
         label: t.t('nav.modules'),
-        accent: AppColors.primaryPurple,
       ),
       LiquidNavItem(
         icon: Icons.rss_feed_rounded,
         label: t.t('subs.title'),
-        accent: AppColors.mint,
+      ),
+      LiquidNavItem(
+        icon: Icons.public_rounded,
+        label: t.t('nav.vpn'),
       ),
       LiquidNavItem(
         icon: Icons.tune_rounded,
         label: t.t('nav.settings'),
-        accent: AppColors.amber,
       ),
     ];
 
@@ -83,7 +85,7 @@ class _HomeShellState extends State<HomeShell> {
       bottomNavigationBar: SafeArea(
         top: false,
         child: Padding(
-          padding: const EdgeInsets.fromLTRB(16, 6, 16, 12),
+          padding: const EdgeInsets.fromLTRB(12, 6, 12, 12),
           child: LiquidNavBar(
             index: _index,
             items: items,
