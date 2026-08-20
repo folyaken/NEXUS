@@ -34,7 +34,8 @@
     "channel": "node scripts/update-channel.cjs",
     "channel:set": "node scripts/update-channel.cjs set",
     "release:win": "node scripts/build-release.cjs",
-    "post": "node scripts/release-post.cjs"
+    "post": "node scripts/release-post.cjs",
+    "snapshot": "node scripts/make-clean-snapshot.cjs"
   },
   "build": {
     "appId": "com.folyaken.nexus",

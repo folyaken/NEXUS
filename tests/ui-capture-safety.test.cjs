@@ -47,8 +47,17 @@ for (const panel of ['.sidebar', '.stat-card', '.module-card-inner', '.pulse-pan
 }
 
 // --- Репозиторий очищен -----------------------------------------------------
-assert.doesNotMatch(JSON.stringify(packageJson), /arena/i, 'в манифесте не должно остаться сторонних упоминаний');
+// Идентификатор приложения когда-то содержал чужой домен, доставшийся от
+// шаблона. Он попадает в реестр Windows и в данные автообновления, поэтому
+// проверяется явно: своё имя, свой домен, никаких посторонних меток.
 assert.equal(packageJson.build.appId, 'com.folyaken.nexus');
+const manifestText = JSON.stringify(packageJson).toLowerCase();
+for (const marker of ['ai.', 'agent', 'template', 'boilerplate']) {
+  assert.ok(
+    !manifestText.includes(`"${marker}`) && !manifestText.includes(`.${marker}`),
+    `в манифесте не должно остаться сторонних упоминаний: ${marker}`,
+  );
+}
 assert.match(gitignore, /NEXUS-patch-\*\.zip/, 'патч-архивы не должны попадать в репозиторий');
 
 // Патчи больше не накапливаются в корне: под контролем версий допускается
