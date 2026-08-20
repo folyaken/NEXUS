@@ -564,19 +564,21 @@ function AboutPage({ t }: { t: (text: string) => string }) {
             только по подписи кнопки, и было неясно, что произойдёт после
             нажатия — особенно на шаге установки. */}
         <ol className="about-update-steps" aria-hidden="true">
-          {([
-            ['check', t('Проверка')],
-            ['download', t('Загрузка')],
-            ['install', t('Установка')],
-          ] as const).map(([step, label]) => {
-            const order = { check: 0, download: 1, install: 2 }[step];
-            const current = updateStatus === 'downloading' ? 1
+          {([t('Проверка'), t('Загрузка'), t('Установка')]).map((label, order) => {
+            const current = updateStatus === 'downloading' || updateStatus === 'available' ? 1
               : updateStatus === 'downloaded' ? 2
-              : updateStatus === 'available' ? 1
               : 0;
-            const done = order < current || (updateStatus === 'downloaded' && order <= 1);
-            return <li key={step} className={`${done ? 'is-done' : ''} ${order === current ? 'is-current' : ''}`}>
-              <i />{label}
+            const done = order < current;
+            return <li key={label} className={`${done ? 'is-done' : ''} ${order === current ? 'is-current' : ''}`}>
+              <span className="about-update-step-mark">
+                {/* Галочка — настоящий значок, а не псевдоэлемент с наклонённой
+                    рамкой: тот приём даёт кривые концы линий и разную толщину
+                    на разных экранах. */}
+                {done
+                  ? <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m5 12.5 4.5 4.5L19 7.5" /></svg>
+                  : <i />}
+              </span>
+              <span className="about-update-step-label">{label}</span>
             </li>;
           })}
         </ol>

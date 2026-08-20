@@ -1857,35 +1857,59 @@ kbd { padding: 3px 5px; border: 1px solid rgba(255,255,255,.1); border-radius: 5
 
 /* Ход загрузки. Раньше была только полоска без единой цифры: при файле на
    90 МБ человек не понимал, сколько осталось ждать и идёт ли вообще загрузка. */
+/* Ход загрузки. Раньше была только полоска без единой цифры: при файле на
+   90 МБ человек не понимал, сколько осталось ждать и идёт ли загрузка. */
 .about-update-progress-block { margin-top: 14px; }
-.about-update-progress-meta { display: flex; align-items: baseline; justify-content: space-between; margin-top: 7px; }
-.about-update-progress-meta strong { color: var(--mint); font-family: var(--font-data); font-size: 13px; }
-.about-update-progress-meta span { color: #8c9ab0; font-family: var(--font-data); font-size: 10px; }
+/* Процент и размер стоят в одной строке и раньше спорили за внимание: крупная
+   мятная цифра рядом с мелким серым текстом выглядела как ошибка вёрстки.
+   Теперь у них общий размер и вес, различаются только цветом. */
+.about-update-progress-meta { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-top: 8px; }
+.about-update-progress-meta strong { color: #cfd8e6; font-family: var(--font-data); font-size: 11px; font-weight: 600; letter-spacing: .02em; }
+.about-update-progress-meta span { color: #7c8a9e; font-family: var(--font-data); font-size: 11px; font-weight: 400; }
 /* Блик бежит по полоске, пока идёт загрузка: видно, что процесс не замер. */
 .about-update-progress-bar { position: relative; overflow: hidden; }
 .about-update-progress-bar:after { position: absolute; inset: 0; background: linear-gradient(100deg, transparent, rgba(255,255,255,.45), transparent); content: ''; transform: translateX(-100%); animation: update-sheen 1.5s ease-in-out infinite; }
 @keyframes update-sheen { to { transform: translateX(100%); } }
 
 /* Три шага обновления: проверка → загрузка → установка.
-   Состояние читалось только по подписи кнопки, и было неясно, что произойдёт
-   после нажатия. Теперь весь путь виден целиком. */
-.about-update-steps { display: flex; align-items: center; gap: 6px; margin-top: 16px; padding: 0; list-style: none; }
-.about-update-steps li { display: flex; flex: 1; align-items: center; gap: 6px; color: #6f7d91; font-size: 10px; white-space: nowrap; }
-.about-update-steps li i { display: grid; width: 15px; height: 15px; flex: 0 0 auto; place-items: center; border: 1px solid rgba(255,255,255,.12); border-radius: 50%; background: rgba(255,255,255,.03); }
-.about-update-steps li.is-done { color: #9fb0c6; }
-.about-update-steps li.is-done i { border-color: rgba(113,244,184,.4); background: rgba(113,244,184,.15); }
-/* Галочка рисуется псевдоэлементом: отдельный значок ради трёх точек избыточен. */
-.about-update-steps li.is-done i:after { width: 4px; height: 7px; margin-top: -2px; border: solid var(--mint); border-width: 0 1.6px 1.6px 0; content: ''; transform: rotate(45deg); }
-.about-update-steps li.is-current { color: #e4ebf5; }
-.about-update-steps li.is-current i { border-color: rgba(124,242,213,.55); background: rgba(124,242,213,.12); box-shadow: 0 0 0 3px rgba(124,242,213,.08); }
-.about-update-steps li.is-current i:after { width: 5px; height: 5px; border-radius: 50%; background: var(--cyan); content: ''; }
-.appearance-graphite .about-update-steps li.is-done i { border-color: rgba(214,214,214,.3); background: rgba(214,214,214,.12); }
-.appearance-graphite .about-update-steps li.is-done i:after { border-color: #d6d6d6; }
-.appearance-graphite .about-update-steps li.is-current i { border-color: rgba(226,226,226,.45); background: rgba(226,226,226,.1); box-shadow: 0 0 0 3px rgba(226,226,226,.06); }
-.appearance-graphite .about-update-steps li.is-current i:after { background: #d6d6d6; }
+   Первый вариант выглядел россыпью значков: кружки стояли на равном
+   расстоянии, но ничем не были связаны, и читались как три отдельные пометки,
+   а не как путь. Теперь шаги соединены линией, она подсвечивается по мере
+   прохождения — видно и порядок, и на каком месте вы сейчас. */
+.about-update-steps { display: flex; align-items: flex-start; margin-top: 18px; padding: 0; list-style: none; }
+.about-update-steps li { position: relative; display: flex; flex: 1; min-width: 0; flex-direction: column; align-items: center; gap: 7px; color: #6f7d91; font-size: 10px; text-align: center; }
+/* Линия тянется от центра предыдущего кружка к центру текущего. */
+.about-update-steps li:not(:first-child):before {
+  position: absolute; top: 9px; right: 50%; left: -50%; height: 1.5px;
+  background: rgba(255,255,255,.09); border-radius: 2px; content: '';
+  transition: background .3s ease;
+}
+.about-update-steps li.is-done:before,
+.about-update-steps li.is-current:before { background: rgba(113,244,184,.42); }
+.about-update-step-mark { position: relative; z-index: 1; display: grid; width: 19px; height: 19px; place-items: center; border: 1.5px solid rgba(255,255,255,.14); border-radius: 50%; background: #131a28; transition: border-color .3s ease, background .3s ease, box-shadow .3s ease; }
+/* Точка внутри кружка у непройденных шагов: пустой кружок выглядит забытым. */
+.about-update-step-mark i { width: 4px; height: 4px; border-radius: 50%; background: rgba(255,255,255,.22); }
+.about-update-step-mark svg { width: 11px; height: 11px; fill: none; stroke: var(--mint); stroke-linecap: round; stroke-linejoin: round; stroke-width: 2.6; }
+.about-update-step-label { overflow: hidden; max-width: 100%; text-overflow: ellipsis; white-space: nowrap; }
+.about-update-steps li.is-done { color: #93a4ba; }
+.about-update-steps li.is-done .about-update-step-mark { border-color: rgba(113,244,184,.45); background: rgba(113,244,184,.12); }
+.about-update-steps li.is-current { color: #e9f4ff; font-weight: 600; }
+.about-update-steps li.is-current .about-update-step-mark { border-color: var(--cyan); background: rgba(124,242,213,.16); box-shadow: 0 0 0 4px rgba(124,242,213,.07); }
+.about-update-steps li.is-current .about-update-step-mark i { width: 6px; height: 6px; background: var(--cyan); box-shadow: 0 0 8px rgba(124,242,213,.7); }
+.appearance-graphite .about-update-steps li.is-done:before,
+.appearance-graphite .about-update-steps li.is-current:before { background: rgba(214,214,214,.34); }
+.appearance-graphite .about-update-steps li.is-done .about-update-step-mark { border-color: rgba(214,214,214,.32); background: rgba(214,214,214,.1); }
+.appearance-graphite .about-update-step-mark { background: #161616; }
+.appearance-graphite .about-update-step-mark svg { stroke: #d6d6d6; }
+.appearance-graphite .about-update-steps li.is-current .about-update-step-mark { border-color: #d6d6d6; background: rgba(226,226,226,.12); box-shadow: 0 0 0 4px rgba(226,226,226,.06); }
+.appearance-graphite .about-update-steps li.is-current .about-update-step-mark i { background: #d6d6d6; box-shadow: 0 0 8px rgba(214,214,214,.5); }
 .appearance-graphite .about-update-progress-meta strong { color: #d6d6d6; }
 
 @media (prefers-reduced-motion: reduce) {
   .app-frame:not(.motion-force) .about-update-progress-bar:after { animation: none; opacity: 0; }
+  .app-frame:not(.motion-force) .about-update-steps li:before,
+  .app-frame:not(.motion-force) .about-update-step-mark { transition: none; }
 }
 .app-frame.motion-off .about-update-progress-bar:after { animation: none; opacity: 0; }
+.app-frame.motion-off .about-update-steps li:before,
+.app-frame.motion-off .about-update-step-mark { transition: none; }

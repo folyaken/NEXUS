@@ -153,6 +153,31 @@ assert.match(app, /Math\.round\(updateCheck\?\.percent \?\? 0\)\}%/, 'нужен
 assert.match(app, /className="about-update-steps"/, 'нужны шаги обновления');
 assert.match(styles, /\.about-update-steps li\.is-current/);
 assert.match(styles, /\.about-update-steps li\.is-done/);
+
+// Шаги обязаны читаться как путь, а не как россыпь значков.
+//
+// Сначала кружки просто стояли в ряд на равном расстоянии, ничем не связанные:
+// глаз видел три отдельные пометки и не понимал их порядок. Линия между ними
+// показывает последовательность и подсвечивается по мере прохождения.
+assert.match(styles, /\.about-update-steps li:not\(:first-child\):before/,
+  'шаги обязаны соединяться линией');
+assert.match(styles, /\.about-update-steps li\.is-done:before[\s\S]{0,90}background: rgba\(113,244,184/,
+  'пройденный отрезок линии обязан подсвечиваться');
+
+// Галочка — настоящий значок. Прежний вариант рисовался псевдоэлементом с
+// наклонённой рамкой: у такой «галочки» рваные концы и разная толщина линий
+// в зависимости от масштаба экрана.
+assert.match(app, /m5 12\.5 4\.5 4\.5L19 7\.5/, 'галочка обязана быть значком');
+assert.match(styles, /\.about-update-step-mark svg \{[^}]*stroke: var\(--mint\)/);
+assert.doesNotMatch(styles, /\.about-update-steps li\.is-done i:after \{[^}]*border-width/,
+  'галочка из наклонённой рамки выглядит криво — нужен значок');
+
+// Процент и размер стоят рядом и раньше спорили за внимание: крупная мятная
+// цифра рядом с мелким серым текстом читалась как ошибка вёрстки.
+const meta = styles.slice(styles.indexOf('.about-update-progress-meta strong'));
+const metaRule = meta.slice(0, meta.indexOf('}'));
+assert.match(metaRule, /font-size: 11px/, 'процент не должен быть крупнее соседнего текста');
+assert.doesNotMatch(metaRule, /color: var\(--mint\)/, 'кричащий цвет рядом с мелким текстом выглядит грубо');
 // Бегущий блик показывает, что процесс не замер, и подчиняется настройке движения.
 assert.match(styles, /@keyframes update-sheen/);
 assert.ok(styles.includes('.app-frame:not(.motion-force) .about-update-progress-bar:after'));
