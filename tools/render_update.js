@@ -16,10 +16,8 @@ fs.mkdirSync(path.dirname(OUT), { recursive: true });
 /* ================= EDIT THESE PER RELEASE ================= */
 const VERSION = '1.3.1';
 const CHANGES = [
-  { c: '#7cf2d5', t: 'Hysteria2 — новый протокол через sing-box' },
-  { c: '#a895ff', t: 'Пинг-тест серверов и спидометр задержки' },
-  { c: '#71f4b8', t: 'Автовыбор самого быстрого сервера' },
-  { c: '#f8c76c', t: 'Фиксы Reality, панель и подписки' },
+  { c: '#7cf2d5', t: 'Строка обновления в «О программе»' },
+  { c: '#a895ff', t: 'Кнопка «Отключение всего» в иконке в трее' },
 ];
 /* ============================================================ */
 
@@ -137,12 +135,13 @@ over(canvas, tmp('_urule'), LX, 258, canvas);
 /* ---- left column: "что нового" ---- */
 A = [canvas];
 txt(LX, 318, 15, F.monoM, C.muted2, 'ЧТО НОВОГО', 1.8);
-txt(LX, 356, 26, F.interB, C.text, 'В версиях 1.3.0 и 1.3.1');
+txt(LX, 356, 26, F.interB, C.text, 'В версии 1.3.1');
 CHANGES.forEach((f, i) => {
-  const y = 404 + i * 46;
+  const y = 410 + i * 56;
   fill(f.c); stroke('none'); circle(LX + 6, y - 5, 5);
   txt(LX + 26, y, 21, F.interR, C.text, f.t);
 });
+txt(LX, 560, 13, F.interR, C.muted, 'Обновление в один клик — вкладка «О программе»');
 run(A, canvas);
 
 /* ---- right: orbit + big version ---- */
@@ -163,7 +162,7 @@ const [vw, vh] = gradText(tmp('_uver'), VERSION, F.sgB, 120, '#7cf2d5', '#a895ff
 over(canvas, tmp('_uver'), OCX - vw / 4, OCY - vh / 4, canvas);
 
 // caption under version (centered)
-centerText(OCX, 560, 15, F.monoM, C.muted, '1.3.0 → 1.3.1');
+centerText(OCX, 560, 15, F.monoM, C.muted, 'Обновление доступно');
 
 /* ---- CTA pill (right bottom) — only when a real button can't be attached ---- */
 if (!NO_BUTTON) {
