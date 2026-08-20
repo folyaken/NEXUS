@@ -64,7 +64,7 @@ for (const rule of parseRules(styles)) {
 }
 assert.deepEqual(missing, [], `в оформлении «Багровое» не перекрашены: ${missing.slice(0, 12).join(' | ')}`);
 
-// --- Гамма строго чёрно-красная -------------------------------------------------------
+// --- Гамма: чёрный фон, красные акценты ------------------------------------------------
 // Тема двухцветная: чёрный корпус и красные акценты. Любой цвет, где красная
 // доля не наибольшая, означает уцелевший синий или зелёный островок.
 const readRgb = (token) => {
@@ -76,6 +76,12 @@ const readRgb = (token) => {
   const parts = token.match(/[\d.]+/g).map(Number);
   return [parts[0], parts[1], parts[2]];
 };
+const toHsl = ([r, g, b]) => {
+  const [rr, gg, bb] = [r / 255, g / 255, b / 255];
+  const max = Math.max(rr, gg, bb);
+  const min = Math.min(rr, gg, bb);
+  return { chroma: max - min, light: (max + min) / 2 };
+};
 const foreign = [];
 for (const token of crimson.match(COLOUR) || []) {
   const [r, g, b] = readRgb(token);
@@ -84,11 +90,59 @@ for (const token of crimson.match(COLOUR) || []) {
 }
 assert.deepEqual([...new Set(foreign)], [], `в теме остались не красные цвета: ${foreign.slice(0, 10).join(' ')}`);
 
+// Тема повторяет устройство «Индиго»: цвет живёт в акцентах, а подложки почти
+// нейтральные. Первая версия заливала красным всё подряд — интерфейс светился
+// и резал глаза. Сравниваем с основным стилем: «Багровое» обязано быть темнее
+// и спокойнее его, иначе мы вернулись к той же ошибке.
+const measure = (text, keep) => {
+  let count = 0;
+  let chroma = 0;
+  let light = 0;
+  // «Свечение» — насыщенность вместе со светлотой. Именно от него режет глаза:
+  // густой тёмно-красный может быть сочным и при этом спокойным, а светлый
+  // насыщенный — «звенит». Поэтому сравниваем не насыщенность саму по себе.
+  let glare = 0;
+  for (const line of text.split('\n')) {
+    if (!keep(line)) continue;
+    for (const token of line.match(COLOUR) || []) {
+      const value = toHsl(readRgb(token));
+      // Чистые чёрный и белый — это тени и блики, они есть в любой теме.
+      if (value.chroma < 0.02 && (value.light < 0.02 || value.light > 0.98)) continue;
+      count += 1;
+      chroma += value.chroma;
+      light += value.light;
+      glare += value.chroma * value.light;
+    }
+  }
+  return { chroma: chroma / count, light: light / count, glare: glare / count };
+};
+const indigo = measure(styles, (line) => !line.includes('appearance-'));
+const crimsonTone = measure(crimson, (line) => line.startsWith('.appearance-crimson'));
+assert.ok(crimsonTone.light < indigo.light,
+  `«Багровое» обязано быть темнее «Индиго» (${crimsonTone.light.toFixed(3)} против ${indigo.light.toFixed(3)})`);
+assert.ok(crimsonTone.glare < indigo.glare,
+  `«Багровое» не должно светиться сильнее «Индиго» (${crimsonTone.glare.toFixed(3)} против ${indigo.glare.toFixed(3)})`);
+
+// Подложки — это чернота, а не красный. Насыщенный тёмный фон и есть то
+// «слишком красное», от чего уставали глаза.
+for (const token of ['#090d16', 'rgba(22,29,44,.68)', 'rgba(31,42,62,.75)']) {
+  const value = toHsl(readRgb(repaint(token)));
+  assert.ok(value.chroma <= 0.075, `подложка ${token} не должна быть насыщенной, сейчас ${value.chroma.toFixed(3)}`);
+  assert.ok(value.light < 0.2, `подложка ${token} обязана остаться тёмной`);
+}
+// А вот акценты обязаны быть сочными, иначе тема станет блёклой.
+for (const token of ['#7cf2d5', '#a895ff']) {
+  const value = toHsl(readRgb(repaint(token)));
+  assert.ok(value.chroma > 0.28, `акцент ${token} обязан остаться сочным, сейчас ${value.chroma.toFixed(3)}`);
+  // Но не слепящим: именно яркие светлые акценты «звенели» на чёрном.
+  assert.ok(value.light < 0.66, `акцент ${token} слишком светлый: ${value.light.toFixed(3)}`);
+}
+
 // Чёрный и белый не перекрашиваются: это тени и блики, они дают объём и
 // уместны в любой теме. Розовая дымка вместо теней выглядела бы грязно.
 assert.equal(repaint('rgba(0,0,0,.3)'), 'rgba(0,0,0,.3)');
 assert.equal(repaint('#ffffff'), '#ffffff');
-// А вот бирюзовый и фиолетовый обязаны стать красными.
+// Бирюзовый и фиолетовый обязаны стать красными.
 for (const token of ['#7cf2d5', '#a895ff', '#71f4b8']) {
   const [r, g, b] = readRgb(repaint(token));
   assert.ok(r > g && r > b, `${token} должен стать красным`);
@@ -96,6 +150,33 @@ for (const token of ['#7cf2d5', '#a895ff', '#71f4b8']) {
 // Состояния остаются различимы: предупреждение теплее ошибки, иначе «внимание»
 // и «сбой» сольются в один цвет и смысл подсветки пропадёт.
 assert.notEqual(repaint('#f8c76c'), repaint('#ff718f'));
+
+// --- Градиентные буквы, а не залитый прямоугольник -------------------------------------
+// В «Обзоре» заголовок залился сплошной плашкой: сокращённая запись background
+// сбрасывает свойства своего семейства, которые в ней не указаны. Тема
+// переопределяла только background, и стоявшая рядом обрезка по буквам
+// (background-clip: text) пропадала. Спутники обязаны переноситься вместе.
+const heroSpan = crimson.slice(crimson.indexOf('.appearance-crimson .hero h1 span'));
+const heroRule = heroSpan.slice(0, heroSpan.indexOf('}'));
+assert.match(heroRule, /background-clip: text/, 'заголовок «Обзора» обязан обрезаться по буквам');
+assert.match(heroRule, /text-fill-color: transparent/, 'без прозрачной заливки буквы станут плашкой');
+
+// То же правило для всех остальных мест: ни одно правило темы с background не
+// смеет терять спутников, заданных в основном стиле.
+const orphaned = [];
+for (const rule of parseRules(styles)) {
+  if (rule.at) continue;
+  const first = rule.selector.split(',')[0].trim().replace(/\s+/g, ' ');
+  if (/\.appearance-(graphite|crimson)\b/.test(first)) continue;
+  const index = crimson.indexOf(`.appearance-crimson ${first} {`);
+  if (index === -1) continue;
+  const themed = crimson.slice(index, crimson.indexOf('}', index));
+  if (!/(^|[;{ ])background\s*:/.test(themed)) continue;
+  for (const prop of ['background-clip', 'background-size', 'background-position', '-webkit-text-fill-color']) {
+    if (rule.body.includes(`${prop}:`) && !themed.includes(`${prop}:`)) orphaned.push(`${first} теряет ${prop}`);
+  }
+}
+assert.deepEqual(orphaned, [], `сокращённый background стирает свойства: ${orphaned.join(' | ')}`);
 
 // --- Цвета, до которых таблица стилей не дотягивалась ----------------------------------
 // Переключатель модулей красился прямо из JavaScript и оставался зелёным в
