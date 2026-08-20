@@ -9,7 +9,7 @@ import { isElevated, relaunchElevated } from './elevation';
 import { companionCount } from './dpi-companions';
 import { COMMUNITY_LINKS, TELEGRAM_CHANNEL, isAllowedCommunityUrl } from './community';
 import { addDpiHost, readDpiHostlist, removeDpiHost } from './dpi-hostlist';
-import { clearSystemProxySync } from './system-proxy';
+import { clearSystemProxy, clearSystemProxySync } from './system-proxy';
 import { ModuleManager } from './module-manager';
 import { AppUpdater } from './app-updater';
 import { GithubUpdater } from './github-updater';
@@ -446,6 +446,14 @@ function refreshTrayMenu(status: VpnStatus): void {
       ],
     },
     { type: 'separator' },
+    {
+      label: 'Отключить всё',
+      // Пункт доступен, только когда есть что отключать: серый пункт честно
+      // показывает, что сеть уже чистая.
+      enabled: isRunning || status === 'connecting' || (manager?.list().some((item) => item.status === 'running') ?? false),
+      click: () => runTrayAction(shutdownEverything),
+    },
+    { type: 'separator' },
     { label: 'Показать окно NEXUS', click: showWindow },
     { label: 'Скрыть окно', click: () => mainWindow?.hide() },
     // Канал в трее: о выходе новой версии люди узнают там, а из свёрнутой
@@ -567,6 +575,38 @@ function createWindow(): void {
     mainWindow?.webContents.send('window:maximized', false);
   });
   mainWindow.on('closed', () => { mainWindow = null; });
+}
+
+/**
+ * Возвращает систему в исходное состояние: выключает всё разом.
+ *
+ * Раньше, чтобы вернуть «чистую» сеть, приходилось обходить программу вручную:
+ * отключить VPN на вкладке Jey2Ray, затем остановить каждый модуль по
+ * отдельности. Легко забыть один пункт — и остаётся работающий winws.exe или
+ * прописанный в Windows прокси, а человек уже думает, что всё выключено.
+ *
+ * Модули останавливаются с persistEnabled: true — их отметки «включён»
+ * сохраняются. Это не выключение навсегда, а пауза: при следующем запуске
+ * NEXUS поднимет то, что было включено.
+ */
+async function shutdownEverything(): Promise<{ stoppedVpn: boolean; stoppedModules: number }> {
+  const runningBefore = manager?.list().filter((item) => item.status === 'running').length ?? 0;
+  const vpnWasOn = vpn?.runtime().status === 'connected' || vpn?.runtime().status === 'connecting';
+
+  // VPN отключается первым: он правит системный прокси, и снимать его нужно
+  // до остановки остальных модулей.
+  await vpn?.disconnect().catch(() => undefined);
+  await manager?.stopAll({ persistEnabled: true }).catch(() => undefined);
+  // Подстраховка: если ядро упало раньше и не успело откатить настройку,
+  // прокси Windows остался бы прописанным на несуществующий порт.
+  await clearSystemProxy().catch(() => undefined);
+
+  const result = { stoppedVpn: Boolean(vpnWasOn), stoppedModules: runningBefore };
+  if (result.stoppedVpn || result.stoppedModules) {
+    notify('NEXUS отключён', 'VPN и модули остановлены, сеть работает напрямую.');
+  }
+  refreshTrayMenu(vpn?.runtime().status ?? 'disconnected');
+  return result;
 }
 
 async function quitApp(): Promise<void> {

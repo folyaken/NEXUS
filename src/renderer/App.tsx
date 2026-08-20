@@ -552,7 +552,14 @@ function AboutPage({ t }: { t: (text: string) => string }) {
         </div>
         <div className="about-update-copy"><span>{t('ОБНОВЛЕНИЕ NEXUS')}</span><h3>{updateHeadline}</h3><p>{(updateCheck?.message && t(updateCheck.message)) || `Текущая версия ${info.nexusVersion}. Нажмите «Проверить», чтобы узнать о новой.`}</p></div>
         {updateStatus === 'downloading' && <div className="about-update-progress-block">
-          <div className="about-update-progress"><div className="about-update-progress-bar" style={{ width: `${Math.round(updateCheck?.percent ?? 0)}%` }} /></div>
+          {/* Полоска была плоской заливкой и выглядела дёшево. Теперь по ней
+              бежит светящаяся комета, а сама заливка переливается — видно, что
+              загрузка идёт, даже когда процент меняется редко. */}
+          <div className="about-update-progress">
+            <div className="about-update-progress-bar" style={{ width: `${Math.round(updateCheck?.percent ?? 0)}%` }}>
+              <span className="about-update-comet" />
+            </div>
+          </div>
           <div className="about-update-progress-meta">
             <strong>{Math.round(updateCheck?.percent ?? 0)}%</strong>
             {updateCheck?.totalBytes ? <span>{formatBytes(updateCheck.downloadedBytes ?? 0)} / {formatBytes(updateCheck.totalBytes)}</span> : null}
@@ -563,6 +570,10 @@ function AboutPage({ t }: { t: (text: string) => string }) {
         {/* Три шага показывают весь путь целиком. Раньше состояние читалось
             только по подписи кнопки, и было неясно, что произойдёт после
             нажатия — особенно на шаге установки. */}
+        {/* Шаги показываются, только когда обновление реально идёт. На «у вас
+            последняя версия» они висели серой лентой и сбивали с толку: путь
+            есть, а идти некуда. */}
+        {(updateStatus === 'available' || updateStatus === 'downloading' || updateStatus === 'downloaded') &&
         <ol className="about-update-steps" aria-hidden="true">
           {([t('Проверка'), t('Загрузка'), t('Установка')]).map((label, order) => {
             const current = updateStatus === 'downloading' || updateStatus === 'available' ? 1
@@ -575,13 +586,13 @@ function AboutPage({ t }: { t: (text: string) => string }) {
                     рамкой: тот приём даёт кривые концы линий и разную толщину
                     на разных экранах. */}
                 {done
-                  ? <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m5 12.5 4.5 4.5L19 7.5" /></svg>
+                  ? <svg viewBox="0 0 24 24" aria-hidden="true"><path className="about-update-tick" d="m5 12.5 4.5 4.5L19 7.5" /></svg>
                   : <i />}
               </span>
               <span className="about-update-step-label">{label}</span>
             </li>;
           })}
-        </ol>
+        </ol>}
         <div className="about-update-actions">
           <button type="button" className="about-check-button" disabled={checkingUpdate || updateStatus === 'downloading'} onClick={() => void runUpdateAction('check')}>{checkingUpdate && updateStatus !== 'downloading' ? t('Проверяем…') : updateCheck ? t('Проверить снова') : t('Проверить')}</button>
           {updateStatus === 'available' && <button type="button" className="about-install-button is-ready" disabled={checkingUpdate} onClick={() => void runUpdateAction('download')}>{t('Скачать')}</button>}
