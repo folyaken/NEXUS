@@ -4,17 +4,18 @@ import 'dart:typed_data';
 
 import 'package:crypto/crypto.dart';
 import 'package:encrypt/encrypt.dart';
-import 'package:flutter_secure_storage/flutter_secure_storage.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 /// AES-256-CBC шифрование токенов подписок.
 ///
-/// Ключ (256 бит) выводится через SHA-256 из секрета, который хранится в
-/// защищённом хранилище ОС (Keychain / Android Keystore).
+/// Ключ (256 бит) выводится через SHA-256 из секрета устройства, который
+/// хранится локально. Для мобильных релизов секрет рекомендуется перенести
+/// в защищённое хранилище ОС (Keychain / Android Keystore) через плагин
+/// `flutter_secure_storage` — см. README, раздел «Безопасность».
 class AesCipher {
   AesCipher._();
 
-  static const _storage = FlutterSecureStorage();
-  static const _secretKey = 'nexus_secret';
+  static const _prefsKey = 'nexus_secret';
 
   static Future<Uint8List> _keyBytes() async {
     final secret = await _secret();
@@ -22,10 +23,11 @@ class AesCipher {
   }
 
   static Future<String> _secret() async {
-    final existing = await _storage.read(key: _secretKey);
+    final prefs = await SharedPreferences.getInstance();
+    final existing = prefs.getString(_prefsKey);
     if (existing != null && existing.isNotEmpty) return existing;
     final fresh = _randomId(48);
-    await _storage.write(key: _secretKey, value: fresh);
+    await prefs.setString(_prefsKey, fresh);
     return fresh;
   }
 
