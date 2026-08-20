@@ -1,0 +1,51 @@
+name: nexus_mobile
+description: NEXUS Mobile — кроссплатформенный центр управления сетью (Android/iOS).
+publish_to: 'none'
+version: 1.0.0+1
+
+environment:
+  sdk: '>=3.2.0 <4.0.0'
+
+dependencies:
+  flutter:
+    sdk: flutter
+
+  # State management
+  provider: ^6.1.2
+
+  # Storage & data
+  shared_preferences: ^2.2.3
+  sqflite: ^2.3.3
+  path: ^1.9.0
+
+  # Network & subscriptions
+  dio: ^5.4.3
+  dio_cache_interceptor: ^3.5.0
+
+  # QR import
+  mobile_scanner: ^5.2.3
+
+  # Security
+  encrypt: ^5.0.3
+  crypto: ^3.0.3
+  flutter_secure_storage: ^9.2.2
+
+  # Import / export (JSON подписок)
+  share_plus: ^9.0.0
+  file_picker: ^8.0.5
+
+  # Utils
+  uuid: ^4.4.0
+  yaml: ^3.1.2
+
+  # TODO (включается при подключении реального движка, см. README):
+  #   flutter_v2ray_plus: ^<версия с pub.dev>
+  #   v2ray_box: ^<версия с pub.dev>
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^4.0.0
+
+flutter:
+  uses-material-design: true

@@ -1,0 +1,40 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>CFBundleDisplayName</key>
+	<string>NEXUS</string>
+	<key>CFBundleName</key>
+	<string>nexus_mobile</string>
+	<key>CFBundleIdentifier</key>
+	<string>com.folyaken.nexusMobile</string>
+	<key>CFBundleShortVersionString</key>
+	<string>1.0.0</string>
+	<key>CFBundleVersion</key>
+	<string>1</string>
+	<key>LSRequiresIPhoneOS</key>
+	<true/>
+	<key>UILaunchStoryboardName</key>
+	<string>LaunchScreen</string>
+	<key>UIMainStoryboardFile</key>
+	<string>Main</string>
+	<key>UISupportedInterfaceOrientations</key>
+	<array>
+		<string>UIInterfaceOrientationPortrait</string>
+	</array>
+
+	<!-- Камера для QR-импорта -->
+	<key>NSCameraUsageDescription</key>
+	<string>NEXUS использует камеру для сканирования QR-кодов VPN-подписок.</string>
+
+	<!-- Локальная сеть (для режима раздачи / LAN) -->
+	<key>NSLocalNetworkUsageDescription</key>
+	<string>NEXUS использует локальную сеть для работы прокси-режима.</string>
+
+	<!-- Network Extension (VPN) -->
+	<key>UIBackgroundModes</key>
+	<array>
+		<string>network-authentication</string>
+	</array>
+</dict>
+</plist>
