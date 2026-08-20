@@ -109,6 +109,19 @@ function main() {
 
   run('npm', ['run', 'build'], true);
 
+  // Заставка запуска живёт прямо в index.html. Проверяем её здесь, сразу после
+  // сборки: файл заведомо свежий. В наборе тестов такой проверке не место —
+  // `npm test` не запускает `vite build`, и там почти всегда лежит `dist/` от
+  // прошлого запуска, из-за чего тест ругался на устаревший артефакт.
+  const builtPage = path.join(root, 'dist', 'index.html');
+  if (!fs.existsSync(builtPage) || !fs.readFileSync(builtPage, 'utf8').includes('id="nexus-boot"')) {
+    console.error('');
+    console.error('В собранной странице нет заставки запуска.');
+    console.error('Пользователь увидит чёрное окно, пока грузится интерфейс.');
+    console.error('Проверьте index.html в корне проекта.');
+    process.exit(1);
+  }
+
   // Папка release очищается перед сборкой.
   //
   // electron-builder не удаляет прежние файлы, и за десяток версий там

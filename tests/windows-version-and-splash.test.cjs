@@ -67,18 +67,25 @@ assert.match(indexHtml, /@media \(prefers-reduced-motion: reduce\)/);
 const reduced = indexHtml.slice(indexHtml.indexOf('@media (prefers-reduced-motion: reduce)'));
 assert.match(reduced, /\.nexus-boot-ring, \.nexus-boot-track i \{ animation: none; \}/);
 
-// Заставка обязана попадать в собранную страницу, иначе её никто не увидит.
+// Заставка обязана попадать в собранную страницу — но проверять это здесь
+// нельзя, и вот почему.
 //
-// Проверяется только если сборка свежая. `npm test` собирает лишь main-процесс
-// (`build:main`), а `dist/` появляется отдельной командой `npm run build`.
-// Раньше здесь стояла проверка «файл существует → он обязан содержать
-// заставку», и на машине со старым `dist/` от прошлой версии тест падал, хотя
-// с кодом всё в порядке. Сравниваем со временем правки index.html: если сборка
-// старее исходника, проверять нечего.
-const built = path.join(root, 'dist', 'index.html');
-const source = path.join(root, 'index.html');
-if (fs.existsSync(built) && fs.statSync(built).mtimeMs >= fs.statSync(source).mtimeMs) {
-  assert.match(fs.readFileSync(built, 'utf8'), /id="nexus-boot"/, 'заставка потерялась при сборке');
-}
+// `npm test` собирает только main-процесс: папку `dist/` создаёт отдельная
+// команда `npm run build`. Значит на машине разработчика там почти всегда
+// лежит сборка от предыдущего запуска — без свежих правок.
+//
+// Первая попытка сравнивать время файлов провалилась: при распаковке патча
+// `index.html` получает дату из архива (то есть момент сборки патча), а
+// локальный `dist/` собран позже — и проверка снова падала, хотя с кодом всё
+// в порядке. Дважды подряд тест ругался не на ошибку, а на устаревший артефакт.
+//
+// Правильное место для такой проверки — сама сборка, а не набор тестов.
+// Скрипт выпуска (`scripts/build-release.cjs`) сверяет `dist/index.html` сразу
+// после `vite build`, когда файл заведомо свежий.
+
+// Проверка не должна потеряться совсем: убеждаемся, что сборка выпуска её
+// выполняет. Так тест сторожит саму защиту, не трогая артефакты.
+const releaseScript = fs.readFileSync(path.join(root, 'scripts', 'build-release.cjs'), 'utf8');
+assert.match(releaseScript, /id="nexus-boot"/, 'сборка обязана проверять заставку в собранной странице');
 
 console.log('Windows version and splash screen checks passed.');
