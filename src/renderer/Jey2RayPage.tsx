@@ -6,6 +6,7 @@ import { ConnectionDiagnostics } from './ConnectionDiagnostics';
 import { SubscriptionManager, type SubscriptionAction } from './SubscriptionManager';
 import AppPicker from './AppPicker';
 import { dateLocale, t } from '../main/i18n';
+import { DNS_PROVIDERS, isValidDnsAddress } from '../main/dns-servers';
 
 function cleanError(error: unknown): string {
   const raw = error instanceof Error ? error.message : String(error);
@@ -190,6 +191,9 @@ export function Jey2RayPage({
   const [latencyUnavailable, setLatencyUnavailable] = useState(false);
   const [modeSwitching, setModeSwitching] = useState<'proxy' | 'tun' | null>(null);
   const [sessionNow, setSessionNow] = useState(Date.now());
+  // Свой адрес DNS редактируется черновиком: сохранять на каждое нажатие
+  // клавиши нельзя — недописанный адрес оборвал бы разрешение имён.
+  const [dnsDraft, setDnsDraft] = useState(settings.vpnDnsCustom ?? '');
   const subscriptionImportInFlight = useRef(false);
   const desktop = Boolean(window.nexus);
   const xrayUpdate = updates.find((item) => item.id === 'jey2ray');
@@ -695,6 +699,59 @@ export function Jey2RayPage({
               : t('Адреса появятся здесь после подключения VPN.')}
           </p>)}
           <p className="fragmentation-note">{t('Включайте только в доверенной сети: прокси станет доступен всем устройствам этого сегмента без пароля. Может потребоваться разрешение в брандмауэре Windows.')}</p>
+        </section>
+
+        <section className="app-settings-card dns-settings-card">
+          <div className="app-settings-card-head compact">
+            <div><span className="settings-step">04</span><div><h3>{t('Справочник имён (DNS)')}</h3><p>{t('Через него определяются адреса сайтов. Свой справочник скрывает от провайдера список посещённых сайтов и обходит блокировки на этом уровне.')}</p></div></div>
+          </div>
+          <div className="dns-provider-list" role="radiogroup" aria-label={t('Справочник имён (DNS)')}>
+            {DNS_PROVIDERS.map((provider) => <button
+              key={provider.id}
+              type="button"
+              role="radio"
+              aria-checked={settings.vpnDnsProvider === provider.id}
+              className={`dns-provider-option ${settings.vpnDnsProvider === provider.id ? 'is-active' : ''}`}
+              onClick={() => {
+                onSettings({ ...settings, vpnDnsProvider: provider.id });
+                if (provider.id !== 'custom') {
+                  onToast(`${t('Справочник имён:')} ${t(provider.title)}${runtime.status === 'connected' ? t(' · подключение перезапускается') : ''}`);
+                }
+              }}
+            >
+              <span className="dns-provider-mark"><i /></span>
+              <span className="dns-provider-copy">
+                <strong>{t(provider.title)}</strong>
+                <small>{t(provider.description)}</small>
+              </span>
+            </button>)}
+          </div>
+          {settings.vpnDnsProvider === 'custom' && <div className="dns-custom-row">
+            <input
+              value={dnsDraft}
+              onChange={(event) => setDnsDraft(event.target.value)}
+              placeholder="1.1.1.1"
+              aria-label={t('Адрес DNS-сервера')}
+              spellCheck={false}
+            />
+            <button
+              type="button"
+              className="ghost-action"
+              disabled={!dnsDraft.trim() || dnsDraft.trim() === settings.vpnDnsCustom}
+              onClick={() => {
+                const value = dnsDraft.trim();
+                // Неверный адрес молча сломал бы разрешение имён: интернет
+                // «пропал» бы без объяснения причины. Проверяем до сохранения.
+                if (!isValidDnsAddress(value)) {
+                  onToast(t('Неверный адрес. Пример: 1.1.1.1 или https://dns.example.com/dns-query'));
+                  return;
+                }
+                onSettings({ ...settings, vpnDnsCustom: value });
+                onToast(`${t('Справочник имён:')} ${value}${runtime.status === 'connected' ? t(' · подключение перезапускается') : ''}`);
+              }}
+            >{t('Применить')}</button>
+          </div>}
+          <p className="fragmentation-note">{t('Подходит обычный адрес вроде 1.1.1.1 или защищённый https://…/dns-query. Изменение применяется сразу: активное подключение перезапустится.')}</p>
         </section>
       </> : <>
         {routeSettingsLocked && <div className="app-settings-lock">

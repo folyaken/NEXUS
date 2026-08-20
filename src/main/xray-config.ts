@@ -1,4 +1,5 @@
 import { inboundListenAddress } from './lan-share';
+import { xrayDnsSection } from './dns-servers';
 import { xrayProcessSelectors } from './split-tunnel';
 import type { VpnAppRoutingMode, VpnLinkParams, VpnSplitApp } from './types';
 
@@ -152,6 +153,7 @@ export function buildXrayConfig(
   appRouting: VpnAppRoutingMode = 'include',
   fragmentation = true,
   allowLan = false,
+  dnsServers: string[] = [],
 ): Record<string, unknown> {
   const listen = inboundListenAddress(allowLan);
   const inbounds: Record<string, unknown>[] = [{
@@ -227,8 +229,13 @@ export function buildXrayConfig(
     { tag: 'block', protocol: 'blackhole', settings: {} },
   );
 
+  // Секция DNS добавляется только когда выбран свой справочник. Без неё ядро
+  // работает через системный, как и раньше.
+  const dns = xrayDnsSection(dnsServers);
+
   return {
     log: { loglevel: 'warning' },
+    ...(dns ? { dns } : {}),
     inbounds,
     outbounds,
     ...(routing ? { routing } : {}),

@@ -9,7 +9,7 @@
 
 export interface CommunityLink {
   /** Ключ для интерфейса: по нему выбирается значок и порядок кнопок. */
-  id: 'channel' | 'chat' | 'site';
+  id: 'channel' | 'chat' | 'discord' | 'site';
   /** Подпись кнопки. Переводится словарём интерфейса. */
   title: string;
   /** Короткое пояснение — зачем сюда идти. */
@@ -23,12 +23,27 @@ export interface CommunityLink {
  */
 export const TELEGRAM_CHANNEL = 'https://t.me/nexus_flex';
 
+/**
+ * Личка в Discord.
+ *
+ * Прямой ссылки на переписку с пользователем у Discord нет — открывается
+ * страница профиля по имени. Кому удобнее там, тот найдёт; остальным остаётся
+ * канал в Telegram.
+ */
+export const DISCORD_CONTACT = 'https://discord.com/users/folyaken';
+
 export const COMMUNITY_LINKS: CommunityLink[] = [
   {
     id: 'channel',
     title: 'Телеграм-канал',
     description: 'Новости, обновления и разбор проблем.',
     url: TELEGRAM_CHANNEL,
+  },
+  {
+    id: 'discord',
+    title: 'Discord',
+    description: 'Написать напрямую: @folyaken',
+    url: DISCORD_CONTACT,
   },
 ];
 

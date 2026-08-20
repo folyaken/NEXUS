@@ -1400,12 +1400,19 @@ kbd { padding: 3px 5px; border: 1px solid rgba(255,255,255,.1); border-radius: 5
 .about-community-card { margin-top: 15px; padding: 21px 22px; border: 1px solid var(--line); border-radius: 18px; background: linear-gradient(135deg, rgba(21,29,44,.96), rgba(24,30,52,.92)); }
 .about-community-lead { margin-top: 15px; color: #b9c5d6; font-size: 12px; line-height: 1.6; }
 .about-community-links { display: grid; grid-template-columns: repeat(auto-fit, minmax(230px, 1fr)); gap: 10px; margin-top: 15px; }
-.about-community-button { display: grid; gap: 3px; padding: 13px 15px; border: 1px solid rgba(140,161,255,.14); border-radius: 13px; background: rgba(255,255,255,.026); color: inherit; cursor: pointer; text-align: left; transition: border-color .18s ease, background .18s ease, transform .18s ease; }
+.about-community-button { display: flex; align-items: center; gap: 12px; padding: 13px 15px; border: 1px solid rgba(140,161,255,.14); border-radius: 13px; background: rgba(255,255,255,.026); color: inherit; cursor: pointer; text-align: left; transition: border-color .18s ease, background .18s ease, transform .18s ease; }
 .about-community-button:hover { border-color: rgba(124,242,213,.28); background: rgba(124,242,213,.07); transform: translateY(-1px); }
 .about-community-button:focus-visible { outline: 2px solid var(--cyan); outline-offset: 2px; }
+/* Значок площадки: узнаваемая иконка подсказывает, куда ведёт кнопка,
+   ещё до чтения подписи. Раньше все кнопки выглядели одинаково. */
+.about-community-button-icon { display: grid; width: 34px; height: 34px; flex: 0 0 auto; place-items: center; border: 1px solid rgba(140,161,255,.16); border-radius: 11px; background: rgba(255,255,255,.04); color: var(--cyan); }
+.community-item-glyph { width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-linecap: round; stroke-linejoin: round; stroke-width: 1.6; }
+.about-community-button-copy { display: grid; min-width: 0; gap: 3px; }
 .about-community-button strong { color: #e4ebf5; font-size: 12px; }
 .about-community-button span { color: #8c9ab0; font-size: 11px; line-height: 1.5; }
-.about-community-button em { color: var(--cyan); font-family: var(--font-data); font-size: 10px; font-style: normal; }
+.about-community-button:hover .about-community-button-icon { border-color: rgba(124,242,213,.3); background: rgba(124,242,213,.1); }
+.appearance-graphite .about-community-button-icon { border-color: rgba(226,226,226,.14); color: #d6d6d6; }
+.appearance-graphite .about-community-button:hover .about-community-button-icon { border-color: rgba(226,226,226,.24); background: rgba(226,226,226,.08); }
 .community-glyph { fill: none; stroke: currentColor; stroke-width: 1.6; stroke-linejoin: round; }
 .appearance-graphite .about-community-card { background: #161616; }
 .appearance-graphite .about-community-button:hover { border-color: rgba(214,214,214,.24); background: rgba(214,214,214,.06); }
@@ -1984,3 +1991,43 @@ kbd { padding: 3px 5px; border: 1px solid rgba(255,255,255,.1); border-radius: 5
 .app-frame.motion-off .about-update-comet,
 .app-frame.motion-off .about-update-steps li.is-current .about-update-step-mark { animation: none; }
 .app-frame.motion-off .about-update-tick { animation: none; stroke-dashoffset: 0; }
+
+/* ============================================================================
+   Выбор справочника имён (DNS) в настройках Jey2Ray
+   ==========================================================================*/
+
+.dns-provider-list { display: grid; gap: 8px; margin-top: 14px; }
+.dns-provider-option { display: flex; align-items: flex-start; gap: 11px; padding: 11px 13px; border: 1px solid rgba(255,255,255,.07); border-radius: 13px; background: rgba(255,255,255,.022); color: inherit; text-align: left; transition: border-color .2s ease, background .2s ease, transform .2s ease; }
+.dns-provider-option:hover { border-color: rgba(124,242,213,.2); background: rgba(124,242,213,.05); transform: translateY(-1px); }
+.dns-provider-option:focus-visible { outline: 2px solid var(--cyan); outline-offset: 2px; }
+.dns-provider-option.is-active { border-color: rgba(124,242,213,.34); background: rgba(124,242,213,.08); }
+/* Кружок выбора: тот же приём, что у переключателей режимов — привычнее, чем
+   галочка, и сразу читается как «выбран один из списка». */
+.dns-provider-mark { display: grid; width: 17px; height: 17px; flex: 0 0 auto; margin-top: 2px; place-items: center; border: 1.5px solid rgba(255,255,255,.16); border-radius: 50%; transition: border-color .2s ease; }
+.dns-provider-mark i { width: 7px; height: 7px; border-radius: 50%; background: transparent; transition: background .2s ease, box-shadow .2s ease; }
+.dns-provider-option.is-active .dns-provider-mark { border-color: var(--cyan); }
+.dns-provider-option.is-active .dns-provider-mark i { background: var(--cyan); box-shadow: 0 0 9px rgba(124,242,213,.7); }
+.dns-provider-copy { display: grid; min-width: 0; gap: 3px; }
+.dns-provider-copy strong { color: #dce5f2; font-size: 12px; font-weight: 600; }
+.dns-provider-copy small { color: #8593a8; font-size: 10.5px; line-height: 1.45; }
+.dns-provider-option.is-active .dns-provider-copy strong { color: #eafff9; }
+
+.dns-custom-row { display: flex; gap: 9px; margin-top: 11px; }
+.dns-custom-row input { flex: 1; min-width: 0; padding: 10px 12px; border: 1px solid rgba(255,255,255,.09); border-radius: 11px; outline: none; background: rgba(0,0,0,.22); color: #e4ebf5; font-family: var(--font-data); font-size: 11px; }
+.dns-custom-row input:focus { border-color: rgba(124,242,213,.35); }
+.dns-custom-row .ghost-action { flex: 0 0 auto; }
+
+.appearance-graphite .dns-provider-option:hover,
+.appearance-graphite .dns-provider-option.is-active { border-color: rgba(226,226,226,.2); background: rgba(226,226,226,.06); }
+.appearance-graphite .dns-provider-option.is-active .dns-provider-mark { border-color: #d6d6d6; }
+.appearance-graphite .dns-provider-option.is-active .dns-provider-mark i { background: #d6d6d6; box-shadow: 0 0 9px rgba(214,214,214,.5); }
+.appearance-graphite .dns-custom-row input:focus { border-color: rgba(226,226,226,.3); }
+
+@media (prefers-reduced-motion: reduce) {
+  .app-frame:not(.motion-force) .dns-provider-option,
+  .app-frame:not(.motion-force) .dns-provider-mark,
+  .app-frame:not(.motion-force) .dns-provider-mark i { transition: none; }
+}
+.app-frame.motion-off .dns-provider-option,
+.app-frame.motion-off .dns-provider-mark,
+.app-frame.motion-off .dns-provider-mark i { transition: none; }

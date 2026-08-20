@@ -7,6 +7,7 @@ import { execFile } from 'node:child_process';
 import os from 'node:os';
 import { isElevated, relaunchElevated } from './elevation';
 import { companionCount } from './dpi-companions';
+import { DNS_PROVIDERS, isValidDnsAddress, resolveDnsServers } from './dns-servers';
 import { COMMUNITY_LINKS, TELEGRAM_CHANNEL, isAllowedCommunityUrl } from './community';
 import { addDpiHost, readDpiHostlist, removeDpiHost } from './dpi-hostlist';
 import { clearSystemProxy, clearSystemProxySync } from './system-proxy';
@@ -121,6 +122,10 @@ function normalizeSettings(raw: Partial<AppSettings>): AppSettings {
     vpnAppRouting,
     vpnSplitTunnel: vpnAppRouting === 'include',
     vpnSplitApps,
+    // Неизвестное значение приводится к системному справочнику: так интернет
+    // продолжит работать, даже если настройки испорчены вручную.
+    vpnDnsProvider: DNS_PROVIDERS.some((item) => item.id === raw.vpnDnsProvider) ? String(raw.vpnDnsProvider) : 'system',
+    vpnDnsCustom: typeof raw.vpnDnsCustom === 'string' && isValidDnsAddress(raw.vpnDnsCustom) ? raw.vpnDnsCustom.trim() : '',
   };
 }
 
@@ -298,6 +303,7 @@ async function connectVpnProfile(
     continuedSessionAt,
     settings.vpnFragmentation,
     settings.vpnAllowLan,
+    resolveDnsServers(settings.vpnDnsProvider, settings.vpnDnsCustom),
   );
   await saveSettings({ ...settings, lastVpnProfileId: profileId });
   return runtime;
@@ -863,11 +869,15 @@ function wireIpc(): void {
   ipcMain.handle('settings:get', () => settings);
   ipcMain.handle('settings:save', async (_event, next: AppSettings) => {
     const previousAllowLan = settings.vpnAllowLan;
+    const previousDns = `${settings.vpnDnsProvider}|${settings.vpnDnsCustom}`;
     const saved = await saveSettings(next ?? settings);
-    // Слушающий адрес входов задаётся при старте ядра, поэтому переключение
-    // раздачи применяется мгновенным перезапуском активной сессии.
+    // Слушающий адрес входов и справочник имён задаются при старте ядра,
+    // поэтому их переключение применяется перезапуском активной сессии. Без
+    // этого выбранный DNS начал бы работать только после ручного переподключения,
+    // и человек решил бы, что настройка не действует.
+    const dnsChanged = `${saved.vpnDnsProvider}|${saved.vpnDnsCustom}` !== previousDns;
     const current = vpn?.runtime();
-    if (saved.vpnAllowLan !== previousAllowLan && current?.status === 'connected' && current.activeProfileId) {
+    if ((saved.vpnAllowLan !== previousAllowLan || dnsChanged) && current?.status === 'connected' && current.activeProfileId) {
       await connectVpnProfile(current.activeProfileId, settings.vpnMode, current.connectedAt);
     }
     return saved;
@@ -914,7 +924,14 @@ function wireIpc(): void {
   ipcMain.handle('window:is-maximized', () => Boolean(mainWindow?.isMaximized()));
   ipcMain.handle('window:close', () => mainWindow?.close());
 
-  manager.on('changed', (modules) => mainWindow?.webContents.send('modules:changed', modules));
+  manager.on('changed', (modules) => {
+    mainWindow?.webContents.send('modules:changed', modules);
+    // Меню значка возле часов пересобирается и при изменениях модулей.
+    // Раньше оно обновлялось только событиями VPN, поэтому пункт «Отключить
+    // всё» оставался серым, пока модуль запускали без подключения к VPN:
+    // отключать было что, а нажать было нельзя.
+    if (tray && !tray.isDestroyed()) refreshTrayMenu(vpn?.runtime().status ?? trayVpnStatus);
+  });
   manager.on('log', (log: ModuleLog) => {
     mainWindow?.webContents.send('logs:append', log);
   });

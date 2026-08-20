@@ -813,6 +813,7 @@ export class VpnManager extends EventEmitter {
     continuedSessionAt: string | null = null,
     fragmentation = true,
     allowLan = false,
+    dnsServers: string[] = [],
   ): Promise<VpnRuntime> {
     const profile = this.profiles.get(id);
     if (!profile) throw new Error('Профиль не найден');
@@ -859,8 +860,8 @@ export class VpnManager extends EventEmitter {
       : 'system';
     const activeSplitApps = activeAppRouting === 'system' ? [] : splitApps;
     const config = useSingbox
-      ? buildSingboxConfig(profile.params, port, mode, activeSplitApps, activeAppRouting, allowLan)
-      : buildXrayConfig(profile.params, port, mode, activeSplitApps, activeAppRouting, fragmentation, allowLan);
+      ? buildSingboxConfig(profile.params, port, mode, activeSplitApps, activeAppRouting, allowLan, dnsServers)
+      : buildXrayConfig(profile.params, port, mode, activeSplitApps, activeAppRouting, fragmentation, allowLan, dnsServers);
     const configFile = useSingbox ? this.singboxConfigPath() : this.generatedPath();
     await fs.mkdir(this.configsDir(), { recursive: true });
     await fs.writeFile(configFile, `${JSON.stringify(config, null, 2)}\n`, 'utf8');

@@ -1,4 +1,5 @@
 import { inboundListenAddress } from './lan-share';
+import { singboxDnsSection } from './dns-servers';
 import { singboxProcessNames, singboxProcessPaths } from './split-tunnel';
 import type { VpnAppRoutingMode, VpnLinkParams, VpnSplitApp } from './types';
 
@@ -9,6 +10,7 @@ export function buildSingboxConfig(
   splitApps: VpnSplitApp[] = [],
   appRouting: VpnAppRoutingMode = 'include',
   allowLan = false,
+  dnsServers: string[] = [],
 ): Record<string, unknown> {
   const listen = inboundListenAddress(allowLan);
   const inbounds: Record<string, unknown>[] = [
@@ -38,8 +40,11 @@ export function buildSingboxConfig(
     { inbound: ['tun-in'], action: 'route', outbound: fallbackOutbound },
   ] : [];
 
+  const dns = singboxDnsSection(dnsServers);
+
   return {
     log: { level: 'warn' },
+    ...(dns ? { dns } : {}),
     inbounds,
     outbounds: [{
       type: 'hysteria2',

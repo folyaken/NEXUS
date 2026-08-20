@@ -212,6 +212,10 @@ export interface AppSettings {
   /** Legacy mirror retained while settings created by patch 09 are migrated. */
   vpnSplitTunnel?: boolean;
   vpnSplitApps: VpnSplitApp[];
+  /** Выбранный справочник имён: 'system', 'cloudflare', 'custom' и т. д. */
+  vpnDnsProvider: string;
+  /** Свой адрес DNS — используется, когда выбран вариант 'custom'. */
+  vpnDnsCustom: string;
 }
 
 export const DEFAULT_SETTINGS: AppSettings = {
@@ -232,6 +236,8 @@ export const DEFAULT_SETTINGS: AppSettings = {
   vpnAppRouting: 'system',
   vpnSplitTunnel: false,
   vpnSplitApps: [],
+  vpnDnsProvider: 'system',
+  vpnDnsCustom: '',
 };
 
 export interface VpnLinkParams {

@@ -395,6 +395,22 @@ function LogsPage({ logs, category, setCategory, onNotice, t }: { logs: ModuleLo
  * это публикуется. Ссылку открывает main-процесс: окно программы работает с
  * правами администратора, и сторонняя страница внутри него — лишний риск.
  */
+function CommunityGlyph({ id }: { id: string }) {
+  if (id === 'discord') {
+    return <svg viewBox="0 0 24 24" aria-hidden="true" className="community-item-glyph">
+      <path d="M8.5 8.2a12 12 0 0 1 7 0M7.4 15.5a12 12 0 0 0 9.2 0" />
+      <path d="M9.2 5.4 8.6 4.2A15 15 0 0 0 4.3 6a20 20 0 0 0-1.8 12.1 15 15 0 0 0 4.6 2.3l1-1.7M14.8 5.4l.6-1.2A15 15 0 0 1 19.7 6a20 20 0 0 1 1.8 12.1 15 15 0 0 1-4.6 2.3l-1-1.7" />
+      <ellipse cx="9.3" cy="12.4" rx="1.5" ry="1.9" />
+      <ellipse cx="14.7" cy="12.4" rx="1.5" ry="1.9" />
+    </svg>;
+  }
+  // Телеграм: бумажный самолётик.
+  return <svg viewBox="0 0 24 24" aria-hidden="true" className="community-item-glyph">
+    <path d="M3.6 11.4 20 5.2 17.1 19.4l-4.9-3.4-2.6 2.5-.5-4.1z" />
+    <path d="m9.1 14.4 8-6.4-9.6 5.1" />
+  </svg>;
+}
+
 function CommunityCard({ t }: { t: (text: string) => string }) {
   const [links, setLinks] = useState<{ id: string; title: string; description: string; url: string }[]>([]);
 
@@ -411,9 +427,9 @@ function CommunityCard({ t }: { t: (text: string) => string }) {
       <div className="about-panel-icon">
         <svg viewBox="0 0 24 24" aria-hidden="true" className="community-glyph"><path d="M3.6 11.4 20 5.2 17.1 19.4l-4.9-3.4-2.6 2.5-.5-4.1z" /><path d="m9.1 14.4 8-6.4-9.6 5.1" /></svg>
       </div>
-      <div><span>{t('СООБЩЕСТВО')}</span><h3>{t('Канал NEXUS')}</h3></div>
+      <div><span>{t('СООБЩЕСТВО')}</span><h3>{t('Связь с автором')}</h3></div>
     </div>
-    <p className="about-community-lead">{t('Новости, разбор ошибок и сообщения о новых версиях. Подпишитесь, чтобы не пропустить обновление.')}</p>
+    <p className="about-community-lead">{t('Новости и обновления — в канале. С вопросом или проблемой можно написать напрямую.')}</p>
     <div className="about-community-links">
       {links.map((link) => <button
         key={link.id}
@@ -421,9 +437,11 @@ function CommunityCard({ t }: { t: (text: string) => string }) {
         className="about-community-button"
         onClick={() => void window.nexus?.openCommunityLink(link.url)}
       >
-        <strong>{t(link.title)}</strong>
-        <span>{t(link.description)}</span>
-        <em>{link.url.replace(/^https:\/\//, '')}</em>
+        <span className="about-community-button-icon"><CommunityGlyph id={link.id} /></span>
+        <span className="about-community-button-copy">
+          <strong>{t(link.title)}</strong>
+          <span>{t(link.description)}</span>
+        </span>
       </button>)}
     </div>
   </article>;
