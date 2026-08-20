@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../core/l10n.dart';
+import '../core/theme.dart';
 import '../widgets/animated_background.dart';
 import '../widgets/liquid_nav_bar.dart';
 import 'dashboard_screen.dart';
@@ -34,24 +35,29 @@ class _HomeShellState extends State<HomeShell> {
 
     final items = [
       LiquidNavItem(
-        icon: Icons.space_dashboard_rounded,
+        icon: Icons.home_rounded,
         label: t.t('nav.dashboard'),
+        color: AppColors.primaryCyan,
       ),
       LiquidNavItem(
         icon: Icons.widgets_rounded,
         label: t.t('nav.modules'),
+        color: AppColors.primaryPurple,
       ),
       LiquidNavItem(
         icon: Icons.rss_feed_rounded,
         label: t.t('subs.title'),
+        color: AppColors.amber,
       ),
       LiquidNavItem(
         icon: Icons.public_rounded,
         label: t.t('nav.vpn'),
+        color: const Color(0xFF7AA2FF),
       ),
       LiquidNavItem(
         icon: Icons.tune_rounded,
         label: t.t('nav.settings'),
+        color: AppColors.mint,
       ),
     ];
 

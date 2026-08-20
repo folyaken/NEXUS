@@ -7,36 +7,40 @@ import 'package:flutter/services.dart' show HapticFeedback;
 import '../core/theme.dart';
 
 /// Элемент нижней навигации.
+///
+/// [color] — цвет «шарика»-указателя этой вкладки (в покое и в полёте).
+/// Если null — фирменный фиолетовый.
 class LiquidNavItem {
   const LiquidNavItem({
     required this.icon,
     required this.label,
+    this.color,
   });
 
   final IconData icon;
   final String label;
+  final Color? color;
 }
 
 /// «Жидкая» нижняя навигация (liquid / gooey).
 ///
-/// Компоновка — как в классическом gooey-таббаре: активный указатель —
-/// фиолетовый кружок, который СИДИТ НАД верхней кромкой панели (выступает
-/// вверх), утонув низом в круглой «лунке» панели. Иконка активного пункта
-/// живёт внутри кружка (белая), в ряду её место пустует.
+/// Компоновка: активный указатель — цветной кружок (свой цвет у каждой
+/// вкладки), который СИДИТ НАД верхней кромкой панели, утопленный низом в
+/// глубокой «ямке» (U-выемка в кромке следует за кружком). Иконка внутри
+/// кружка — ЧЁРНАЯ, иконки в ряду — серые.
 ///
-/// Цикл анимации при смене вкладки (560 мс):
-///  1) SINK: кружок сплющивается и «тает» вниз, сливаясь с кромкой панели —
-///     становится плоским «слизняком», лежащим на верхней кромке;
-///  2) TRAVEL: слизняк съезжает по кромке к новой позиции — тянется по
-///     направлению движения (squash & stretch), за ним тянется капля-хвост
-///     (обе фигуры сливаются через goo-слой: blur + альфа-порог);
-///  3) POP: на новом месте слизняк «выстреливает» вверх и надувается в круг
-///     с перелётом (elasticOut — кружок чуть перелетает точку парковки и
-///     оседает), goo-шея к кромке тянется и рвётся;
-///  4) новая белая иконка всплывает внутри кружка, старая тонет.
+/// Цикл анимации (560 мс):
+///  1) SINK: кружок мягко сплющивается в «пилюлю» на кромке панели;
+///  2) TRAVEL: пилюля съезжает к новой позиции, слегка вытягиваясь по
+///     скорости (squash & stretch, ограничен), позади — капля-хвост,
+///     склеенная goo-слоем (blur + альфа-порог); цвет плавно перетекает
+///     в цвет новой вкладки;
+///  3) POP: тело выпрыгивает вверх с лёгким перелётом (elasticOut),
+///     goo-шея к кромке тянется и рвётся, ямка разъезжается под ним;
+///  4) новая чёрная иконка всплывает внутри кружка.
 ///
-/// API не изменился: LiquidNavItem(icon, label) / LiquidNavBar(index, items,
-/// onChanged) — home_shell.dart трогать не нужно.
+/// API: LiquidNavItem(icon, label, color?) / LiquidNavBar(index, items,
+/// onChanged).
 class LiquidNavBar extends StatefulWidget {
   const LiquidNavBar({
     super.key,
@@ -56,27 +60,29 @@ class LiquidNavBar extends StatefulWidget {
 class _LiquidNavBarState extends State<LiquidNavBar>
     with SingleTickerProviderStateMixin {
   // -- геометрия --
-  static const double _overhang = 40; // зона НАД панелью, куда выступает круг
-  static const double _barH = 64; // высота самой панели
+  static const double _overhang = 40; // зона НАД панелью
+  static const double _barH = 64; // высота панели
   static const double _totalH = _overhang + _barH; // 104
-  static const double _bubble = 46; // диаметр кружка
+  static const double _bubble = 46; // диаметр круга
   static const double _radius = _bubble / 2;
-  static const double _sinkDepth = 12; // насколько низ круга утоплен в панель
+  static const double _sinkDepth = 14; // низ круга утоплен в панель
   static const double _gooBlur = 6;
-  static const Color _gooColor = Color(0xFF6C63FF);
 
   // Край панели (верхняя кромка) в координатах виджета.
   static const double _edgeY = _overhang;
   // Y центра круга в парковке (над кромкой).
-  static const double _parkY = _overhang - _sinkDepth; // 28
-  // Y центра «слизняка» в движении (лежит на кромке).
+  static const double _parkY = _overhang - _sinkDepth; // 26
+  // Y центра «пилюли» в движении (лежит на кромке).
   static const double _slugY = _overhang + 1; // 41
 
   // -- окна фаз (t: 0 → 1) --
-  static const double _sinkEnd = 0.20; // круг → слизняк
-  static const double _travelStart = 0.18; // начало съезда
-  static const double _travelEnd = 0.78; // конец съезда
-  static const double _popStart = 0.70; // начало выпрыгивания (внахлёст!)
+  static const double _sinkEnd = 0.20;
+  static const double _travelStart = 0.18;
+  static const double _travelEnd = 0.78;
+  static const double _popStart = 0.70;
+
+  /// Цвет иконки внутри круга — почти чёрный (в тон фону).
+  static const Color _iconInBubble = Color(0xFF0A0E1A);
 
   late final AnimationController _controller = AnimationController(
     vsync: this,
@@ -123,41 +129,37 @@ class _LiquidNavBarState extends State<LiquidNavBar>
     super.dispose();
   }
 
+  Color _itemColor(int i) => widget.items[i].color ?? AppColors.primaryPurple;
+
   // ---- кривые фаз ----
 
   static double _clamp01(double v) => v.clamp(0.0, 1.0).toDouble();
 
-  /// «Круглость» k: 1 — припаркованный круг над панелью, 0 — плоский
-  /// слизняк на кромке. SINK гасит k (easeIn), POP возвращает elasticOut.
+  /// «Круглость» k: 1 — припаркованный круг, 0 — пилюля на кромке.
   double _roundness(double t) {
-    final sink = 1.0 -
-        Curves.easeInCubic.transform(_clamp01(t / _sinkEnd));
-    final pop =
-        Curves.elasticOut.transform(_clamp01((t - _popStart) / (1 - _popStart)));
-    // до pop: k = sink; после pop-старта: sink уже 0 → k = pop.
+    final sink = 1.0 - Curves.easeInCubic.transform(_clamp01(t / _sinkEnd));
+    final pop = Curves.elasticOut
+        .transform(_clamp01((t - _popStart) / (1 - _popStart)));
     return sink + (1 - sink) * pop - sink * pop;
   }
 
-  /// Прогресс съезда 0..1 в окне travel. [lag] — запаздывание для капли.
+  /// Прогресс съезда 0..1 в окне travel. [lag] — запаздывание капли.
   double _travelT(double t, [double lag = 0]) {
-    final u = _clamp01(
-        (t - lag - _travelStart) / (_travelEnd - _travelStart));
+    final u = _clamp01((t - lag - _travelStart) / (_travelEnd - _travelStart));
     return Curves.easeInOutCubic.transform(u);
   }
 
-  /// Кроссфейд иконки внутри круга (старая тонет / новая всплывает).
+  /// Кроссфейд иконки внутри круга (и перетекание цвета шарика).
   double _fade(double t) => _clamp01((t - 0.42) / 0.14);
 
   /// Прозрачность иконки в ряду (0 = она уехала в кружок).
   double _rowIconOpacity(int i) {
     if (!_animating) return i == _currentIndex ? 0.0 : 1.0;
     final t = _controller.value;
-    // старая появляется, как только круг начал таять
-    if (i == _fromIndex) return Curves.easeOut.transform(_clamp01(t / 0.14));
-    // новая исчезает, когда круг фактически допрыгнул и сел на неё
-    if (i == _currentIndex) {
-      return _clamp01(1.0 - (t - 0.80) / 0.12);
+    if (i == _fromIndex) {
+      return Curves.easeOut.transform(_clamp01(t / 0.14));
     }
+    if (i == _currentIndex) return _clamp01(1.0 - (t - 0.80) / 0.12);
     return 1.0;
   }
 
@@ -187,36 +189,38 @@ class _LiquidNavBarState extends State<LiquidNavBar>
               const dtFrame = 16.7 / 560;
               final vx = (span * (_travelT(_clamp01(t + dtFrame)) - m)).abs();
 
-              // k: 1 = круг над панелью, 0 = плоский слизняк на кромке.
+              // k: 1 = круг над панелью, 0 = пилюля на кромке.
               final k = _roundness(t);
               final kSoft = k.clamp(0.0, 1.15).toDouble();
               final k01 = _clamp01(k);
 
-              // Центр: слизняк на кромке (k=0) ↔ круг над панелью (k=1).
-              // elastic в k даёт перелёт выше парковки на POP.
+              // Цвет шарика: перетекает в цвет целевой вкладки посреди пути.
+              final fade = _fade(t);
+              final gooColor = !_animating
+                  ? _itemColor(_currentIndex)
+                  : (Color.lerp(
+                          _itemColor(_fromIndex), _itemColor(_currentIndex),
+                          fade) ??
+                      _itemColor(_currentIndex));
+
+              // Центр тела: пилюля на кромке (k=0) ↔ круг над панелью (k=1).
               final cy = _slugY + (_parkY - _slugY) * kSoft;
 
-              // Деформации: базовый squash при плющении + растяжение от
-              // скорости (с лимитом!) + вертикальный «выстрел» при перелёте.
-              final stretchV = math.min(
-                0.60,
-                vx * 0.02 / (0.35 + 0.65 * k01),
-              );
-              final sx = 1 +
-                  (1 - k01) * 0.40 +
-                  stretchV -
-                  math.max(0.0, k - 1) * 0.30;
-              final syBase =
-                  0.22 + math.min(1.17, kSoft * 1.02) * 0.78;
-              // объём сохраняем: чем сильнее тянем — тем тоньше тело
-              final sy = syBase * (1 - 0.28 * (stretchV / 0.60));
+              // Деформации — МЯГКИЕ: пилюля ~sx1.35 / sy0.58, плюс
+              // ограниченное растяжение от скорости.
+              final stretchV =
+                  math.min(0.45, vx * 0.02 / (0.35 + 0.65 * k01));
+              final popOver = math.max(0.0, k - 1); // перелёт при приземлении
+              final sx = 1 + (1 - k01) * 0.35 + stretchV - popOver * 0.15;
+              final sy = (1 - (1 - k01) * 0.42) / (1 + 0.35 * stretchV) +
+                  popOver * 0.35;
 
               // Капля-хвост (только в движении).
               final speedFactor = (vx / 16).clamp(0.0, 1.0).toDouble();
               final flatness = 1 - k01;
               final xLag = fromX + span * _travelT(t, 0.09);
 
-              // Шея к кромке: существует, пока круг «отрывается/прилипает».
+              // Шея к кромке: тянется при отрыве/прилипании.
               final neckW = 2 * _radius * 0.42 * (1 - k01) + 5;
               final neckTop = cy + _radius * sy * 0.7 - 2;
               const neckBottom = _edgeY + 3;
@@ -238,7 +242,7 @@ class _LiquidNavBarState extends State<LiquidNavBar>
               return Stack(
                 clipBehavior: Clip.none,
                 children: [
-                  // 1) Панель с «лункой», следующей за кружком.
+                  // 1) Панель с глубокой «ямкой», следующей за кружком.
                   Positioned(
                     left: 0,
                     right: 0,
@@ -247,13 +251,12 @@ class _LiquidNavBarState extends State<LiquidNavBar>
                     child: CustomPaint(
                       painter: _BarPainter(
                         notchX: x,
-                        notchDepth: 11 * k01,
-                        notchHalfW: 27 * (0.55 + 0.45 * k01),
+                        notchDepth: 20 * k01,
+                        notchHalfW: 23 * (0.55 + 0.45 * k01),
                       ),
                     ),
                   ),
-                  // 2) GOO-слой: фиолетовый силуэт (круг/слизняк + капля +
-                  //    шея + место сварки с кромкой) — склеивается альфа-порогом.
+                  // 2) GOO-слой — цветной силуэт, склеенный альфа-порогом.
                   Positioned.fill(
                     child: IgnorePointer(
                       child: ColorFiltered(
@@ -270,23 +273,23 @@ class _LiquidNavBarState extends State<LiquidNavBar>
                           ),
                           child: CustomPaint(
                             painter: _GooPainter(
-                              color: _gooColor,
+                              color: gooColor,
                               center: blob,
                               radius: _radius,
                               scaleX: sx,
                               scaleY: sy,
                               edgeY: _edgeY,
                               trail: Offset(xLag, _slugY - 2),
-                              trailRadius: 9 * speedFactor * flatness,
+                              trailRadius: 8 * speedFactor * flatness,
                               neck: neck,
-                              weldWidth: 40 * k01,
+                              weldWidth: 30 * k01,
                             ),
                           ),
                         ),
                       ),
                     ),
                   ),
-                  // 3) Ряд иконок + подписи (внутри панели).
+                  // 3) Ряд серых иконок + подписи (внутри панели).
                   Positioned(
                     left: 0,
                     right: 0,
@@ -305,7 +308,7 @@ class _LiquidNavBarState extends State<LiquidNavBar>
                       }),
                     ),
                   ),
-                  // 4) Градиентная оболочка кружка поверх goo-силуэта.
+                  // 4) Градиентная оболочка круга поверх goo-силуэта.
                   Positioned(
                     left: x - _radius,
                     top: cy - _radius,
@@ -315,9 +318,8 @@ class _LiquidNavBarState extends State<LiquidNavBar>
                         transform: Matrix4.identity()..scale(sx, sy),
                         child: _BubbleShell(
                           size: _bubble,
+                          base: gooColor,
                           glow: 0.35 + 0.65 * k01,
-                          // в плоском состоянии скрываем «кнопочный» лоск —
-                          // слизняк должен выглядеть чистой каплей
                           shellness: _clamp01((k - 0.25) / 0.5),
                           child: _bubbleIcon(items, k),
                         ),
@@ -333,14 +335,13 @@ class _LiquidNavBarState extends State<LiquidNavBar>
     );
   }
 
-  /// Белая иконка внутри круга. В плоском слизняке иконка не помещается —
-  /// прячем; кроссфейд старая→новая по ходу перелёта.
+  /// ЧЁРНАЯ иконка внутри круга; в плоской пилюле прячется.
+  /// Кроссфейд старая→новая по ходу перелёта.
   Widget _bubbleIcon(List<LiquidNavItem> items, double k) {
-    const white = Colors.white;
     final visibility = _clamp01((k - 0.28) / 0.35);
     Widget icon;
     if (!_animating) {
-      icon = Icon(items[_currentIndex].icon, color: white, size: 20);
+      icon = Icon(items[_currentIndex].icon, color: _iconInBubble, size: 20);
     } else {
       final fade = _fade(_controller.value);
       icon = SizedBox(
@@ -353,14 +354,16 @@ class _LiquidNavBarState extends State<LiquidNavBar>
               opacity: 1 - fade,
               child: Transform.translate(
                 offset: Offset(0, fade * 14),
-                child: Icon(items[_fromIndex].icon, color: white, size: 20),
+                child: Icon(items[_fromIndex].icon,
+                    color: _iconInBubble, size: 20),
               ),
             ),
             Opacity(
               opacity: fade,
               child: Transform.translate(
                 offset: Offset(0, -(1 - fade) * 14),
-                child: Icon(items[_currentIndex].icon, color: white, size: 20),
+                child: Icon(items[_currentIndex].icon,
+                    color: _iconInBubble, size: 20),
               ),
             ),
           ],
@@ -371,8 +374,8 @@ class _LiquidNavBarState extends State<LiquidNavBar>
   }
 }
 
-/// Панель со скруглением и «лункой» (concave dip) на верхней кромке —
-/// лунка следует за кружком и глубже всего, когда он припаркован.
+/// Панель со скруглением и глубокой U-«ямкой» на верхней кромке —
+/// ямка следует за кружком и глубже всего, когда он припаркован.
 class _BarPainter extends CustomPainter {
   _BarPainter({
     required this.notchX,
@@ -380,28 +383,29 @@ class _BarPainter extends CustomPainter {
     required this.notchHalfW,
   });
 
-  final double notchX; // центр лунки (в координатах виджета)
-  final double notchDepth; // 0..11
+  final double notchX;
+  final double notchDepth; // 0..20
   final double notchHalfW;
 
-  static const double _r = 26; // радиус скругления панели
+  static const double _r = 26;
 
   @override
   void paint(Canvas canvas, Size size) {
     final w = size.width;
     final h = size.height;
 
-    // Контур панели: скруглённый прямоугольник, в верхнюю кромку которого
-    // вписана плавная U-лунка (concave), следующая за кружком.
+    // Контур: скруглённый прямоугольник с U-ямкой в верхней кромке.
     final path = Path()..moveTo(_r, 0);
+    double cx = 0;
     if (notchDepth > 0.25) {
       final d = notchDepth;
       final hw = notchHalfW;
-      final cx = notchX.clamp(hw * 1.9 + 2, w - hw * 1.9 - 2);
+      cx = notchX.clamp(hw * 1.9 + 2, w - hw * 1.9 - 2);
       path
         ..lineTo(cx - hw * 1.9, 0)
-        ..cubicTo(cx - hw * 1.15, d * 0.10, cx - hw * 0.62, d * 0.92, cx, d)
-        ..cubicTo(cx + hw * 0.62, d * 0.92, cx + hw * 1.15, d * 0.10,
+        // крутые стенки + округлое дно → ощущение «вдавили»
+        ..cubicTo(cx - hw * 1.05, d * 0.06, cx - hw * 0.58, d * 0.95, cx, d)
+        ..cubicTo(cx + hw * 0.58, d * 0.95, cx + hw * 1.05, d * 0.06,
             cx + hw * 1.9, 0);
     }
     path
@@ -415,7 +419,7 @@ class _BarPainter extends CustomPainter {
       ..arcToPoint(Offset(_r, 0), radius: const Radius.circular(_r))
       ..close();
 
-    // Мягкая падающая тень (как Neu.shadows у старой версии).
+    // Мягкая падающая тень панели.
     canvas.drawShadow(path, Colors.black.withOpacity(0.55), 16, true);
 
     // Заливка: тёмный вертикальный градиент.
@@ -428,7 +432,25 @@ class _BarPainter extends CustomPainter {
       ).createShader(Rect.fromLTWH(0, 0, w, h));
     canvas.drawPath(path, fill);
 
-    // Тонкая светлая окантовка (вдоль лунки тоже).
+    // Перманентная внутренняя тень в ямке — объём «вдавленности».
+    if (notchDepth > 0.5) {
+      canvas.save();
+      canvas.clipPath(path);
+      final pit = Paint()
+        ..color = Colors.black.withOpacity(0.50)
+        ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 6);
+      canvas.drawOval(
+        Rect.fromCenter(
+          center: Offset(cx, notchDepth * 0.9),
+          width: notchHalfW * 2.6,
+          height: 12,
+        ),
+        pit,
+      );
+      canvas.restore();
+    }
+
+    // Тонкая светлая окантовка (вдоль ямки тоже).
     final stroke = Paint()
       ..style = PaintingStyle.stroke
       ..strokeWidth = 1
@@ -443,7 +465,7 @@ class _BarPainter extends CustomPainter {
       old.notchHalfW != notchHalfW;
 }
 
-/// Фиолетовые «жидкие» фигуры (круг/слизняк, капля, шея, сварка с кромкой).
+/// Цветные «жидкие» фигуры (тело, капля, шея, сварка к кромке).
 /// После blur + альфа-порога визуально сливаются в единое тело.
 class _GooPainter extends CustomPainter {
   _GooPainter({
@@ -468,12 +490,10 @@ class _GooPainter extends CustomPainter {
   final Offset trail;
   final double trailRadius;
 
-  /// Тянущаяся связка между телом и кромкой при отрыве/прилипании
-  /// (null — не рисовать).
+  /// Тянущаяся связка с кромкой при отрыве/прилипании (null — нет).
   final RRect? neck;
 
-  /// «Сварной шов» — линза на кромке под припаркованным кругом: соединяет
-  /// круг с панелью одним goo-силуэтом (круг как будто вырос из панели).
+  /// «Сварной шов» — линза на кромке под припаркованным кругом.
   final double weldWidth;
 
   @override
@@ -516,41 +536,42 @@ class _GooPainter extends CustomPainter {
   bool shouldRepaint(_GooPainter oldDelegate) => true;
 }
 
-/// Градиентная «оболочка» кружка — объём, блик-бордер, неоновое свечение.
-/// [shellness]: 1 = парковка (полный лоск), 0 = слизняк (чистая капля без
-/// бордера/свечения, чтобы goo-силуэт читался сам по себе).
+/// Градиентная оболочка круга: объём, блик-бордер, цветное свечение.
+/// [shellness]: 1 = парковка (полный лоск), 0 = пилюля (чистый goo-силуэт).
 class _BubbleShell extends StatelessWidget {
   const _BubbleShell({
     required this.size,
+    required this.base,
     required this.glow,
     required this.shellness,
     required this.child,
   });
 
   final double size;
+  final Color base;
   final double glow;
   final double shellness;
   final Widget child;
 
   @override
   Widget build(BuildContext context) {
+    final light = Color.lerp(base, Colors.white, 0.22) ?? base;
     return Container(
       width: size,
       height: size,
       decoration: BoxDecoration(
         shape: BoxShape.circle,
-        gradient: const LinearGradient(
+        gradient: LinearGradient(
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
-          colors: [Color(0xFF8A7FFF), Color(0xFF6C63FF)],
+          colors: [light, base],
         ),
         border: Border.all(
           color: Colors.white.withOpacity(0.22 * shellness),
         ),
         boxShadow: [
           BoxShadow(
-            color:
-                const Color(0xFF6C63FF).withOpacity(0.55 * glow * shellness),
+            color: base.withOpacity(0.55 * glow * shellness),
             blurRadius: 22,
             spreadRadius: 1,
           ),
@@ -596,6 +617,7 @@ class _NavItemView extends StatelessWidget {
               height: 26,
               child: Opacity(
                 opacity: iconOpacity,
+                // иконки в ряду — серые
                 child: Icon(
                   item.icon,
                   size: 22,
