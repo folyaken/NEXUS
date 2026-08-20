@@ -68,8 +68,16 @@ const reduced = indexHtml.slice(indexHtml.indexOf('@media (prefers-reduced-motio
 assert.match(reduced, /\.nexus-boot-ring, \.nexus-boot-track i \{ animation: none; \}/);
 
 // Заставка обязана попадать в собранную страницу, иначе её никто не увидит.
+//
+// Проверяется только если сборка свежая. `npm test` собирает лишь main-процесс
+// (`build:main`), а `dist/` появляется отдельной командой `npm run build`.
+// Раньше здесь стояла проверка «файл существует → он обязан содержать
+// заставку», и на машине со старым `dist/` от прошлой версии тест падал, хотя
+// с кодом всё в порядке. Сравниваем со временем правки index.html: если сборка
+// старее исходника, проверять нечего.
 const built = path.join(root, 'dist', 'index.html');
-if (fs.existsSync(built)) {
+const source = path.join(root, 'index.html');
+if (fs.existsSync(built) && fs.statSync(built).mtimeMs >= fs.statSync(source).mtimeMs) {
   assert.match(fs.readFileSync(built, 'utf8'), /id="nexus-boot"/, 'заставка потерялась при сборке');
 }
 
