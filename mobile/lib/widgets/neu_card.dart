@@ -1,10 +1,9 @@
-import 'dart:ui';
-
 import 'package:flutter/material.dart';
 
 import '../core/theme.dart';
 
-/// Стеклянная карточка: frosted-glass с мягкой тенью и тонкой обводкой.
+/// Неоморфная карточка: двойные тени (тёмная снизу + светлая сверху),
+/// лёгкий градиент и тонкая обводка.
 class NeuCard extends StatelessWidget {
   const NeuCard({
     super.key,
@@ -21,56 +20,49 @@ class NeuCard extends StatelessWidget {
   final double radius;
   final VoidCallback? onTap;
   final bool inset;
+
+  /// Подсвечивает обводку акцентным цветом (для выбранного элемента).
   final bool gradient;
 
   @override
   Widget build(BuildContext context) {
     final borderRadius = BorderRadius.circular(radius);
 
-    final Widget card = ClipRRect(
-      borderRadius: borderRadius,
-      child: BackdropFilter(
-        filter: ImageFilter.blur(sigmaX: 18, sigmaY: 18),
-        child: Container(
-          padding: padding,
-          decoration: BoxDecoration(
-            borderRadius: borderRadius,
-            color: inset
-                ? AppColors.backgroundDark
-                : AppColors.cardDark.withOpacity(0.72),
-            gradient: !inset
-                ? LinearGradient(
-                    begin: Alignment.topLeft,
-                    end: Alignment.bottomRight,
-                    colors: [
-                      Colors.white.withOpacity(gradient ? 0.12 : 0.06),
-                      Colors.white.withOpacity(0.0),
-                    ],
-                  )
-                : null,
-            border: Border.all(
-              color: gradient
-                  ? AppColors.primaryCyan.withOpacity(0.35)
-                  : Colors.white.withOpacity(0.07),
+    final Widget card = Container(
+      padding: padding,
+      decoration: inset
+          ? Neu.inset(radius: radius)
+          : BoxDecoration(
+              borderRadius: borderRadius,
+              gradient: const LinearGradient(
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+                colors: [AppColors.cardDark, AppColors.backgroundLight],
+              ),
+              border: Border.all(
+                color: gradient
+                    ? AppColors.primaryCyan.withOpacity(0.45)
+                    : Colors.white.withOpacity(0.06),
+                width: gradient ? 1.2 : 1,
+              ),
+              boxShadow: gradient
+                  ? [
+                      ...Neu.shadows(),
+                      BoxShadow(
+                        color: AppColors.primaryCyan.withOpacity(0.25),
+                        blurRadius: 18,
+                        spreadRadius: 0,
+                      ),
+                    ]
+                  : Neu.shadows(),
             ),
-            boxShadow: inset
-                ? null
-                : [
-                    BoxShadow(
-                      color: Colors.black.withOpacity(0.45),
-                      offset: const Offset(0, 10),
-                      blurRadius: 30,
-                    ),
-                  ],
-          ),
-          child: child,
-        ),
-      ),
+      child: child,
     );
 
     if (onTap == null) return card;
 
     return GestureDetector(
+      behavior: HitTestBehavior.opaque,
       onTap: onTap,
       child: card,
     );

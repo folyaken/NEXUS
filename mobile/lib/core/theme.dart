@@ -41,24 +41,25 @@ class AppColors {
       };
 }
 
-/// Неоморфные/стеклянные тени и вдавленные поля.
+/// Неоморфные тени и вдавленные поля.
 class Neu {
   Neu._();
 
+  /// Двойная неоморфная тень: тёмная снизу + светлая сверху-слева.
   static List<BoxShadow> shadows({
-    double depth = 8,
-    double radius = 28,
+    double depth = 12,
+    double radius = 26,
   }) {
     return [
       BoxShadow(
-        color: Colors.black.withOpacity(0.55),
+        color: Colors.black.withOpacity(0.6),
         offset: Offset(0, depth),
         blurRadius: radius,
       ),
       BoxShadow(
-        color: Colors.white.withOpacity(0.04),
-        offset: Offset(-1, -1),
-        blurRadius: 4,
+        color: Colors.white.withOpacity(0.06),
+        offset: Offset(-depth * 0.35, -depth * 0.35),
+        blurRadius: radius * 0.5,
       ),
     ];
   }
@@ -72,6 +73,18 @@ class Neu {
       color: color,
       borderRadius: BorderRadius.circular(radius),
       border: Border.all(color: Colors.white.withOpacity(0.06)),
+      boxShadow: [
+        BoxShadow(
+          color: Colors.black.withOpacity(0.5),
+          offset: const Offset(0, 3),
+          blurRadius: 8,
+        ),
+        BoxShadow(
+          color: Colors.white.withOpacity(0.04),
+          offset: const Offset(-2, -2),
+          blurRadius: 4,
+        ),
+      ],
     );
   }
 }

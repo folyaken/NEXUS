@@ -12,10 +12,12 @@ import '../services/profile_parser.dart';
 import '../services/storage_service.dart';
 import '../services/subscription_manager.dart';
 import '../services/vpn_engine.dart';
+import '../widgets/flag.dart';
 import '../widgets/neu_card.dart';
 import '../widgets/power_orb.dart';
 import '../widgets/pulse_dot.dart';
 import '../widgets/stat_card.dart';
+import 'add_subscription_screen.dart';
 import 'qr_scan_screen.dart';
 
 /// Главный экран «Обзор» = Jey2Ray VPN.
@@ -245,34 +247,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                 ],
               ),
             ),
-            NeuCard(
-              radius: 999,
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  PulseDot(
-                    size: 7,
-                    color: connected
-                        ? AppColors.mint
-                        : connecting
-                            ? AppColors.amber
-                            : AppColors.textMuted,
-                    pulse: connected || connecting,
-                  ),
-                  const SizedBox(width: 6),
-                  Text(
-                    connected ? 'VPN' : t.t('dashboard.live'),
-                    style: const TextStyle(
-                      fontSize: 10,
-                      fontWeight: FontWeight.w700,
-                      letterSpacing: 1,
-                      color: AppColors.mint,
-                    ),
-                  ),
-                ],
-              ),
-            ),
+            _statusPill(t, connected, connecting, selectedPing),
           ],
         ).animate().fadeIn(duration: 350.ms).slideY(begin: -0.04, end: 0),
 
@@ -285,32 +260,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
             onTap: selected == null ? null : () => _connect(selected!),
           ),
         ).animate().fadeIn(duration: 450.ms),
-
-        const SizedBox(height: 10),
-
-        // Статус
-        Center(
-          child: AnimatedSwitcher(
-            duration: const Duration(milliseconds: 200),
-            child: Text(
-              connecting
-                  ? t.t('vpn.connecting')
-                  : connected
-                      ? '${t.t('vpn.connected')}${selectedPing != null ? ' · $selectedPing мс' : ''}'
-                      : t.t('vpn.disconnected'),
-              key: ValueKey('$_status'),
-              style: TextStyle(
-                fontSize: 14,
-                fontWeight: FontWeight.w600,
-                color: connected
-                    ? AppColors.mint
-                    : connecting
-                        ? AppColors.amber
-                        : AppColors.textSecondary,
-              ),
-            ),
-          ),
-        ),
 
         const SizedBox(height: 16),
 
@@ -382,34 +331,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
         ).animate().fadeIn(duration: 400.ms, delay: 220.ms),
 
         if (profiles.isEmpty)
-          NeuCard(
-            radius: 20,
-            child: Column(
-              children: [
-                const Icon(Icons.cloud_off_rounded,
-                    size: 40, color: AppColors.textMuted),
-                const SizedBox(height: 10),
-                Text(
-                  t.t('vpn.noProfiles'),
-                  style: const TextStyle(
-                    fontWeight: FontWeight.w700,
-                    fontSize: 15,
-                    color: AppColors.textPrimary,
-                  ),
-                ),
-                const SizedBox(height: 6),
-                Text(
-                  t.t('vpn.noProfilesHint'),
-                  textAlign: TextAlign.center,
-                  style: const TextStyle(
-                    fontSize: 12,
-                    height: 1.4,
-                    color: AppColors.textSecondary,
-                  ),
-                ),
-              ],
-            ),
-          )
+          _emptyState(t).animate().fadeIn(duration: 400.ms)
         else
           ...List.generate(profiles.length, (i) {
             final p = profiles[i];
@@ -428,6 +350,97 @@ class _DashboardScreenState extends State<DashboardScreen> {
                 ).slideY(begin: 0.08, end: 0);
           }),
       ],
+    );
+  }
+
+  /// Статус-индикатор: зелёный кружок (подключено) / красный (отключено).
+  Widget _statusPill(
+      AppLocalizations t, bool connected, bool connecting, int? ping) {
+    final color = connected
+        ? AppColors.mint
+        : connecting
+            ? AppColors.amber
+            : AppColors.red;
+    final label = connecting
+        ? t.t('vpn.connecting')
+        : connected
+            ? '${t.t('vpn.connected')}${ping != null ? ' · $ping мс' : ''}'
+            : t.t('vpn.disconnected');
+
+    return NeuCard(
+      inset: true,
+      radius: 999,
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 9),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          PulseDot(size: 8, color: color, pulse: connected || connecting),
+          const SizedBox(width: 8),
+          Text(
+            label,
+            style: TextStyle(
+              fontSize: 12,
+              fontWeight: FontWeight.w700,
+              color: color,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _emptyState(AppLocalizations t) {
+    return NeuCard(
+      radius: 20,
+      child: Column(
+        children: [
+          GestureDetector(
+            onTap: () => Navigator.push(
+              context,
+              MaterialPageRoute(builder: (_) => const AddSubscriptionScreen()),
+            ),
+            child: Container(
+              width: 62,
+              height: 62,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                gradient: AppColors.brandGradient,
+                boxShadow: [
+                  BoxShadow(
+                    color: AppColors.primaryCyan.withOpacity(0.45),
+                    blurRadius: 22,
+                  ),
+                ],
+              ),
+              child: const Icon(
+                Icons.add_rounded,
+                size: 32,
+                color: AppColors.backgroundDark,
+              ),
+            ),
+          ),
+          const SizedBox(height: 16),
+          Text(
+            t.t('vpn.empty'),
+            textAlign: TextAlign.center,
+            style: const TextStyle(
+              fontSize: 15,
+              fontWeight: FontWeight.w700,
+              color: AppColors.textPrimary,
+            ),
+          ),
+          const SizedBox(height: 6),
+          Text(
+            t.t('vpn.empty.hint'),
+            textAlign: TextAlign.center,
+            style: const TextStyle(
+              fontSize: 12,
+              height: 1.4,
+              color: AppColors.textSecondary,
+            ),
+          ),
+        ],
+      ),
     );
   }
 
@@ -491,7 +504,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
     return profiles.first;
   }
 
-  Widget _gradientButton({required String label, required VoidCallback onPressed}) {
+  Widget _gradientButton(
+      {required String label, required VoidCallback onPressed}) {
     return SizedBox(
       height: 50,
       child: DecoratedBox(
@@ -514,7 +528,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
     );
   }
 
-  Widget _outlineIconButton({required IconData icon, required VoidCallback onPressed}) {
+  Widget _outlineIconButton(
+      {required IconData icon, required VoidCallback onPressed}) {
     return GestureDetector(
       onTap: onPressed,
       child: Container(
@@ -557,27 +572,10 @@ class _ServerRow extends StatelessWidget {
       gradient: selected,
       child: Row(
         children: [
-          Container(
-            width: 40,
-            height: 40,
-            decoration: BoxDecoration(
-              borderRadius: BorderRadius.circular(12),
-              gradient: LinearGradient(
-                colors: [color.withOpacity(0.3), color.withOpacity(0.06)],
-              ),
-              border: Border.all(color: color.withOpacity(0.4)),
-            ),
-            alignment: Alignment.center,
-            child: Text(
-              profile.upperProtocol,
-              style: TextStyle(
-                fontSize: 9,
-                fontWeight: FontWeight.w800,
-                color: color,
-              ),
-            ),
-          ),
+          // Флаг
+          Flag(country: profile.country),
           const SizedBox(width: 12),
+          // Название + протокол
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -603,18 +601,20 @@ class _ServerRow extends StatelessWidget {
                 ),
                 const SizedBox(height: 2),
                 Text(
-                  profile.displayAddress,
-                  style: const TextStyle(
+                  profile.upperProtocol,
+                  style: TextStyle(
                     fontSize: 11,
-                    color: AppColors.textSecondary,
-                    fontFamily: 'monospace',
+                    fontWeight: FontWeight.w600,
+                    letterSpacing: 0.4,
+                    color: color,
                   ),
                 ),
               ],
             ),
           ),
           const SizedBox(width: 8),
-          _pingBars(ping),
+          // Пинг
+          _pingMeter(ping),
           const SizedBox(width: 10),
           Icon(Icons.chevron_right_rounded,
               color: AppColors.textMuted, size: 22),
@@ -623,7 +623,7 @@ class _ServerRow extends StatelessWidget {
     );
   }
 
-  Widget _pingBars(int? ms) {
+  Widget _pingMeter(int? ms) {
     if (ms == null) {
       return const Text('—',
           style: TextStyle(color: AppColors.textMuted, fontSize: 12));

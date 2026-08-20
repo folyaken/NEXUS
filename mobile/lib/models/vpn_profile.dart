@@ -10,6 +10,7 @@ class VpnProfile {
     this.subscriptionId,
     this.latencyMs,
     this.rawLink,
+    this.country,
   });
 
   final String id;
@@ -30,9 +31,13 @@ class VpnProfile {
   /// Исходная ссылка (vless://, vmess://…), для повторного импорта.
   final String? rawLink;
 
+  /// Двухбуквенный код страны (если удалось определить), для флага.
+  final String? country;
+
   String get displayAddress => '$address:$port';
 
-  String get upperProtocol => protocol == 'shadowsocks' ? 'SS' : protocol.toUpperCase();
+  String get upperProtocol =>
+      protocol == 'shadowsocks' ? 'SS' : protocol.toUpperCase();
 
   VpnProfile copyWith({int? latencyMs}) => VpnProfile(
         id: id,
@@ -44,6 +49,7 @@ class VpnProfile {
         subscriptionId: subscriptionId,
         latencyMs: latencyMs ?? this.latencyMs,
         rawLink: rawLink,
+        country: country,
       );
 
   Map<String, dynamic> toJson() => {
@@ -55,6 +61,7 @@ class VpnProfile {
         'extra': extra,
         'subscriptionId': subscriptionId,
         'rawLink': rawLink,
+        'country': country,
       };
 
   factory VpnProfile.fromJson(Map<String, dynamic> json) => VpnProfile(
@@ -67,5 +74,6 @@ class VpnProfile {
         subscriptionId: json['subscriptionId'] as String?,
         latencyMs: json['latencyMs'] as int?,
         rawLink: json['rawLink'] as String?,
+        country: json['country'] as String?,
       );
 }

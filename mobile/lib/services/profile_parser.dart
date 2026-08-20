@@ -69,6 +69,7 @@ class ProfileParser {
       protocol: 'vless',
       address: uri.host,
       port: uri.port,
+      country: _extractCountry(uri.fragment),
       extra: {
         'uuid': uri.userInfo,
         'security': query['security'] ?? 'auto',
@@ -84,10 +85,12 @@ class ProfileParser {
   static VpnProfile _parseVmess(String link) {
     final raw = link.substring('vmess://'.length);
     final json = jsonDecode(utf8.decode(base64Decode(base64.normalize(raw)))) as Map<String, dynamic>;
+    final name = (json['ps'] as String?) ?? 'VMess';
     return VpnProfile(
       id: _uuid.v4(),
-      name: (json['ps'] as String?) ?? 'VMess',
+      name: name,
       protocol: 'vmess',
+      country: _extractCountry(name),
       address: json['add'] as String? ?? '',
       port: int.tryParse(json['port']?.toString() ?? '0') ?? 0,
       extra: {
@@ -107,6 +110,7 @@ class ProfileParser {
       id: _uuid.v4(),
       name: _fragmentName(uri, query, 'Trojan'),
       protocol: 'trojan',
+      country: _extractCountry(uri.fragment),
       address: uri.host,
       port: uri.port,
       extra: {
@@ -158,6 +162,7 @@ class ProfileParser {
       id: _uuid.v4(),
       name: name,
       protocol: 'shadowsocks',
+      country: _extractCountry(name),
       address: host,
       port: port,
       extra: {'method': method, 'password': password},
@@ -172,6 +177,7 @@ class ProfileParser {
       id: _uuid.v4(),
       name: _fragmentName(uri, query, 'Hysteria2'),
       protocol: 'hysteria2',
+      country: _extractCountry(uri.fragment),
       address: uri.host,
       port: uri.port,
       extra: {
@@ -188,5 +194,27 @@ class ProfileParser {
     final remark = query['remark'];
     if (remark != null && remark.isNotEmpty) return remark;
     return '$fallback ${uri.host}';
+  }
+
+  /// Пытается достать двухбуквенный код страны из конца названия/фрагмента.
+  static String? _extractCountry(String? fragment) {
+    if (fragment == null || fragment.trim().isEmpty) return null;
+    String decoded;
+    try {
+      decoded = Uri.decodeComponent(fragment).trim();
+    } catch (_) {
+      decoded = fragment.trim();
+    }
+    final m = RegExp(r'([A-Za-z]{2})$').firstMatch(decoded);
+    if (m == null) return null;
+    final code = m.group(1)!.toUpperCase();
+    const known = {
+      'DE', 'NL', 'FI', 'SE', 'US', 'GB', 'JP', 'SG', 'HK', 'RU', 'UA', 'FR',
+      'IT', 'ES', 'PL', 'CH', 'TR', 'CA', 'AU', 'IN', 'BR', 'KR', 'NO', 'DK',
+      'CZ', 'RO', 'BG', 'RS', 'KZ', 'GE', 'AM', 'AE', 'IL', 'TH', 'VN', 'ID',
+      'MY', 'TW', 'CN', 'AT', 'BE', 'GR', 'PT', 'HU', 'SK', 'HR', 'SI', 'LT',
+      'LV', 'EE', 'IE', 'IS', 'LU', 'MT', 'CY', 'BY', 'AZ', 'UZ', 'KG', 'TJ',
+    };
+    return known.contains(code) ? code : null;
   }
 }

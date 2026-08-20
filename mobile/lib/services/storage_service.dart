@@ -128,7 +128,7 @@ class StorageService {
             'protocol': profile.protocol,
             'address': profile.address,
             'port': profile.port,
-            'extra': jsonEncode(profile.extra),
+            'extra': jsonEncode(_extraWithCountry(profile)),
             'raw_link': profile.rawLink,
           },
           conflictAlgorithm: ConflictAlgorithm.replace,
@@ -190,16 +190,9 @@ class StorageService {
       whereArgs: [subscriptionId],
       orderBy: 'name',
     );
-    return rows.map((r) => VpnProfile(
-          id: r['id'] as String,
-          name: r['name'] as String,
-          protocol: r['protocol'] as String,
-          address: r['address'] as String,
-          port: r['port'] as int,
-          extra: Map<String, String>.from(
-              jsonDecode((r['extra'] as String?) ?? '{}') as Map),
+    return rows.map((r) => _profileFromRow(
+          r,
           subscriptionId: subscriptionId,
-          rawLink: r['raw_link'] as String?,
         )).toList();
   }
 
@@ -220,7 +213,7 @@ class StorageService {
         'protocol': profile.protocol,
         'address': profile.address,
         'port': profile.port,
-        'extra': jsonEncode(profile.extra),
+        'extra': jsonEncode(_extraWithCountry(profile)),
         'raw_link': profile.rawLink,
       },
       conflictAlgorithm: ConflictAlgorithm.replace,
@@ -232,16 +225,7 @@ class StorageService {
       return List.unmodifiable(_memProfiles);
     }
     final rows = await _db!.query('profiles', where: 'subscription_id IS NULL');
-    return rows.map((r) => VpnProfile(
-          id: r['id'] as String,
-          name: r['name'] as String,
-          protocol: r['protocol'] as String,
-          address: r['address'] as String,
-          port: r['port'] as int,
-          extra: Map<String, String>.from(
-              jsonDecode((r['extra'] as String?) ?? '{}') as Map),
-          rawLink: r['raw_link'] as String?,
-        )).toList();
+    return rows.map((r) => _profileFromRow(r)).toList();
   }
 
   Future<void> deleteProfile(String id) async {
@@ -250,5 +234,32 @@ class StorageService {
       return;
     }
     await _db!.delete('profiles', where: 'id = ?', whereArgs: [id]);
+  }
+
+  /// Кладёт страну в extra (без отдельной колонки в схеме).
+  Map<String, String> _extraWithCountry(VpnProfile profile) {
+    final map = Map<String, String>.from(profile.extra);
+    if (profile.country != null && profile.country!.isNotEmpty) {
+      map['country'] = profile.country!;
+    }
+    return map;
+  }
+
+  /// Восстанавливает профиль из строки БД, вынимая страну из extra.
+  VpnProfile _profileFromRow(Map<String, Object?> r, {String? subscriptionId}) {
+    final extra =
+        Map<String, String>.from(jsonDecode((r['extra'] as String?) ?? '{}') as Map);
+    final country = extra.remove('country');
+    return VpnProfile(
+      id: r['id'] as String,
+      name: r['name'] as String,
+      protocol: r['protocol'] as String,
+      address: r['address'] as String,
+      port: r['port'] as int,
+      extra: extra,
+      subscriptionId: subscriptionId ?? (r['subscription_id'] as String?),
+      rawLink: r['raw_link'] as String?,
+      country: country,
+    );
   }
 }
