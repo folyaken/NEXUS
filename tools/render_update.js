@@ -14,10 +14,15 @@ fs.mkdirSync(TMP, { recursive: true });
 fs.mkdirSync(path.dirname(OUT), { recursive: true });
 
 /* ================= EDIT THESE PER RELEASE ================= */
-const VERSION = '1.3.1';
-const CHANGES = [
-  { c: '#7cf2d5', t: 'Строка обновления в «О программе»' },
-  { c: '#a895ff', t: 'Кнопка «Отключение всего» в иконке в трее' },
+const VERSION = '1.3.2';
+const GROUPS = [
+  { label: 'НОВОЕ', labelColor: '#7cf2d5', items: [
+    { c: '#7cf2d5', t: 'Выбор DNS в настройках Jey2Ray' },
+    { c: '#a895ff', t: 'Связь через Discord в «О программе»' },
+  ] },
+  { label: 'ИСПРАВЛЕНО', labelColor: '#71f4b8', items: [
+    { c: '#71f4b8', t: '«Отключить всё» — теперь и без VPN' },
+  ] },
 ];
 /* ============================================================ */
 
@@ -134,14 +139,19 @@ over(canvas, tmp('_urule'), LX, 258, canvas);
 
 /* ---- left column: "что нового" ---- */
 A = [canvas];
-txt(LX, 318, 15, F.monoM, C.muted2, 'ЧТО НОВОГО', 1.8);
-txt(LX, 356, 26, F.interB, C.text, 'В версии 1.3.1');
-CHANGES.forEach((f, i) => {
-  const y = 410 + i * 56;
-  fill(f.c); stroke('none'); circle(LX + 6, y - 5, 5);
-  txt(LX + 26, y, 21, F.interR, C.text, f.t);
+txt(LX, 356, 26, F.interB, C.text, 'В версии 1.3.2');
+let gy = 412;
+GROUPS.forEach((grp) => {
+  txt(LX, gy, 13, F.monoM, grp.labelColor, grp.label, 1.6);
+  gy += 26;
+  grp.items.forEach((f) => {
+    fill(f.c); stroke('none'); circle(LX + 6, gy - 5, 5);
+    txt(LX + 26, gy, 21, F.interR, C.text, f.t);
+    gy += 46;
+  });
+  gy += 18;
 });
-txt(LX, 560, 13, F.interR, C.muted, 'Обновление в один клик — вкладка «О программе»');
+txt(LX, 604, 13, F.interR, C.muted, 'Обновление — «О программе» → «Проверить»');
 run(A, canvas);
 
 /* ---- right: orbit + big version ---- */
