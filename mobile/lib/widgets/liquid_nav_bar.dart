@@ -69,11 +69,12 @@ class _LiquidNavBarState extends State<LiquidNavBar>
 
   // Край панели (верхняя кромка) в координатах виджета.
   static const double _edgeY = _overhang;
-  // Центр круга в парковке: низ утоплен под кромку на _sinkDepth.
-  static const double _sinkDepth = 14;
-  static const double _parkY = _edgeY - _sinkDepth; // 30
-  // Центр эллипса в движении — практически НА кромке.
-  static const double _slugY = _edgeY; // 44
+  // Центр круга в парковке: на _sinkDepth ВЫШЕ кромки (низ утоплен на
+  // R+_sinkDepth-_edgeY = 13 px под кромку — как в референсе).
+  static const double _sinkDepth = 10;
+  static const double _parkY = _edgeY - _sinkDepth; // 34
+  // Центр эллипса в движении — чуть ВЫШЕ кромки, низ сидит в кромке.
+  static const double _slugY = _edgeY - 2; // 42
 
   // -- окна фаз (t: 0 → 1) --
   static const double _sinkEnd = 0.20;
@@ -221,10 +222,15 @@ class _LiquidNavBarState extends State<LiquidNavBar>
                   (1 - (1 - k01) * 0.62) / (1 + 0.5 * stretchV) +
                       popOver * 0.40;
 
-              // Капля-хвост (только в движении).
+              // Капля-хвост (только в движении): следует с запаздыванием,
+              // но не дальше 0.7 полуширины линзы — не отрывается от тела.
               final speedFactor = (vx / 16).clamp(0.0, 1.0).toDouble();
               final flatness = 1 - k01;
-              final xLag = fromX + span * _travelT(t, 0.09);
+              final lagRaw = fromX + span * _travelT(t, 0.09);
+              final lagLim = _radius * sx * 0.7;
+              final xLag = span >= 0
+                  ? math.max(lagRaw, x - lagLim)
+                  : math.min(lagRaw, x + lagLim);
 
               // Шея к кромке при отрыве/прилипании.
               final neckW = 2 * _radius * 0.42 * (1 - k01) + 5;
@@ -258,8 +264,8 @@ class _LiquidNavBarState extends State<LiquidNavBar>
                     child: CustomPaint(
                       painter: _BarPainter(
                         notchX: x,
-                        notchDepth: 12 * k01,
-                        notchHalfW: 18 * (0.62 + 0.38 * k01),
+                        notchDepth: 16 * k01,
+                        notchHalfW: 21.7 * (0.62 + 0.38 * k01),
                       ),
                     ),
                   ),
@@ -286,7 +292,7 @@ class _LiquidNavBarState extends State<LiquidNavBar>
                               scaleX: sx,
                               scaleY: sy,
                               edgeY: _edgeY,
-                              trail: Offset(xLag, _slugY - 1),
+                              trail: Offset(xLag, _slugY + 2),
                               trailRadius: 7 * speedFactor * flatness,
                               neck: neck,
                               weldWidth: 30 * k01,
@@ -393,10 +399,12 @@ class _BarPainter extends CustomPainter {
   });
 
   final double notchX;
-  final double notchDepth; // 0..12 (≈ глубина утопления круга + запас)
-  final double notchHalfW;
+  final double notchDepth; // 0..16 (утопление круга + 3 px на дно)
+  final double notchHalfW; // ~хорда круга на уровне кромки x 1.05
 
-  static const double _r = 26;
+  // Угол панели — меньше полуширины ямки крайних вкладок, чтобы лунка
+  // никогда не врезалась в закругление угла (иначе ямка «кривая»).
+  static const double _r = 14;
   static const int _segments = 24; // дискретизация косинуса
 
   @override
@@ -408,7 +416,7 @@ class _BarPainter extends CustomPainter {
     double cx = 0;
     if (notchDepth > 0.25) {
       final hw = notchHalfW;
-      cx = notchX.clamp(hw + 3, w - hw - 3);
+      cx = notchX.clamp(hw + _r + 2, w - hw - _r - 2);
       final left = cx - hw;
       path.lineTo(left, 0);
       // Лунка как косинусная лоба: d(x) = D * (0.5 + 0.5*cos(pi*t)),
@@ -454,7 +462,7 @@ class _BarPainter extends CustomPainter {
       canvas.save();
       canvas.clipPath(path);
       final pit = Paint()
-        ..color = Colors.black.withOpacity(0.45)
+        ..color = Colors.black.withOpacity(0.60)
         ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 7);
       canvas.drawOval(
         Rect.fromCenter(
@@ -471,7 +479,7 @@ class _BarPainter extends CustomPainter {
     final stroke = Paint()
       ..style = PaintingStyle.stroke
       ..strokeWidth = 1
-      ..color = Colors.white.withOpacity(0.07);
+      ..color = Colors.white.withOpacity(0.10);
     canvas.drawPath(path, stroke);
   }
 
