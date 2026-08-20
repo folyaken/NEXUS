@@ -40,7 +40,7 @@ class NeonToggle extends StatelessWidget {
           boxShadow: [
             BoxShadow(
               color: value
-                  ? AppColors.primaryCyan.withOpacity(alpha: 0.45)
+                  ? AppColors.primaryCyan.withOpacity( 0.45)
                   : AppColors.shadowDark,
               blurRadius: value ? 14 : 6,
               offset: const Offset(0, 2),

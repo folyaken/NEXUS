@@ -43,7 +43,7 @@ class _PulseDotState extends State<PulseDot>
           color: widget.color,
           boxShadow: [
             BoxShadow(
-              color: widget.color.withOpacity(alpha: 0.6),
+              color: widget.color.withOpacity( 0.6),
               blurRadius: 6,
             ),
           ],
@@ -65,7 +65,7 @@ class _PulseDotState extends State<PulseDot>
             color: widget.color,
             boxShadow: [
               BoxShadow(
-                color: widget.color.withOpacity(alpha: alpha),
+                color: widget.color.withOpacity( alpha),
                 blurRadius: glow,
                 spreadRadius: glow * 0.2,
               ),

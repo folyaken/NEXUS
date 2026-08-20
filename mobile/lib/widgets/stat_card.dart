@@ -40,7 +40,7 @@ class StatCard extends StatelessWidget {
                   color: color,
                   boxShadow: [
                     BoxShadow(
-                      color: color.withOpacity(alpha: 0.6),
+                      color: color.withOpacity( 0.6),
                       blurRadius: 6,
                     ),
                   ],

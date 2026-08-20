@@ -28,7 +28,7 @@ class PowerOrb extends StatelessWidget {
           gradient: RadialGradient(
             colors: connected
                 ? [
-                    AppColors.primaryCyan.withOpacity(alpha: 0.28),
+                    AppColors.primaryCyan.withOpacity( 0.28),
                     AppColors.cardDark,
                   ]
                 : [
@@ -40,7 +40,7 @@ class PowerOrb extends StatelessWidget {
           boxShadow: connected
               ? [
                   BoxShadow(
-                    color: AppColors.primaryCyan.withOpacity(alpha: 0.45),
+                    color: AppColors.primaryCyan.withOpacity( 0.45),
                     blurRadius: 34,
                     spreadRadius: 4,
                   ),
@@ -49,8 +49,8 @@ class PowerOrb extends StatelessWidget {
               : Neu.shadows(depth: 6, radius: 20),
           border: Border.all(
             color: connected
-                ? AppColors.primaryCyan.withOpacity(alpha: 0.5)
-                : Colors.white.withOpacity(alpha: 0.06),
+                ? AppColors.primaryCyan.withOpacity( 0.5)
+                : Colors.white.withOpacity( 0.06),
           ),
         ),
         alignment: Alignment.center,

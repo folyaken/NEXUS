@@ -93,6 +93,36 @@ class ModulesScreen extends StatelessWidget {
     );
   }
 
+  Widget _header(BuildContext context, AppLocalizations t, ModuleManager modules) {
+    return Row(
+      children: [
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                t.t('modules.title'),
+                style: const TextStyle(
+                  fontSize: 24,
+                  fontWeight: FontWeight.w800,
+                  color: AppColors.textPrimary,
+                ),
+              ),
+              const SizedBox(height: 4),
+              Text(
+                '${modules.runningCount}/${modules.totalCount} ${t.t('dashboard.running')}',
+                style: const TextStyle(
+                  fontSize: 12,
+                  color: AppColors.textSecondary,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+
   String _statusKey(ModuleInfo m) {
     switch (m.status) {
       case ModuleStatus.running:

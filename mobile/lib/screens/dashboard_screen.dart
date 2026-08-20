@@ -271,8 +271,8 @@ class _PulseChart extends StatelessWidget {
                   begin: Alignment.topCenter,
                   end: Alignment.bottomCenter,
                   colors: [
-                    AppColors.primaryCyan.withOpacity(alpha: 0.9),
-                    AppColors.primaryCyan.withOpacity(alpha: 0.2),
+                    AppColors.primaryCyan.withOpacity( 0.9),
+                    AppColors.primaryCyan.withOpacity( 0.2),
                   ],
                 ),
               ),

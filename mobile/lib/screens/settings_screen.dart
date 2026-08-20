@@ -54,7 +54,7 @@ class SettingsScreen extends StatelessWidget {
           // DNS
           _section(t.t('settings.dns'), [
             DropdownButtonFormField<String>(
-              value: s.dnsPreset,
+              initialValue: s.dnsPreset,
               dropdownColor: AppColors.cardDark,
               style: const TextStyle(color: AppColors.textPrimary, fontSize: 13),
               decoration: InputDecoration(
@@ -162,7 +162,7 @@ class SettingsScreen extends StatelessWidget {
               decoration: BoxDecoration(
                 borderRadius: BorderRadius.circular(16),
                 gradient: LinearGradient(
-                  colors: [AppColors.red.withOpacity(alpha: 0.25), AppColors.red],
+                  colors: [AppColors.red.withOpacity( 0.25), AppColors.red],
                 ),
               ),
               child: TextButton(

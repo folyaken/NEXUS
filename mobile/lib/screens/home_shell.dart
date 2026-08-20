@@ -61,7 +61,12 @@ class _HomeShellState extends State<HomeShell> {
                     decoration: BoxDecoration(
                       borderRadius: BorderRadius.circular(18),
                       gradient: selected
-                          ? AppColors.brandGradient.withOpacity(alpha: 0.16)
+                          ? const LinearGradient(
+                              colors: [
+                                Color(0x2900D4AA), // cyan ~16%
+                                Color(0x296C63FF), // violet ~16%
+                              ],
+                            )
                           : null,
                     ),
                     child: Column(

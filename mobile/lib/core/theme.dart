@@ -62,7 +62,7 @@ class Neu {
       color: color,
       borderRadius: BorderRadius.circular(radius),
       boxShadow: shadows(depth: depth, radius: radius * 1.2),
-      border: Border.all(color: Colors.white.withOpacity(alpha: 0.05)),
+      border: Border.all(color: Colors.white.withOpacity( 0.05)),
     );
   }
 
