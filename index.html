@@ -26,36 +26,112 @@
         inset: 0;
         display: grid;
         place-items: center;
+        overflow: hidden;
         background:
           radial-gradient(circle at 30% 18%, rgba(124, 242, 213, .1), transparent 42%),
           radial-gradient(circle at 74% 82%, rgba(139, 108, 255, .13), transparent 45%),
           #090d16;
         font-family: "Segoe UI", system-ui, sans-serif;
-        transition: opacity .45s ease;
+        transition: opacity .55s ease, transform .55s ease;
       }
       /* Класс появляется, когда интерфейс готов: заставка плавно растворяется,
-         а не исчезает рывком. */
-      #nexus-boot.is-done { opacity: 0; pointer-events: none; }
+         а не исчезает рывком. Лёгкое приближение создаёт ощущение, что окно
+         «пропускает» вглубь, к самой программе. */
+      #nexus-boot.is-done { opacity: 0; transform: scale(1.04); pointer-events: none; }
 
-      .nexus-boot-inner { display: grid; justify-items: center; gap: 20px; }
+      /*
+        Медленно плывущие пятна света. Статичный фон за полторы секунды
+        разглядывания выглядит мёртвым, а движение здесь настолько медленное,
+        что не отвлекает от знака в центре.
+      */
+      .nexus-boot-aurora {
+        position: absolute;
+        border-radius: 50%;
+        filter: blur(70px);
+        pointer-events: none;
+      }
+      .nexus-boot-aurora.one {
+        width: 460px; height: 460px;
+        top: -180px; left: 12%;
+        background: rgba(105, 233, 157, .16);
+        animation: nexus-drift-a 14s ease-in-out infinite;
+      }
+      .nexus-boot-aurora.two {
+        width: 420px; height: 420px;
+        right: 8%; bottom: -170px;
+        background: rgba(139, 108, 255, .18);
+        animation: nexus-drift-b 17s ease-in-out infinite;
+      }
+
+      .nexus-boot-inner { position: relative; display: grid; justify-items: center; gap: 20px; }
 
       /* Знак NEXUS: та же лента, что в окне программы и на значке. */
-      .nexus-boot-mark { position: relative; display: grid; width: 108px; height: 108px; place-items: center; }
-      .nexus-boot-mark svg { width: 74px; height: 74px; overflow: visible; }
+      .nexus-boot-mark {
+        position: relative;
+        display: grid;
+        width: 132px; height: 132px;
+        place-items: center;
+        animation: nexus-breathe 3.6s ease-in-out infinite;
+      }
+      .nexus-boot-mark svg { width: 92px; height: 92px; overflow: visible; }
+
+      /*
+        Лента рисуется в три слоя, и каждый отвечает за своё.
+
+        Длина контура посчитана по узлам пути и равна 53.28. Раньше здесь
+        стояло 64 — больше настоящей длины, из-за чего линия дорисовывалась
+        заметно раньше конца анимации, и последняя четверть времени уходила
+        впустую. Теперь штрих совпадает с контуром.
+      */
       .nexus-boot-ribbon {
         fill: none;
         stroke: url(#nexus-boot-gradient);
         stroke-width: 2.4;
         stroke-linecap: square;
         stroke-linejoin: bevel;
-        /* Лента прочерчивается при запуске: штрих равен длине контура, сдвиг
-           уводит его за край, анимация возвращает обратно. */
-        stroke-dasharray: 64;
-        stroke-dashoffset: 64;
-        animation: nexus-draw 1.4s cubic-bezier(.65, 0, .35, 1) forwards;
+        stroke-dasharray: 53.3;
+        stroke-dashoffset: 53.3;
+        animation: nexus-draw 1.5s cubic-bezier(.65, 0, .35, 1) forwards;
         filter: drop-shadow(0 0 8px rgba(105, 233, 157, .45));
       }
-      .nexus-boot-core { fill: #9af3b9; opacity: 0; animation: nexus-core 0.5s ease .95s forwards; }
+      /* Подложка ленты: тусклый контур, по которому видно всю фигуру целиком
+         ещё до того, как её прочертит основная линия. */
+      .nexus-boot-ghost {
+        fill: none;
+        stroke: rgba(124, 242, 213, .1);
+        stroke-width: 2.4;
+        stroke-linecap: square;
+        stroke-linejoin: bevel;
+      }
+      /*
+        Огонёк, бесконечно бегущий по ленте.
+
+        Это и есть «бесконечность»: короткий светящийся штрих едет по замкнутому
+        контуру знака и никогда не останавливается. Два огонька пущены с
+        полуоборотом друг от друга — они встречаются в перекрестье в центре,
+        отчего движение читается как восьмёрка, а не как бег по кругу.
+      */
+      .nexus-boot-comet {
+        fill: none;
+        stroke: #d9fff0;
+        stroke-width: 2.6;
+        stroke-linecap: round;
+        stroke-dasharray: 5 48.3;
+        stroke-dashoffset: 53.3;
+        opacity: 0;
+        animation:
+          nexus-comet 2.8s linear 1.25s infinite,
+          nexus-fade .5s ease 1.25s forwards;
+        filter: drop-shadow(0 0 6px rgba(180, 255, 230, .9));
+      }
+      .nexus-boot-comet.two {
+        stroke: #cfc6ff;
+        animation:
+          nexus-comet 2.8s linear -0.15s infinite,
+          nexus-fade .5s ease 1.6s forwards;
+        filter: drop-shadow(0 0 6px rgba(190, 170, 255, .85));
+      }
+      .nexus-boot-core { fill: #9af3b9; opacity: 0; animation: nexus-core .5s ease 1.05s forwards; }
 
       /* Кольцо вокруг знака — «дыхание», пока идёт запуск. */
       .nexus-boot-ring {
@@ -65,16 +141,37 @@
         border-radius: 50%;
         animation: nexus-ring 2.4s ease-in-out infinite;
       }
+      /* Второе кольцо расходится волной: показывает, что работа идёт, даже
+         когда полоса ещё не появилась. */
+      .nexus-boot-pulse {
+        position: absolute;
+        inset: 0;
+        border: 1px solid rgba(139, 108, 255, .3);
+        border-radius: 50%;
+        opacity: 0;
+        animation: nexus-pulse 3s ease-out 1.2s infinite;
+      }
 
+      /* Буквы выходят по очереди — слово будто собирается само. */
       .nexus-boot-name {
+        display: flex;
+        gap: .34em;
         color: #eef4ff;
         font-size: 21px;
         font-weight: 700;
         letter-spacing: .34em;
         text-indent: .34em;
-        opacity: 0;
-        animation: nexus-fade .6s ease .55s forwards;
       }
+      .nexus-boot-name span {
+        opacity: 0;
+        transform: translateY(6px);
+        animation: nexus-letter .5s cubic-bezier(.22,.61,.36,1) forwards;
+      }
+      .nexus-boot-name span:nth-child(1) { animation-delay: .55s; }
+      .nexus-boot-name span:nth-child(2) { animation-delay: .63s; }
+      .nexus-boot-name span:nth-child(3) { animation-delay: .71s; }
+      .nexus-boot-name span:nth-child(4) { animation-delay: .79s; }
+      .nexus-boot-name span:nth-child(5) { animation-delay: .87s; }
 
       /* Полоса запуска: бегунок ходит внутри дорожки. Реального процента у
          старта нет, поэтому честнее показать движение, чем врать процентами. */
@@ -86,7 +183,7 @@
         border-radius: 999px;
         background: rgba(255, 255, 255, .07);
         opacity: 0;
-        animation: nexus-fade .6s ease .75s forwards;
+        animation: nexus-fade .6s ease 1s forwards;
       }
       .nexus-boot-track i {
         position: absolute;
@@ -105,19 +202,41 @@
         font-size: 11px;
         letter-spacing: .05em;
         opacity: 0;
-        animation: nexus-fade .6s ease .95s forwards;
+        animation: nexus-fade .6s ease 1.15s forwards;
+        transition: opacity .25s ease;
       }
+      /* Подпись гаснет на время подмены текста: резкая смена слов дёргает глаз. */
+      .nexus-boot-status.is-swapping { opacity: .25; }
 
       @keyframes nexus-draw { to { stroke-dashoffset: 0; } }
+      @keyframes nexus-comet { from { stroke-dashoffset: 53.3; } to { stroke-dashoffset: 0; } }
       @keyframes nexus-core { to { opacity: 1; } }
       @keyframes nexus-fade { to { opacity: 1; } }
+      @keyframes nexus-letter { to { opacity: 1; transform: none; } }
+      @keyframes nexus-breathe {
+        0%, 100% { transform: scale(1); }
+        50% { transform: scale(1.035); }
+      }
       @keyframes nexus-ring {
         0%, 100% { transform: scale(1); opacity: .5; }
         50% { transform: scale(1.07); opacity: .18; }
       }
+      @keyframes nexus-pulse {
+        0% { transform: scale(.9); opacity: .55; }
+        70% { opacity: 0; }
+        100% { transform: scale(1.65); opacity: 0; }
+      }
       @keyframes nexus-slide {
         0% { transform: translateX(-110%); }
         100% { transform: translateX(340%); }
+      }
+      @keyframes nexus-drift-a {
+        0%, 100% { transform: translate(0, 0); }
+        50% { transform: translate(40px, 30px); }
+      }
+      @keyframes nexus-drift-b {
+        0%, 100% { transform: translate(0, 0); }
+        50% { transform: translate(-36px, -26px); }
       }
 
       /* Windows умеет глобально гасить анимации. Уважаем настройку: заставка
@@ -127,6 +246,9 @@
         .nexus-boot-core, .nexus-boot-name, .nexus-boot-track, .nexus-boot-status { animation: none; opacity: 1; }
         .nexus-boot-ring, .nexus-boot-track i { animation: none; }
         .nexus-boot-track i { width: 100%; }
+        .nexus-boot-name span { animation: none; opacity: 1; transform: none; }
+        .nexus-boot-comet, .nexus-boot-pulse { animation: none; opacity: 0; }
+        .nexus-boot-mark, .nexus-boot-aurora.one, .nexus-boot-aurora.two { animation: none; }
       }
     </style>
   </head>
@@ -134,9 +256,13 @@
     <div id="root"></div>
 
     <div id="nexus-boot" role="status" aria-live="polite">
+      <span class="nexus-boot-aurora one" aria-hidden="true"></span>
+      <span class="nexus-boot-aurora two" aria-hidden="true"></span>
+
       <div class="nexus-boot-inner">
         <div class="nexus-boot-mark">
           <span class="nexus-boot-ring"></span>
+          <span class="nexus-boot-pulse"></span>
           <svg viewBox="0 0 24 24" aria-hidden="true">
             <defs>
               <linearGradient id="nexus-boot-gradient" x1="4" y1="6" x2="20" y2="18" gradientUnits="userSpaceOnUse">
@@ -145,11 +271,14 @@
                 <stop offset="1" stop-color="#8b6cff" />
               </linearGradient>
             </defs>
+            <path class="nexus-boot-ghost" d="M4.2 13.6v-4l3-3 4.8 5.2 4.8-5.2 3 3v4l-3 3-4.8-5.2-4.8 5.2-3-3Z" />
             <path class="nexus-boot-ribbon" d="M4.2 13.6v-4l3-3 4.8 5.2 4.8-5.2 3 3v4l-3 3-4.8-5.2-4.8 5.2-3-3Z" />
+            <path class="nexus-boot-comet" d="M4.2 13.6v-4l3-3 4.8 5.2 4.8-5.2 3 3v4l-3 3-4.8-5.2-4.8 5.2-3-3Z" />
+            <path class="nexus-boot-comet two" d="M4.2 13.6v-4l3-3 4.8 5.2 4.8-5.2 3 3v4l-3 3-4.8-5.2-4.8 5.2-3-3Z" />
             <circle class="nexus-boot-core" cx="12" cy="11.8" r="1" />
           </svg>
         </div>
-        <div class="nexus-boot-name">NEXUS</div>
+        <div class="nexus-boot-name" aria-label="NEXUS"><span>N</span><span>E</span><span>X</span><span>U</span><span>S</span></div>
         <div class="nexus-boot-track"><i></i></div>
         <div class="nexus-boot-status" id="nexus-boot-status">Запуск…</div>
       </div>
@@ -162,23 +291,56 @@
         var root = document.getElementById('root');
         if (!boot || !root) return;
 
+        var calm = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+        /*
+          Заставку нельзя убирать сразу, как только интерфейс готов.
+
+          Раньше она пропадала по первому же событию отрисовки. React успевает
+          отрисоваться за доли секунды, поэтому анимация обрывалась на первом
+          кадре: человек видел вспышку и сразу окно программы — то есть работы
+          не было видно вовсе, а мелькание выглядело как сбой.
+
+          Теперь заставка держится, пока не пройдёт полный показ: лента
+          прочерчивается, слово собирается, огоньки уходят на второй круг.
+          Если программа запускается дольше — ждём её, минимум уже выполнен.
+        */
+        var MIN_VISIBLE = calm ? 600 : 2900;
+        var startedAt = Date.now();
+        var hidden = false;
+
         // Подписи меняются по ходу запуска: неподвижный текст через несколько
         // секунд начинает выглядеть как зависание.
         var steps = ['Запуск…', 'Проверка модулей…', 'Почти готово…'];
         var step = 0;
         var ticker = window.setInterval(function () {
           step += 1;
-          if (status && step < steps.length) status.textContent = steps[step];
-        }, 1200);
+          if (!status || step >= steps.length) return;
+          // Текст подменяется на затухании, чтобы слова не «прыгали».
+          status.classList.add('is-swapping');
+          window.setTimeout(function () {
+            status.textContent = steps[step];
+            status.classList.remove('is-swapping');
+          }, 200);
+        }, 1000);
 
         function hide() {
+          if (hidden) return;
+          hidden = true;
           window.clearInterval(ticker);
           boot.classList.add('is-done');
           // Узел удаляется после затухания: оставлять его поверх интерфейса
           // нельзя — он перехватывал бы нажатия.
           window.setTimeout(function () {
             if (boot.parentNode) boot.parentNode.removeChild(boot);
-          }, 500);
+          }, 600);
+        }
+
+        // Убираем заставку не раньше, чем отработает показ целиком.
+        function hideWhenShown() {
+          var left = MIN_VISIBLE - (Date.now() - startedAt);
+          if (left > 0) window.setTimeout(hide, left);
+          else hide();
         }
 
         // Ждём, пока React отрисует интерфейс. Наблюдатель надёжнее таймера:
@@ -186,7 +348,7 @@
         var observer = new MutationObserver(function () {
           if (root.children.length) {
             observer.disconnect();
-            hide();
+            hideWhenShown();
           }
         });
         observer.observe(root, { childList: true });

@@ -59,6 +59,48 @@ assert.match(indexHtml, /parentNode\.removeChild\(boot\)/);
 // показывается сообщение об ошибке, а не вечная анимация.
 assert.match(indexHtml, /if \(!root\.children\.length\)/);
 
+// --- Заставку должно быть видно ------------------------------------------------------
+// Главная жалоба: «анимацию даже не видно, она только появляется и сразу
+// программа». React отрисовывается за доли секунды, и заставка, снимавшаяся по
+// первому же событию отрисовки, обрывалась на первом кадре — выходило
+// мелькание, похожее на сбой. Теперь показ доигрывается до конца.
+assert.match(indexHtml, /MIN_VISIBLE/, 'у заставки должен быть минимальный показ');
+const minVisible = /MIN_VISIBLE = calm \? (\d+) : (\d+)/.exec(indexHtml);
+assert.ok(minVisible, 'минимальное время показа должно задаваться явно');
+assert.ok(Number(minVisible[2]) >= 2500,
+  `анимация обязана успевать проиграться, сейчас ${minVisible[2]}мс`);
+// При отключённых анимациях держать окно незачем — показывать нечего.
+assert.ok(Number(minVisible[1]) < Number(minVisible[2]),
+  'без анимаций заставка не должна задерживать запуск');
+// Скрытие идёт через отсчёт остатка, а не сразу по готовности интерфейса.
+assert.match(indexHtml, /function hideWhenShown/);
+assert.match(indexHtml, /MIN_VISIBLE - \(Date\.now\(\) - startedAt\)/);
+// Повторный вызов не должен запускать затухание дважды.
+assert.match(indexHtml, /if \(hidden\) return;/);
+
+// --- Знак живёт бесконечностью --------------------------------------------------------
+// Просьба была анимировать логотип «как бесконечность»: по замкнутому контуру
+// знака бесконечно бегут огоньки, встречаясь в перекрестье.
+assert.match(indexHtml, /nexus-boot-comet/, 'нужен бегущий огонёк по ленте');
+assert.match(indexHtml, /@keyframes nexus-comet/);
+assert.match(indexHtml, /animation:\s*\n?\s*nexus-comet [\d.]+s linear [-\d.]+s infinite/,
+  'движение по ленте обязано быть бесконечным');
+
+// Длина штриха обязана совпадать с длиной контура знака. Раньше стояло 64 при
+// настоящей длине 53.28, и линия дорисовывалась заметно раньше конца анимации.
+const contour = [
+  [4.2, 13.6], [4.2, 9.6], [7.2, 6.6], [12, 11.8], [16.8, 6.6], [19.8, 9.6],
+  [19.8, 13.6], [16.8, 16.6], [12, 11.4], [7.2, 16.6], [4.2, 13.6],
+];
+let length = 0;
+for (let i = 1; i < contour.length; i += 1) {
+  length += Math.hypot(contour[i][0] - contour[i - 1][0], contour[i][1] - contour[i - 1][1]);
+}
+const dash = /\.nexus-boot-ribbon \{[^}]*stroke-dasharray:\s*([\d.]+)/.exec(indexHtml);
+assert.ok(dash, 'у ленты должен быть задан штрих');
+assert.ok(Math.abs(Number(dash[1]) - length) < 0.5,
+  `штрих ${dash[1]} не совпадает с длиной контура ${length.toFixed(2)}`);
+
 // Подписи меняются: неподвижный текст через несколько секунд читается как зависание.
 assert.match(indexHtml, /Проверка модулей…/);
 
@@ -66,6 +108,11 @@ assert.match(indexHtml, /Проверка модулей…/);
 assert.match(indexHtml, /@media \(prefers-reduced-motion: reduce\)/);
 const reduced = indexHtml.slice(indexHtml.indexOf('@media (prefers-reduced-motion: reduce)'));
 assert.match(reduced, /\.nexus-boot-ring, \.nexus-boot-track i \{ animation: none; \}/);
+// Новые слои движения тоже обязаны подчиняться настройке, иначе при
+// «отключить анимации» половина заставки продолжит жить своей жизнью.
+assert.match(reduced, /\.nexus-boot-comet, \.nexus-boot-pulse \{ animation: none;/);
+assert.match(reduced, /\.nexus-boot-mark, \.nexus-boot-aurora\.one, \.nexus-boot-aurora\.two \{ animation: none; \}/);
+assert.match(reduced, /\.nexus-boot-name span \{ animation: none;/);
 
 // Заставка обязана попадать в собранную страницу — но проверять это здесь
 // нельзя, и вот почему.
