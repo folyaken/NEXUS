@@ -509,8 +509,39 @@ function createWindow(): void {
       contextIsolation: true,
       nodeIntegration: false,
       sandbox: false,
+      // Инструменты разработчика отключены в установленной версии.
+      // Через них видно разметку, состояние интерфейса и внутренние вызовы —
+      // в готовой программе это только помогает ковырять её и ломать.
+      // В режиме разработки они остаются доступны.
+      devTools: !app.isPackaged,
     },
   });
+
+  // Меню приложения убрано целиком.
+  //
+  // Окно у нас своё, без рамки, и штатное меню не видно — но Electron всё
+  // равно оставляет горячие клавиши по умолчанию, включая Ctrl+Shift+I и F12
+  // для инструментов разработчика. Пока меню существует, они работают.
+  if (app.isPackaged) Menu.setApplicationMenu(null);
+
+  // Попытки открыть инструменты другим путём тоже отклоняются: клавиши
+  // перехватываются до того, как их получит страница.
+  mainWindow.webContents.on('before-input-event', (event, input) => {
+    if (!app.isPackaged) return;
+    const key = (input.key ?? '').toLowerCase();
+    const blockedCombo = input.control && input.shift && (key === 'i' || key === 'j' || key === 'c');
+    if (key === 'f12' || blockedCombo) event.preventDefault();
+  });
+
+  // Страница не должна уводить окно на чужой адрес: NEXUS показывает только
+  // свои файлы, а внешние ссылки открываются в браузере (см. community.ts).
+  mainWindow.webContents.on('will-navigate', (event, url) => {
+    const allowed = process.env.VITE_DEV_SERVER_URL ?? 'http://localhost:5173';
+    if (!app.isPackaged && url.startsWith(allowed)) return;
+    if (url.startsWith('file://')) return;
+    event.preventDefault();
+  });
+  mainWindow.webContents.setWindowOpenHandler(() => ({ action: 'deny' }));
 
   const devUrl = process.env.VITE_DEV_SERVER_URL ?? 'http://localhost:5173';
   const useDevServer = !app.isPackaged && process.env.NEXUS_RENDERER_MODE !== 'dist';
