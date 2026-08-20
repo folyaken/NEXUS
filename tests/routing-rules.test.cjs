@@ -152,4 +152,16 @@ assert.match(vpnManager, /const usableRules = geoReady/);
 assert.match(vpnManager, /filter\(\(rule\) => !\/\^\(geosite\|geoip\|ext\):\/i\.test\(rule\.value\)\)/);
 assert.match(vpnManager, /Файлы наборов адресов не найдены/, 'пользователю нужно объяснение в журнале');
 
+// Проверка версии ядра не должна закрывать глаза на отсутствие файлов.
+//
+// Первая попытка починить код 23 не сработала именно из-за этого: скрипт
+// видел «Xray нужной версии уже стоит» и выходил сразу, не доходя до
+// копирования наборов. У всех, кто ставил NEXUS до появления маршрутизации,
+// файлы так и не появлялись.
+assert.match(ensureXray, /function hasGeoFiles/, 'наличие наборов проверяется отдельно от версии ядра');
+assert.match(ensureXray, /supportsTunSplit\(currentVersion\) && hasGeoFiles\(\)/,
+  'ранний выход возможен только когда есть и ядро, и наборы');
+// Оборванная загрузка оставляет пустой файл — ядро падает на нём так же.
+assert.match(ensureXray, /statSync\(file\)\.size > 1024/, 'пустой файл считается отсутствующим');
+
 console.log('Routing rules checks passed.');

@@ -331,3 +331,22 @@ const icoHeader = fs.readFileSync(path.join(root, 'assets', 'nexus.ico')).subarr
 assert.equal(icoHeader, '00000100', 'the Windows build icon must remain a valid ICO container');
 
 console.log('VPN fragmentation, maximize controls, functional tray, About and monochrome Graphite regression checks passed.');
+
+// --- Кнопка питания после смены страны ------------------------------------------
+// Переключаешь страну на работающем VPN — новый сервер уже поднят, а кнопка
+// остаётся оранжевой («работает другой сервер»). Причина: событие обновляло
+// runtime, но не трогало выбранный сервер, и когда список профилей по пути
+// пересобирался, прежний выбор переставал совпадать с активным.
+assert.match(page, /if \(snapshot\.runtime\.status === 'connected' && snapshot\.runtime\.activeProfileId\) \{\s*\n\s*setSelectedId\(snapshot\.runtime\.activeProfileId\);/,
+  'после подключения выбранным обязан становиться активный сервер');
+
+// --- Лучший сервер видно с первого взгляда ------------------------------------------
+// Самый быстрый уже стоит первым, но строки одинаковые и это не читается.
+assert.match(page, /const isBest = fastest\?\.id === profile\.id && !blocked/,
+  'заблокированный сервер лучшим быть не может');
+assert.match(page, /className="server-crown"/);
+assert.match(styles, /\.server-row\.is-best/);
+assert.match(styles, /\.server-crown \{/);
+// Подсветка выбора не должна затирать выделение лучшего.
+assert.match(styles, /\.server-row\.is-best\.is-active/);
+assert.ok(styles.includes('.app-frame.motion-off .server-row.is-best .server-crown'), 'мерцание подчиняется настройке движения');

@@ -2177,3 +2177,52 @@ kbd { padding: 3px 5px; border: 1px solid rgba(255,255,255,.1); border-radius: 5
   .app-frame:not(.motion-force) .dns-ranking-apply { transition: none; }
 }
 .app-frame.motion-off .dns-ranking-apply { transition: none; }
+
+/* ============================================================================
+   Лучший сервер в списке
+   ==========================================================================*/
+
+/* Самый быстрый сервер уже стоит первым, но одинаковые строки этого не
+   показывают: глаз не отличает первую от остальных. Золотая обводка и корона
+   отвечают на вопрос «какой выбрать» до чтения пингов. */
+.server-row.is-best {
+  position: relative;
+  border-color: rgba(248,199,108,.42);
+  background: linear-gradient(120deg, rgba(248,199,108,.09), rgba(248,199,108,.02) 55%, transparent);
+  box-shadow: inset 0 0 0 1px rgba(248,199,108,.12), 0 6px 18px rgba(140,100,20,.14);
+}
+.server-row.is-best:hover { border-color: rgba(248,199,108,.6); }
+/* Выбранный и лучший одновременно: подсветка выбора не должна затирать корону. */
+.server-row.is-best.is-active { border-color: rgba(248,199,108,.75); box-shadow: inset 0 0 0 1px rgba(248,199,108,.22), 0 8px 22px rgba(140,100,20,.2); }
+
+.server-crown {
+  position: absolute;
+  z-index: 2;
+  top: -7px;
+  right: -6px;
+  display: grid;
+  width: 22px;
+  height: 22px;
+  place-items: center;
+  border: 1px solid rgba(248,199,108,.45);
+  border-radius: 50%;
+  background: linear-gradient(145deg, #2a2313, #1a1608);
+  color: var(--amber);
+  box-shadow: 0 3px 10px rgba(0,0,0,.4), 0 0 12px rgba(248,199,108,.25);
+}
+.server-crown svg { width: 12px; height: 12px; fill: none; stroke: currentColor; stroke-linecap: round; stroke-linejoin: round; stroke-width: 1.7; }
+/* Мягкое мерцание: корона слегка светится, не отвлекая от работы. */
+.server-row.is-best .server-crown { animation: crown-glow 3.2s ease-in-out infinite; }
+@keyframes crown-glow {
+  0%, 100% { box-shadow: 0 3px 10px rgba(0,0,0,.4), 0 0 12px rgba(248,199,108,.25); }
+  50% { box-shadow: 0 3px 10px rgba(0,0,0,.4), 0 0 18px rgba(248,199,108,.45); }
+}
+
+.appearance-graphite .server-row.is-best { border-color: rgba(226,226,226,.3); background: linear-gradient(120deg, rgba(226,226,226,.07), transparent 55%); box-shadow: inset 0 0 0 1px rgba(226,226,226,.1); }
+.appearance-graphite .server-crown { border-color: rgba(226,226,226,.32); background: linear-gradient(145deg, #232323, #141414); color: #e2e2e2; }
+.appearance-graphite .server-row.is-best .server-crown { animation: none; }
+
+@media (prefers-reduced-motion: reduce) {
+  .app-frame:not(.motion-force) .server-row.is-best .server-crown { animation: none; }
+}
+.app-frame.motion-off .server-row.is-best .server-crown { animation: none; }

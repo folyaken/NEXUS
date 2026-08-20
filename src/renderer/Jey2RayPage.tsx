@@ -346,6 +346,13 @@ export function Jey2RayPage({
     return api.onVpnChanged((snapshot) => {
       setProfiles(snapshot.profiles);
       setRuntime(snapshot.runtime);
+      // Подключение состоялось — значит выбран именно этот сервер. Без этой
+      // строки кнопка оставалась оранжевой («работает другой сервер») после
+      // переключения страны на живом VPN: список профилей мог пересобраться,
+      // и прежний выбор переставал совпадать с активным.
+      if (snapshot.runtime.status === 'connected' && snapshot.runtime.activeProfileId) {
+        setSelectedId(snapshot.runtime.activeProfileId);
+      }
     });
   }, [onToast]);
 
@@ -1207,7 +1214,13 @@ export function Jey2RayPage({
           const live = runtime.status === 'connected' && runtime.activeProfileId === profile.id;
           const picked = selected?.id === profile.id;
           const blocked = canConnect(profile);
-          return <button key={profile.id} className={`server-row ${live ? 'is-live' : ''} ${picked ? 'is-active' : ''} ${blocked ? 'is-off' : ''}`} onClick={() => setSelectedId(profile.id)} onDoubleClick={() => { if (blocked) onToast(t(blocked)); else void connect(profile.id); }}>
+          // Лучший сервер уже стоит первым, но глазом это не читается: строки
+          // одинаковые. Корона отвечает на вопрос «а какой выбрать» сразу.
+          const isBest = fastest?.id === profile.id && !blocked;
+          return <button key={profile.id} className={`server-row ${live ? 'is-live' : ''} ${picked ? 'is-active' : ''} ${blocked ? 'is-off' : ''} ${isBest ? 'is-best' : ''}`} onClick={() => setSelectedId(profile.id)} onDoubleClick={() => { if (blocked) onToast(t(blocked)); else void connect(profile.id); }}>
+            {isBest && <span className="server-crown" title={t('Самый быстрый сервер')} aria-label={t('Самый быстрый сервер')}>
+              <svg viewBox="0 0 24 24" aria-hidden><path d="M4 17.5 3 6.8l5 3.6L12 4l4 6.4 5-3.6-1 10.7z" /><path d="M4.2 19.6h15.6" /></svg>
+            </span>}
             <Flag code={profile.country} />
             <span className="server-copy">
               <strong>{localizedServerName(profile)}</strong>

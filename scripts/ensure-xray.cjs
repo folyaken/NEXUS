@@ -87,9 +87,19 @@ async function download(url, file) {
 
 async function main() {
   const currentVersion = installedVersion();
-  if (supportsTunSplit(currentVersion)) {
+  if (supportsTunSplit(currentVersion) && hasGeoFiles()) {
     console.log(`Xray уже установлен: ${path.relative(root, dest)} (${currentVersion.join('.')})`);
     return;
+  }
+  // Ядро нужной версии, но файлов наборов рядом нет.
+  //
+  // Так вышло у всех, кто ставил NEXUS до появления маршрутизации: xray.exe
+  // скачался и прошёл проверку версии, а geosite.dat с geoip.dat в те времена
+  // не копировались вовсе. Скрипт видел «версия подходит» и выходил сразу,
+  // поэтому файлы не появлялись и после обновления — правило вида geosite:ru
+  // продолжало ронять ядро с кодом 23.
+  if (supportsTunSplit(currentVersion)) {
+    console.log('Ядро на месте, но нет файлов наборов адресов — докачиваем их…');
   }
   if (ok()) {
     const label = currentVersion ? currentVersion.join('.') : 'неизвестная версия';
@@ -129,6 +139,16 @@ async function main() {
   }
   const action = ok() ? 'не обновлён; Proxy может продолжить работу, но TUN Split требует Xray 26.4.13+' : 'не установлен';
   console.warn(`Xray ${action} (${last}). Повторите запуск после восстановления доступа к GitHub.`);
+}
+
+/** Лежат ли рядом с ядром файлы наборов адресов. */
+function hasGeoFiles() {
+  return ['geoip.dat', 'geosite.dat'].every((name) => {
+    const file = path.join(binDir, name);
+    // Пустой файл тоже считается отсутствующим: оборванная загрузка оставляет
+    // нулевой файл, и ядро падает на нём так же, как если бы файла не было.
+    return fs.existsSync(file) && fs.statSync(file).size > 1024;
+  });
 }
 
 /**

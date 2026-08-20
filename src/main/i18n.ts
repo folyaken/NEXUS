@@ -341,6 +341,7 @@ const EN: Record<string, string> = {
   'Доступно обновление': 'An update is available',
 
   // --- Добавлено при доведении английского до конца ------------------------------
+  'Самый быстрый сервер': 'Fastest server',
   'Проверить DNS': 'Test DNS',
   'Измеряем…': 'Measuring…',
   'Найти самый быстрый': 'Find the fastest',
