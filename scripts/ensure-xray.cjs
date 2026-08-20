@@ -115,6 +115,7 @@ async function main() {
       fs.mkdirSync(binDir, { recursive: true });
       fs.copyFileSync(found, dest);
       if (!isWin) fs.chmodSync(dest, 0o755);
+      copyGeoFiles(extractDir);
       const nextVersion = installedVersion();
       if (!supportsTunSplit(nextVersion)) throw new Error('ядро не поддерживает TUN Split');
       console.log(`Xray установлен: ${path.relative(root, dest)} (${nextVersion.join('.')})`);
@@ -128,6 +129,28 @@ async function main() {
   }
   const action = ok() ? 'не обновлён; Proxy может продолжить работу, но TUN Split требует Xray 26.4.13+' : 'не установлен';
   console.warn(`Xray ${action} (${last}). Повторите запуск после восстановления доступа к GitHub.`);
+}
+
+/**
+ * Копирует наборы адресов рядом с ядром.
+ *
+ * В архиве Xray кроме самой программы лежат `geoip.dat` и `geosite.dat` —
+ * заранее собранные списки: все российские сайты, реклама, соцсети. Раньше из
+ * архива забирали только `xray.exe`, и файлы терялись вместе с временной папкой.
+ *
+ * Пока правил маршрутизации не было, это не мешало. Но правило вида
+ * `geosite:ru` без этих файлов роняет ядро сразу после запуска — с кодом 23 и
+ * без внятного объяснения: VPN просто не подключается.
+ */
+function copyGeoFiles(extractDir) {
+  for (const name of ['geoip.dat', 'geosite.dat']) {
+    const found = walk(extractDir, name);
+    if (!found) {
+      console.warn(`  ${name} не найден в архиве — групповые правила маршрутизации работать не будут`);
+      continue;
+    }
+    fs.copyFileSync(found, path.join(binDir, name));
+  }
 }
 
 function walk(dir, name) {

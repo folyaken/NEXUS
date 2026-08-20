@@ -82,7 +82,7 @@ assert.match(types, /vpnFragmentation: true/);
 assert.match(main, /appearance: raw\.appearance === 'graphite' \? 'graphite' : 'indigo'/);
 assert.match(main, /vpnFragmentation: raw\.vpnFragmentation !== false/, 'old settings must migrate to enabled fragmentation');
 assert.match(vpnManager, /fragmentation = true/);
-assert.match(vpnManager, /buildXrayConfig\(profile\.params, port, mode, activeSplitApps, activeAppRouting, fragmentation, allowLan, dnsServers, routingRules\)/);
+assert.match(vpnManager, /buildXrayConfig\(profile\.params, port, mode, activeSplitApps, activeAppRouting, fragmentation, allowLan, dnsServers, usableRules\)/);
 assert.match(packageJson.version, /^\d+\.\d+\.\d+/, 'версия должна следовать semver');
 assert.match(githubUpdater, /syncInFlight = new Map<string, Promise<void>>\(\)/, 'parallel sync requests must share one task per module');
 assert.match(githubUpdater, /ensureInFlight = new Map<string, Promise<void>>\(\)/, 'parallel ensure requests must share one task per module');

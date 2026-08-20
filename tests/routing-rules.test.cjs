@@ -12,6 +12,7 @@ const {
 } = require(path.join(root, 'dist-electron', 'routing-rules.js'));
 const { buildXrayConfig } = require(path.join(root, 'dist-electron', 'xray-config.js'));
 const { DEFAULT_SETTINGS } = require(path.join(root, 'dist-electron', 'types.js'));
+const manifestBuild = JSON.parse(fs.readFileSync(path.join(root, 'package.json'), 'utf8')).build;
 const { hasTranslation } = require(path.join(root, 'dist-electron', 'i18n.js'));
 
 // --- Проверка того, что вводит пользователь -------------------------------------
@@ -124,5 +125,31 @@ for (const preset of ROUTING_PRESETS) {
   assert.equal(hasTranslation('en', preset.title), true, `нужен перевод: ${preset.title}`);
   assert.equal(hasTranslation('en', preset.description), true, `нужен перевод описания: ${preset.title}`);
 }
+
+// --- Файлы наборов адресов --------------------------------------------------------
+// Правило вида `geosite:ru` работает только когда рядом с ядром лежат
+// `geosite.dat` и `geoip.dat`. Без них Xray падает сразу после запуска с кодом
+// 23 и без объяснения — VPN просто не подключается.
+//
+// Раньше из архива Xray забирали только сам xray.exe, а файлы наборов терялись
+// вместе с временной папкой. Пока правил маршрутизации не было, это не мешало.
+const ensureXray = fs.readFileSync(path.join(root, 'scripts', 'ensure-xray.cjs'), 'utf8');
+assert.match(ensureXray, /function copyGeoFiles/, 'файлы наборов обязаны копироваться рядом с ядром');
+assert.match(ensureXray, /geoip\.dat/);
+assert.match(ensureXray, /geosite\.dat/);
+assert.match(ensureXray, /copyGeoFiles\(extractDir\)/, 'копирование обязано вызываться после распаковки');
+
+// Файлы попадают в установщик: modules/bin переносится целиком.
+const binResource = manifestBuild.extraResources.find((item) => item.from === 'modules/bin');
+assert.ok(binResource, 'ядра и наборы обязаны попадать в сборку');
+assert.ok(binResource.filter.includes('**/*'), 'фильтр не должен отсекать .dat');
+
+// Если файлов всё же нет, групповые правила отбрасываются, а подключение
+// сохраняется: лучше без части правил, чем совсем без VPN.
+const vpnManager = fs.readFileSync(path.join(root, 'src', 'main', 'vpn-manager.ts'), 'utf8');
+assert.match(vpnManager, /hasGeoFiles\(\): boolean/);
+assert.match(vpnManager, /const usableRules = geoReady/);
+assert.match(vpnManager, /filter\(\(rule\) => !\/\^\(geosite\|geoip\|ext\):\/i\.test\(rule\.value\)\)/);
+assert.match(vpnManager, /Файлы наборов адресов не найдены/, 'пользователю нужно объяснение в журнале');
 
 console.log('Routing rules checks passed.');

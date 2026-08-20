@@ -130,6 +130,18 @@ export class VpnManager extends EventEmitter {
     return places;
   }
 
+  /**
+   * Есть ли рядом с ядром файлы наборов адресов.
+   *
+   * Правило вида `geosite:ru` без `geosite.dat` роняет Xray сразу после
+   * запуска — с кодом 23 и без внятного объяснения. Проверяем заранее, чтобы
+   * отбросить такие правила и сохранить работающее подключение: остальные
+   * правила при этом продолжают действовать.
+   */
+  hasGeoFiles(): boolean {
+    return existsSync(this.binPath('geosite.dat')) && existsSync(this.binPath('geoip.dat'));
+  }
+
   private binPath(name: string): string {
     const candidates = [
       path.join(this.modulesDir, 'bin', name),
@@ -861,9 +873,19 @@ export class VpnManager extends EventEmitter {
       ? appRouting
       : 'system';
     const activeSplitApps = activeAppRouting === 'system' ? [] : splitApps;
+    // Групповые наборы работают только когда рядом с ядром лежат файлы с их
+    // содержимым. Если файлов нет, такие правила молча отбрасываются: лучше
+    // подключиться без части правил, чем не подключиться вовсе.
+    const geoReady = this.hasGeoFiles();
+    const usableRules = geoReady
+      ? routingRules
+      : routingRules.filter((rule) => !/^(geosite|geoip|ext):/i.test(rule.value));
+    if (!geoReady && usableRules.length !== routingRules.length) {
+      this.emitLog('warn', 'Файлы наборов адресов не найдены — групповые правила пропущены. Нажмите «Проверить обновления» в разделе модулей.');
+    }
     const config = useSingbox
       ? buildSingboxConfig(profile.params, port, mode, activeSplitApps, activeAppRouting, allowLan, dnsServers, routingRules)
-      : buildXrayConfig(profile.params, port, mode, activeSplitApps, activeAppRouting, fragmentation, allowLan, dnsServers, routingRules);
+      : buildXrayConfig(profile.params, port, mode, activeSplitApps, activeAppRouting, fragmentation, allowLan, dnsServers, usableRules);
     const configFile = useSingbox ? this.singboxConfigPath() : this.generatedPath();
     await fs.mkdir(this.configsDir(), { recursive: true });
     await fs.writeFile(configFile, `${JSON.stringify(config, null, 2)}\n`, 'utf8');
