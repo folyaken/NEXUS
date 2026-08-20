@@ -175,7 +175,7 @@ export function Jey2RayPage({
   const [name, setName] = useState('');
   const [importOpen, setImportOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
-  const [settingsTab, setSettingsTab] = useState<'general' | 'applications'>('general');
+  const [settingsTab, setSettingsTab] = useState<'general' | 'dns' | 'applications' | 'routing'>('general');
   const [subscriptionsOpen, setSubscriptionsOpen] = useState(false);
   /** Открытый выбор приложений и режим, который к ним применится. */
   const [pickerRouting, setPickerRouting] = useState<VpnAppRoutingMode | null>(null);
@@ -593,10 +593,14 @@ export function Jey2RayPage({
         <span>Jey2Ray</span>
         <h2>{t('Настройки Jey2Ray')}</h2>
       </div>
-      <span className={`app-route-state ${settingsTab === 'applications' && appRoutingActive ? 'is-on' : ''}`}>
+      <span className={`app-route-state ${settingsTab === 'applications' && appRoutingActive ? 'is-on' : ''} ${settingsTab === 'dns' && settings.vpnDnsProvider !== 'system' ? 'is-on' : ''}`}>
         <i />{settingsTab === 'applications'
           ? (appRoutingActive ? t('Маршрутизация включена') : t('Системная маршрутизация'))
-          : t('Общие параметры')}
+          : settingsTab === 'dns'
+            ? (settings.vpnDnsProvider === 'system' ? t('Справочник Windows') : t('Свой справочник'))
+            : settingsTab === 'routing'
+              ? t('Правила маршрутизации')
+              : t('Общие параметры')}
       </span>
     </div>
 
@@ -617,6 +621,20 @@ export function Jey2RayPage({
       </button>
       <button
         type="button"
+        id="jey-settings-dns-tab"
+        role="tab"
+        aria-controls="jey-settings-panel"
+        aria-selected={settingsTab === 'dns'}
+        className={`app-settings-tab ${settingsTab === 'dns' ? 'is-active' : ''}`}
+        onClick={() => setSettingsTab('dns')}
+      >
+        <span className="app-settings-tab-icon dns">
+          <svg viewBox="0 0 20 20" aria-hidden><circle cx="10" cy="10" r="7" fill="none" stroke="currentColor" strokeWidth="1.45" /><path d="M3 10h14M10 3a11 11 0 0 1 0 14M10 3a11 11 0 0 0 0 14" fill="none" stroke="currentColor" strokeWidth="1.45" /></svg>
+        </span>
+        <span><strong>{t('Справочник имён')}</strong><small>{t('DNS-сервер для определения адресов')}</small></span>
+      </button>
+      <button
+        type="button"
         id="jey-settings-applications-tab"
         role="tab"
         aria-controls="jey-settings-panel"
@@ -628,6 +646,20 @@ export function Jey2RayPage({
           <svg viewBox="0 0 20 20" aria-hidden><rect x="3" y="3.5" width="14" height="13" rx="2.5" fill="none" stroke="currentColor" strokeWidth="1.45" /><path d="M3.5 7.5h13M7 11h6M8.5 14h3" fill="none" stroke="currentColor" strokeWidth="1.45" strokeLinecap="round" /></svg>
         </span>
         <span><strong>{t('Настройка приложений')}</strong><small>{t('Маршрутизация и выбранные программы')}</small></span>
+      </button>
+      <button
+        type="button"
+        id="jey-settings-routing-tab"
+        role="tab"
+        aria-controls="jey-settings-panel"
+        aria-selected={settingsTab === 'routing'}
+        className={`app-settings-tab ${settingsTab === 'routing' ? 'is-active' : ''}`}
+        onClick={() => setSettingsTab('routing')}
+      >
+        <span className="app-settings-tab-icon routing">
+          <svg viewBox="0 0 20 20" aria-hidden><path d="M4 4v5a3 3 0 0 0 3 3h9M4 16h4" fill="none" stroke="currentColor" strokeWidth="1.45" strokeLinecap="round" strokeLinejoin="round" /><path d="m13.5 9 2.5 3-2.5 3" fill="none" stroke="currentColor" strokeWidth="1.45" strokeLinecap="round" strokeLinejoin="round" /><circle cx="4" cy="4" r="1.6" /><circle cx="8" cy="16" r="1.6" /></svg>
+        </span>
+        <span><strong>{t('Маршрутизация')}</strong><small>{t('Правила: домен → прямо или через VPN')}</small></span>
       </button>
     </div>
 
@@ -700,10 +732,10 @@ export function Jey2RayPage({
           </p>)}
           <p className="fragmentation-note">{t('Включайте только в доверенной сети: прокси станет доступен всем устройствам этого сегмента без пароля. Может потребоваться разрешение в брандмауэре Windows.')}</p>
         </section>
-
+      </> : settingsTab === 'dns' ? <>
         <section className="app-settings-card dns-settings-card">
           <div className="app-settings-card-head compact">
-            <div><span className="settings-step">04</span><div><h3>{t('Справочник имён (DNS)')}</h3><p>{t('Через него определяются адреса сайтов. Свой справочник скрывает от провайдера список посещённых сайтов и обходит блокировки на этом уровне.')}</p></div></div>
+            <div><span className="settings-step">01</span><div><h3>{t('Справочник имён (DNS)')}</h3><p>{t('Через него определяются адреса сайтов. Свой справочник скрывает от провайдера список посещённых сайтов и обходит блокировки на этом уровне.')}</p></div></div>
           </div>
           <div className="dns-provider-list" role="radiogroup" aria-label={t('Справочник имён (DNS)')}>
             {DNS_PROVIDERS.map((provider) => <button
@@ -752,6 +784,21 @@ export function Jey2RayPage({
             >{t('Применить')}</button>
           </div>}
           <p className="fragmentation-note">{t('Подходит обычный адрес вроде 1.1.1.1 или защищённый https://…/dns-query. Изменение применяется сразу: активное подключение перезапустится.')}</p>
+        </section>
+      </> : settingsTab === 'routing' ? <>
+        {/* Вкладка-заготовка. Показываем честно, что раздел готовится:
+            пустая вкладка без объяснений выглядит как поломка. */}
+        <section className="app-settings-card routing-empty-card">
+          <div className="app-settings-card-head compact">
+            <div><span className="settings-step">01</span><div><h3>{t('Правила маршрутизации')}</h3><p>{t('Отправляйте одни сайты напрямую, другие — через VPN, третьи блокируйте.')}</p></div></div>
+          </div>
+          <div className="routing-empty-state">
+            <span className="routing-empty-icon">
+              <svg viewBox="0 0 24 24" aria-hidden><path d="M4 5v6a4 4 0 0 0 4 4h10M4 19h5" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" /><path d="m15 11 3 4-3 4" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" /></svg>
+            </span>
+            <strong>{t('Раздел готовится')}</strong>
+            <p>{t('Здесь появятся правила вида «домен → напрямую, через VPN или блокировать», в том числе групповые: все российские сайты, соцсети, реклама.')}</p>
+          </div>
         </section>
       </> : <>
         {routeSettingsLocked && <div className="app-settings-lock">

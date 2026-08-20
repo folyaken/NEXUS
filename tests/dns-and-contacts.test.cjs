@@ -99,4 +99,37 @@ assert.match(styles, /\.dns-provider-option:focus-visible/, 'выбор долж
 assert.ok(styles.includes('.app-frame:not(.motion-force) .dns-provider-option'), 'нужна защита анимаций');
 assert.ok(styles.includes('.app-frame.motion-off .dns-provider-option'));
 
+
+// --- Вкладки настроек Jey2Ray ------------------------------------------------------
+// DNS жил внизу общей вкладки и терялся среди других карточек. Теперь у него
+// свой раздел, а рядом — заготовка маршрутизации.
+assert.match(jey, /useState<'general' \| 'dns' \| 'applications' \| 'routing'>/);
+assert.match(jey, /id="jey-settings-dns-tab"/, 'нужна отдельная вкладка справочника имён');
+assert.match(jey, /id="jey-settings-routing-tab"/, 'нужна вкладка маршрутизации');
+// Порядок важен: DNS идёт сразу под «Общие», маршрутизация — под приложениями.
+assert.ok(
+  jey.indexOf('jey-settings-general-tab') < jey.indexOf('jey-settings-dns-tab')
+  && jey.indexOf('jey-settings-dns-tab') < jey.indexOf('jey-settings-applications-tab')
+  && jey.indexOf('jey-settings-applications-tab') < jey.indexOf('jey-settings-routing-tab'),
+  'вкладки обязаны идти в порядке: Общие, Справочник, Приложения, Маршрутизация',
+);
+// Пустая вкладка без объяснений выглядит как поломка: показываем, что раздел
+// готовится, и чем он будет полезен.
+assert.match(jey, /routing-empty-state/);
+assert.match(jey, /\{t\('Раздел готовится'\)\}/);
+for (const phrase of ['Справочник имён', 'Маршрутизация', 'Раздел готовится']) {
+  assert.equal(hasTranslation('en', phrase), true, `нужен перевод: «${phrase}»`);
+}
+
+// --- Логотипы площадок в фирменных цветах ---------------------------------------------
+// Контурные значки в один цвет читались одинаково: понять, где какая площадка,
+// можно было только по подписи.
+const app = fs.readFileSync(path.join(root, 'src', 'renderer', 'App.tsx'), 'utf8');
+assert.match(app, /brand-telegram/, 'у Telegram должен быть свой логотип');
+assert.match(app, /brand-discord/, 'у Discord должен быть свой логотип');
+assert.match(app, /#5865F2/, 'фирменный цвет Discord');
+assert.match(app, /#37BBFE/, 'фирменный цвет Telegram');
+// Общая обводка перечеркнула бы залитый логотип.
+assert.match(styles, /\.community-item-glyph\.brand-telegram,\s*\n\.community-item-glyph\.brand-discord \{[^}]*stroke: none/);
+
 console.log('DNS selection and contact links checks passed.');

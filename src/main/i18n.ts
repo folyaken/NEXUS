@@ -341,6 +341,17 @@ const EN: Record<string, string> = {
   'Доступно обновление': 'An update is available',
 
   // --- Добавлено при доведении английского до конца ------------------------------
+  'Справочник имён': 'Name resolver',
+  'DNS-сервер для определения адресов': 'DNS server used to resolve addresses',
+  'Справочник Windows': 'Windows resolver',
+  'Свой справочник': 'Custom resolver',
+  'Маршрутизация': 'Routing',
+  'Правила: домен → прямо или через VPN': 'Rules: domain → direct or via VPN',
+  'Правила маршрутизации': 'Routing rules',
+  'Отправляйте одни сайты напрямую, другие — через VPN, третьи блокируйте.': 'Send some sites directly, others through the VPN, and block the rest.',
+  'Раздел готовится': 'Coming soon',
+  'Здесь появятся правила вида «домен → напрямую, через VPN или блокировать», в том числе групповые: все российские сайты, соцсети, реклама.': 'Rules like “domain → direct, via VPN or blocked” will appear here, including group ones: all Russian sites, social networks, ads.',
+  'Загружено — можно устанавливать': 'Downloaded — ready to install',
   'Справочник имён (DNS)': 'Name resolver (DNS)',
   'Через него определяются адреса сайтов. Свой справочник скрывает от провайдера список посещённых сайтов и обходит блокировки на этом уровне.': 'It resolves site addresses. Your own resolver hides the list of visited sites from your ISP and bypasses blocks made at this level.',
   'Справочник имён:': 'Name resolver:',

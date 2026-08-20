@@ -150,27 +150,21 @@ assert.match(finishBlock, /!ifndef BUILD_UNINSTALLER/);
 assert.match(app, /className="about-update-progress-meta"/);
 assert.match(app, /formatBytes\(updateCheck\.totalBytes\)/, 'нужен размер файла');
 assert.match(app, /Math\.round\(updateCheck\?\.percent \?\? 0\)\}%/, 'нужен процент цифрой');
-assert.match(app, /className="about-update-steps"/, 'нужны шаги обновления');
-assert.match(styles, /\.about-update-steps li\.is-current/);
-assert.match(styles, /\.about-update-steps li\.is-done/);
-
-// Шаги обязаны читаться как путь, а не как россыпь значков.
-//
-// Сначала кружки просто стояли в ряд на равном расстоянии, ничем не связанные:
-// глаз видел три отдельные пометки и не понимал их порядок. Линия между ними
-// показывает последовательность и подсвечивается по мере прохождения.
-assert.match(styles, /\.about-update-steps li:not\(:first-child\):before/,
-  'шаги обязаны соединяться линией');
-assert.match(styles, /\.about-update-steps li\.is-done:before[\s\S]{0,90}background: rgba\(113,244,184/,
-  'пройденный отрезок линии обязан подсвечиваться');
-
-// Галочка — настоящий значок. Прежний вариант рисовался псевдоэлементом с
-// наклонённой рамкой: у такой «галочки» рваные концы и разная толщина линий
-// в зависимости от масштаба экрана.
-assert.match(app, /m5 12\.5 4\.5 4\.5L19 7\.5/, 'галочка обязана быть значком');
-assert.match(styles, /\.about-update-step-mark svg \{[^}]*stroke: var\(--mint\)/);
-assert.doesNotMatch(styles, /\.about-update-steps li\.is-done i:after \{[^}]*border-width/,
-  'галочка из наклонённой рамки выглядит криво — нужен значок');
+// Полосу заменил самолётик: кружки-шаги висели отдельной лентой и читались
+// как лишний элемент, особенно когда обновляться не нужно.
+assert.match(app, /className="about-update-flight"/, 'над полосой обязан лететь самолётик');
+assert.match(app, /className="about-update-plane"/);
+assert.doesNotMatch(app, /className="about-update-steps"/, 'кружки шагов убраны');
+assert.match(styles, /\.about-update-plane \{[^}]*left: var\(--nx-progress/,
+  'позиция самолётика обязана зависеть от реального процента');
+assert.match(styles, /@keyframes plane-bob/);
+// След за самолётиком и насечки: полоса должна читаться как мерная шкала.
+assert.match(styles, /\.about-update-flight:before/);
+assert.match(app, /className="about-update-ticks"/);
+// Посадка: галочка прочерчивается и слегка подпрыгивает.
+assert.match(app, /className="about-update-landed"/);
+assert.match(styles, /@keyframes tick-pop/);
+assert.match(styles, /\.about-update-tick \{[^}]*stroke-dasharray/);
 
 // Процент и размер стоят рядом и раньше спорили за внимание: крупная мятная
 // цифра рядом с мелким серым текстом читалась как ошибка вёрстки.

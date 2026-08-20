@@ -36,33 +36,23 @@ assert.equal((body.match(/\.catch\(\(\) => undefined\)/g) || []).length >= 3, tr
 // что сеть уже чистая.
 assert.match(main, /enabled: isRunning \|\| status === 'connecting' \|\| \(manager\?\.list\(\)\.some/);
 
-// --- Полоска загрузки ------------------------------------------------------------------
+// --- Полоса загрузки ------------------------------------------------------------------
 // Была плоской заливкой: при медленной загрузке казалось, что процесс завис.
-assert.match(app, /className="about-update-comet"/, 'по полоске должна бежать комета');
-assert.match(styles, /\.about-update-comet \{[^}]*radial-gradient/);
-assert.match(styles, /@keyframes update-comet-pulse/);
-// Сама заливка переливается — движение видно даже когда процент стоит на месте.
+// Кружки-шаги убраны — вместо них самолётик, летящий по реальному проценту.
+assert.match(app, /className="about-update-spark"/, 'край заливки обязан подсвечиваться');
+assert.match(app, /className="about-update-plane"/, 'над полосой должен лететь самолётик');
+assert.doesNotMatch(app, /about-update-steps/, 'кружки шагов удалены');
 assert.match(styles, /\.about-update-progress-bar \{[^}]*background-size: 300% 100%/);
 assert.match(styles, /@keyframes update-flow/);
 
-// Галочка прочерчивается, а не появляется скачком.
+// Галочка прочерчивается и подскакивает, а не появляется скачком.
 assert.match(app, /className="about-update-tick"/);
 assert.match(styles, /\.about-update-tick \{[^}]*stroke-dasharray/);
 assert.match(styles, /@keyframes update-tick-draw/);
-
-// --- Шаги не мозолят глаза, когда обновляться не нужно -------------------------------
-// На «у вас последняя версия» лента шагов висела серой полосой и сбивала с
-// толку: путь показан, а идти некуда.
-assert.match(app, /\(updateStatus === 'available' \|\| updateStatus === 'downloading' \|\| updateStatus === 'downloaded'\) &&\s*\n\s*<ol className="about-update-steps"/,
-  'шаги показываются только когда обновление идёт');
-
-// Подписи обрезались многоточием: «Провер…», «Установ…».
-assert.match(styles, /\.about-update-step-label \{[^}]*white-space: normal/,
-  'подписи шагов не должны обрезаться');
-assert.doesNotMatch(styles, /\.about-update-step-label \{[^}]*text-overflow: ellipsis/);
+assert.match(styles, /@keyframes tick-pop/);
 
 // --- Движение подчиняется настройке анимаций --------------------------------------------
-for (const selector of ['.about-update-comet', '.about-update-tick']) {
+for (const selector of ['.about-update-plane', '.about-update-landed-mark']) {
   assert.ok(styles.includes(`.app-frame:not(.motion-force) ${selector}`), `${selector}: нужна защита по настройке`);
   assert.ok(styles.includes(`.app-frame.motion-off ${selector}`), `${selector}: нужен вариант «Выключены»`);
 }

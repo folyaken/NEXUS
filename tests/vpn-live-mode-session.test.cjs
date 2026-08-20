@@ -118,7 +118,7 @@ assert.match(page, /orb-halo orb-halo-wait/);
 assert.match(page, /if \(settingsOpen\) return <section className="page-section jey-page app-settings-page">/);
 assert.match(page, /settings-gear-button/);
 assert.match(page, /Открыть настройки Jey2Ray/);
-assert.match(page, /const \[settingsTab, setSettingsTab\] = useState<'general' \| 'applications'>\('general'\)/);
+assert.match(page, /const \[settingsTab, setSettingsTab\] = useState<'general' \| 'dns' \| 'applications' \| 'routing'>\('general'\)/);
 assert.match(page, /role="tablist" aria-label=\{t\('Разделы настроек Jey2Ray'\)\}/);
 assert.match(page, /id="jey-settings-panel"[\s\S]*role="tabpanel"[\s\S]*aria-labelledby=\{`jey-settings-\$\{settingsTab\}-tab`\}/);
 assert.match(page, /role="tab"[\s\S]*aria-selected=\{settingsTab === 'general'\}[\s\S]*>\{t\('Общие'\)\}</);

@@ -1405,13 +1405,18 @@ kbd { padding: 3px 5px; border: 1px solid rgba(255,255,255,.1); border-radius: 5
 .about-community-button:focus-visible { outline: 2px solid var(--cyan); outline-offset: 2px; }
 /* Значок площадки: узнаваемая иконка подсказывает, куда ведёт кнопка,
    ещё до чтения подписи. Раньше все кнопки выглядели одинаково. */
-.about-community-button-icon { display: grid; width: 34px; height: 34px; flex: 0 0 auto; place-items: center; border: 1px solid rgba(140,161,255,.16); border-radius: 11px; background: rgba(255,255,255,.04); color: var(--cyan); }
-.community-item-glyph { width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-linecap: round; stroke-linejoin: round; stroke-width: 1.6; }
+.about-community-button-icon { display: grid; width: 36px; height: 36px; flex: 0 0 auto; place-items: center; border: 1px solid rgba(255,255,255,.08); border-radius: 11px; background: rgba(255,255,255,.05); }
+/* Логотипы площадок нарисованы заливкой в фирменных цветах, поэтому общая
+   обводка им не нужна — она бы перечеркнула сам логотип. */
+.community-item-glyph { width: 20px; height: 20px; }
+.community-item-glyph.brand-telegram,
+.community-item-glyph.brand-discord { fill: none; stroke: none; }
+.community-item-glyph.brand-discord { width: 21px; height: 21px; }
 .about-community-button-copy { display: grid; min-width: 0; gap: 3px; }
 .about-community-button strong { color: #e4ebf5; font-size: 12px; }
 .about-community-button span { color: #8c9ab0; font-size: 11px; line-height: 1.5; }
-.about-community-button:hover .about-community-button-icon { border-color: rgba(124,242,213,.3); background: rgba(124,242,213,.1); }
-.appearance-graphite .about-community-button-icon { border-color: rgba(226,226,226,.14); color: #d6d6d6; }
+.about-community-button:hover .about-community-button-icon { border-color: rgba(255,255,255,.16); background: rgba(255,255,255,.09); }
+.appearance-graphite .about-community-button-icon { border-color: rgba(226,226,226,.14); }
 .appearance-graphite .about-community-button:hover .about-community-button-icon { border-color: rgba(226,226,226,.24); background: rgba(226,226,226,.08); }
 .community-glyph { fill: none; stroke: currentColor; stroke-width: 1.6; stroke-linejoin: round; }
 .appearance-graphite .about-community-card { background: #161616; }
@@ -1881,47 +1886,12 @@ kbd { padding: 3px 5px; border: 1px solid rgba(255,255,255,.1); border-radius: 5
 .about-update-progress-bar:after { position: absolute; inset: 0; background: linear-gradient(100deg, transparent, rgba(255,255,255,.45), transparent); content: ''; transform: translateX(-100%); animation: update-sheen 1.5s ease-in-out infinite; }
 @keyframes update-sheen { to { transform: translateX(100%); } }
 
-/* Три шага обновления: проверка → загрузка → установка.
-   Первый вариант выглядел россыпью значков: кружки стояли на равном
-   расстоянии, но ничем не были связаны, и читались как три отдельные пометки,
-   а не как путь. Теперь шаги соединены линией, она подсвечивается по мере
-   прохождения — видно и порядок, и на каком месте вы сейчас. */
-.about-update-steps { display: flex; align-items: flex-start; margin-top: 18px; padding: 0; list-style: none; }
-.about-update-steps li { position: relative; display: flex; flex: 1; min-width: 0; flex-direction: column; align-items: center; gap: 7px; color: #6f7d91; font-size: 10px; text-align: center; }
-/* Линия тянется от центра предыдущего кружка к центру текущего. */
-.about-update-steps li:not(:first-child):before {
-  position: absolute; top: 9px; right: 50%; left: -50%; height: 1.5px;
-  background: rgba(255,255,255,.09); border-radius: 2px; content: '';
-  transition: background .3s ease;
-}
-.about-update-steps li.is-done:before,
-.about-update-steps li.is-current:before { background: rgba(113,244,184,.42); }
-.about-update-step-mark { position: relative; z-index: 1; display: grid; width: 19px; height: 19px; place-items: center; border: 1.5px solid rgba(255,255,255,.14); border-radius: 50%; background: #131a28; transition: border-color .3s ease, background .3s ease, box-shadow .3s ease; }
-/* Точка внутри кружка у непройденных шагов: пустой кружок выглядит забытым. */
-.about-update-step-mark i { width: 4px; height: 4px; border-radius: 50%; background: rgba(255,255,255,.22); }
-.about-update-step-mark svg { width: 11px; height: 11px; fill: none; stroke: var(--mint); stroke-linecap: round; stroke-linejoin: round; stroke-width: 2.6; }
-.about-update-steps li.is-done { color: #93a4ba; }
-.about-update-steps li.is-done .about-update-step-mark { border-color: rgba(113,244,184,.45); background: rgba(113,244,184,.12); }
-.about-update-steps li.is-current { color: #e9f4ff; font-weight: 600; }
-.about-update-steps li.is-current .about-update-step-mark { border-color: var(--cyan); background: rgba(124,242,213,.16); box-shadow: 0 0 0 4px rgba(124,242,213,.07); }
-.about-update-steps li.is-current .about-update-step-mark i { width: 6px; height: 6px; background: var(--cyan); box-shadow: 0 0 8px rgba(124,242,213,.7); }
-.appearance-graphite .about-update-steps li.is-done:before,
-.appearance-graphite .about-update-steps li.is-current:before { background: rgba(214,214,214,.34); }
-.appearance-graphite .about-update-steps li.is-done .about-update-step-mark { border-color: rgba(214,214,214,.32); background: rgba(214,214,214,.1); }
-.appearance-graphite .about-update-step-mark { background: #161616; }
-.appearance-graphite .about-update-step-mark svg { stroke: #d6d6d6; }
-.appearance-graphite .about-update-steps li.is-current .about-update-step-mark { border-color: #d6d6d6; background: rgba(226,226,226,.12); box-shadow: 0 0 0 4px rgba(226,226,226,.06); }
-.appearance-graphite .about-update-steps li.is-current .about-update-step-mark i { background: #d6d6d6; box-shadow: 0 0 8px rgba(214,214,214,.5); }
 .appearance-graphite .about-update-progress-meta strong { color: #d6d6d6; }
 
 @media (prefers-reduced-motion: reduce) {
   .app-frame:not(.motion-force) .about-update-progress-bar:after { animation: none; opacity: 0; }
-  .app-frame:not(.motion-force) .about-update-steps li:before,
-  .app-frame:not(.motion-force) .about-update-step-mark { transition: none; }
 }
 .app-frame.motion-off .about-update-progress-bar:after { animation: none; opacity: 0; }
-.app-frame.motion-off .about-update-steps li:before,
-.app-frame.motion-off .about-update-step-mark { transition: none; }
 
 /* ============================================================================
    Полоска обновления: комета и рисующаяся галочка
@@ -1961,35 +1931,19 @@ kbd { padding: 3px 5px; border: 1px solid rgba(255,255,255,.1); border-radius: 5
 }
 @keyframes update-tick-draw { to { stroke-dashoffset: 0; } }
 
-/* Кружок текущего шага дышит — видно, где вы сейчас. */
-.about-update-steps li.is-current .about-update-step-mark {
-  animation: update-step-breathe 2.2s ease-in-out infinite;
-}
-@keyframes update-step-breathe {
-  0%, 100% { box-shadow: 0 0 0 4px rgba(124,242,213,.07); }
-  50% { box-shadow: 0 0 0 7px rgba(124,242,213,.03); }
-}
-
-/* Подписи шагов обрезались многоточием: «Провер…», «Установ…». Причина — общий
-   размер шрифта и nowrap в узкой колонке. Уменьшаем и разрешаем перенос. */
-.about-update-steps li { font-size: 9.5px; letter-spacing: .01em; }
-.about-update-step-label { overflow: visible; max-width: none; white-space: normal; line-height: 1.3; }
 
 .appearance-graphite .about-update-progress-bar { background: linear-gradient(90deg, #8f8f8f, #d6d6d6, #ebebeb, #b4b4b4, #d6d6d6); background-size: 300% 100%; box-shadow: 0 0 12px rgba(214,214,214,.35); }
 .appearance-graphite .about-update-comet { background: radial-gradient(circle, rgba(255,255,255,.95) 0%, rgba(230,230,230,.5) 35%, transparent 70%); }
 .appearance-graphite .about-update-comet:after { box-shadow: 0 0 10px 2px rgba(255,255,255,.85), 0 0 18px 5px rgba(214,214,214,.5); }
-.appearance-graphite .about-update-steps li.is-current .about-update-step-mark { animation: none; }
 
 /* Движение подчиняется настройке анимаций. */
 @media (prefers-reduced-motion: reduce) {
   .app-frame:not(.motion-force) .about-update-progress-bar,
   .app-frame:not(.motion-force) .about-update-comet,
-  .app-frame:not(.motion-force) .about-update-steps li.is-current .about-update-step-mark { animation: none; }
   .app-frame:not(.motion-force) .about-update-tick { animation: none; stroke-dashoffset: 0; }
 }
 .app-frame.motion-off .about-update-progress-bar,
 .app-frame.motion-off .about-update-comet,
-.app-frame.motion-off .about-update-steps li.is-current .about-update-step-mark { animation: none; }
 .app-frame.motion-off .about-update-tick { animation: none; stroke-dashoffset: 0; }
 
 /* ============================================================================
@@ -2031,3 +1985,78 @@ kbd { padding: 3px 5px; border: 1px solid rgba(255,255,255,.1); border-radius: 5
 .app-frame.motion-off .dns-provider-option,
 .app-frame.motion-off .dns-provider-mark,
 .app-frame.motion-off .dns-provider-mark i { transition: none; }
+
+/* ============================================================================
+   Полоса обновления: самолётик, насечки и посадка в галочку
+   ==========================================================================*/
+
+/* Дорожка самолётика. Позиция задаётся переменной --nx-progress, которую
+   выставляет разметка: движение честное, а не выдуманная анимация. */
+.about-update-flight { position: relative; height: 22px; margin-bottom: 2px; }
+.about-update-plane {
+  position: absolute; top: 0; left: var(--nx-progress, 0%);
+  display: grid; place-items: center;
+  width: 22px; height: 22px; margin-left: -11px;
+  color: var(--cyan);
+  transition: left .35s cubic-bezier(.22,.61,.36,1);
+  animation: plane-bob 2.4s ease-in-out infinite;
+}
+.about-update-plane svg { width: 15px; height: 15px; fill: none; stroke: currentColor; stroke-linecap: round; stroke-linejoin: round; stroke-width: 1.7; filter: drop-shadow(0 0 6px rgba(124,242,213,.75)); }
+/* След за самолётиком: полоска дыма от начала пути до его текущего места. */
+.about-update-flight:before {
+  position: absolute; top: 11px; left: 0; width: var(--nx-progress, 0%); height: 1.5px;
+  border-radius: 2px;
+  background: linear-gradient(90deg, transparent, rgba(124,242,213,.15) 30%, rgba(124,242,213,.55));
+  content: '';
+  transition: width .35s cubic-bezier(.22,.61,.36,1);
+}
+@keyframes plane-bob {
+  0%, 100% { transform: translateY(0) rotate(0deg); }
+  50% { transform: translateY(-2.5px) rotate(-4deg); }
+}
+
+/* Насечки по полосе: видно четверти пути, а не просто цветную заливку. */
+.about-update-ticks {
+  position: absolute; inset: 0; pointer-events: none;
+  background-image: repeating-linear-gradient(90deg, transparent 0, transparent calc(25% - 1px), rgba(255,255,255,.14) calc(25% - 1px), rgba(255,255,255,.14) 25%);
+}
+
+/* Огонёк на краю заливки — подхватывает движение самолётика. */
+.about-update-spark {
+  position: absolute; top: 50%; right: 0;
+  width: 16px; height: 16px; margin-top: -8px;
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(255,255,255,.95) 0%, rgba(180,255,230,.5) 40%, transparent 70%);
+  pointer-events: none;
+}
+
+/* Посадка: самолётик долетел — рисуется галочка и слегка подпрыгивает. */
+.about-update-landed { display: flex; align-items: center; gap: 9px; margin-top: 14px; color: #9fe9c8; font-size: 11.5px; }
+.about-update-landed-mark {
+  display: grid; width: 24px; height: 24px; flex: 0 0 auto; place-items: center;
+  border: 1.5px solid rgba(113,244,184,.5); border-radius: 50%;
+  background: rgba(113,244,184,.12);
+  animation: tick-pop .5s cubic-bezier(.34,1.56,.64,1) .18s both;
+}
+.about-update-landed-mark svg { width: 13px; height: 13px; fill: none; stroke: var(--mint); stroke-linecap: round; stroke-linejoin: round; stroke-width: 2.6; }
+@keyframes tick-pop {
+  0% { transform: scale(.4); opacity: 0; }
+  60% { transform: scale(1.18); opacity: 1; }
+  100% { transform: scale(1); opacity: 1; }
+}
+
+.appearance-graphite .about-update-plane { color: #d6d6d6; }
+.appearance-graphite .about-update-plane svg { filter: drop-shadow(0 0 6px rgba(214,214,214,.5)); }
+.appearance-graphite .about-update-flight:before { background: linear-gradient(90deg, transparent, rgba(214,214,214,.15) 30%, rgba(214,214,214,.5)); }
+.appearance-graphite .about-update-landed { color: #d6d6d6; }
+.appearance-graphite .about-update-landed-mark { border-color: rgba(214,214,214,.4); background: rgba(214,214,214,.1); }
+.appearance-graphite .about-update-landed-mark svg { stroke: #d6d6d6; }
+
+@media (prefers-reduced-motion: reduce) {
+  .app-frame:not(.motion-force) .about-update-plane { animation: none; transition: none; }
+  .app-frame:not(.motion-force) .about-update-flight:before { transition: none; }
+  .app-frame:not(.motion-force) .about-update-landed-mark { animation: none; }
+}
+.app-frame.motion-off .about-update-plane { animation: none; transition: none; }
+.app-frame.motion-off .about-update-flight:before { transition: none; }
+.app-frame.motion-off .about-update-landed-mark { animation: none; }

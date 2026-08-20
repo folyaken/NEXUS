@@ -395,19 +395,32 @@ function LogsPage({ logs, category, setCategory, onNotice, t }: { logs: ModuleLo
  * это публикуется. Ссылку открывает main-процесс: окно программы работает с
  * правами администратора, и сторонняя страница внутри него — лишний риск.
  */
+/**
+ * Значки площадок в фирменных цветах.
+ *
+ * Контурные значки в один цвет читались хуже: обе кнопки выглядели одинаково,
+ * и понять, где какая площадка, можно было только по подписи. Здесь взяты
+ * официальные формы логотипов и родные цвета — Telegram узнаётся по голубому
+ * самолётику, Discord по фиолетовому силуэту.
+ *
+ * Логотипы нарисованы контурами прямо в коде, а не подгружаются картинками:
+ * так они остаются чёткими при любом масштабе и не тянут за собой файлы.
+ */
 function CommunityGlyph({ id }: { id: string }) {
   if (id === 'discord') {
-    return <svg viewBox="0 0 24 24" aria-hidden="true" className="community-item-glyph">
-      <path d="M8.5 8.2a12 12 0 0 1 7 0M7.4 15.5a12 12 0 0 0 9.2 0" />
-      <path d="M9.2 5.4 8.6 4.2A15 15 0 0 0 4.3 6a20 20 0 0 0-1.8 12.1 15 15 0 0 0 4.6 2.3l1-1.7M14.8 5.4l.6-1.2A15 15 0 0 1 19.7 6a20 20 0 0 1 1.8 12.1 15 15 0 0 1-4.6 2.3l-1-1.7" />
-      <ellipse cx="9.3" cy="12.4" rx="1.5" ry="1.9" />
-      <ellipse cx="14.7" cy="12.4" rx="1.5" ry="1.9" />
+    return <svg viewBox="0 0 24 24" aria-hidden="true" className="community-item-glyph brand-discord">
+      <path fill="#5865F2" d="M20.32 4.94A19.8 19.8 0 0 0 15.43 3.4a.07.07 0 0 0-.08.04c-.21.38-.44.87-.61 1.26a18.3 18.3 0 0 0-5.48 0 12.6 12.6 0 0 0-.62-1.26.08.08 0 0 0-.08-.04c-1.71.3-3.35.81-4.89 1.54a.07.07 0 0 0-.03.03C.44 9.6-.26 14.13.08 18.61c0 .02.02.05.04.06a19.9 19.9 0 0 0 6 3.03.08.08 0 0 0 .09-.03c.46-.63.87-1.3 1.23-2a.08.08 0 0 0-.04-.11 13.1 13.1 0 0 1-1.87-.89.08.08 0 0 1 0-.13l.37-.29a.07.07 0 0 1 .08 0 14.2 14.2 0 0 0 12.06 0 .07.07 0 0 1 .08 0l.37.3a.08.08 0 0 1 0 .12c-.6.35-1.22.65-1.87.89a.08.08 0 0 0-.04.11c.36.7.78 1.36 1.23 2a.08.08 0 0 0 .09.03 19.9 19.9 0 0 0 6.02-3.03.08.08 0 0 0 .03-.06c.4-5.18-.67-9.67-2.85-13.64a.06.06 0 0 0-.03-.03ZM8.02 15.88c-1.18 0-2.16-1.09-2.16-2.42 0-1.33.96-2.42 2.16-2.42 1.21 0 2.18 1.1 2.16 2.42 0 1.33-.96 2.42-2.16 2.42Zm7.98 0c-1.18 0-2.16-1.09-2.16-2.42 0-1.33.96-2.42 2.16-2.42 1.21 0 2.18 1.1 2.16 2.42 0 1.33-.95 2.42-2.16 2.42Z" />
     </svg>;
   }
-  // Телеграм: бумажный самолётик.
-  return <svg viewBox="0 0 24 24" aria-hidden="true" className="community-item-glyph">
-    <path d="M3.6 11.4 20 5.2 17.1 19.4l-4.9-3.4-2.6 2.5-.5-4.1z" />
-    <path d="m9.1 14.4 8-6.4-9.6 5.1" />
+  // Telegram: белый самолётик на голубом круге — так его узнают с первого взгляда.
+  return <svg viewBox="0 0 24 24" aria-hidden="true" className="community-item-glyph brand-telegram">
+    <defs>
+      <linearGradient id="tg-brand" x1="12" y1="1" x2="12" y2="23" gradientUnits="userSpaceOnUse">
+        <stop offset="0" stopColor="#37BBFE" /><stop offset="1" stopColor="#007DBB" />
+      </linearGradient>
+    </defs>
+    <circle cx="12" cy="12" r="11" fill="url(#tg-brand)" />
+    <path fill="#fff" d="M5.9 11.9c3.4-1.5 5.7-2.5 6.8-2.9 3.3-1.4 3.9-1.6 4.3-1.6.1 0 .3 0 .4.1.1.1.1.2.2.3v.5c-.3 2.6-1 6.3-1.3 8-.2.7-.4 1-.7 1-.6.1-1-.4-1.6-.8l-2.3-1.5c-1-.7-.4-1 .2-1.6.2-.2 3-2.7 3-2.9v-.2c-.1-.1-.2 0-.3 0-.2 0-2 1.2-5.4 3.6-.5.3-1 .5-1.3.5-.5 0-1.3-.3-2-.5-.8-.3-1.4-.4-1.4-.8.1-.3.5-.5 1.4-.9Z" />
   </svg>;
 }
 
@@ -573,44 +586,38 @@ function AboutPage({ t }: { t: (text: string) => string }) {
           {/* Полоска была плоской заливкой и выглядела дёшево. Теперь по ней
               бежит светящаяся комета, а сама заливка переливается — видно, что
               загрузка идёт, даже когда процент меняется редко. */}
+          {/* Самолётик летит над полосой и тянет за собой след. Позиция
+              задаётся процентом загрузки, поэтому движение честное: он
+              действительно показывает, сколько пройдено. */}
+          <div className="about-update-flight" style={{ ['--nx-progress' as string]: `${Math.round(updateCheck?.percent ?? 0)}%` }}>
+            <span className="about-update-plane">
+              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M2.5 12.2 21 4.6l-5.1 15.2-3.6-5.3-2.6 3.1-.5-4.6z" /><path d="m9.9 13.6 8-6.8" /></svg>
+            </span>
+          </div>
           <div className="about-update-progress">
             <div className="about-update-progress-bar" style={{ width: `${Math.round(updateCheck?.percent ?? 0)}%` }}>
-              <span className="about-update-comet" />
+              <span className="about-update-spark" />
             </div>
+            {/* Насечки делают полосу «мерной»: видно четверти пути, а не просто
+                цветную заливку неизвестной длины. */}
+            <span className="about-update-ticks" aria-hidden="true" />
           </div>
           <div className="about-update-progress-meta">
             <strong>{Math.round(updateCheck?.percent ?? 0)}%</strong>
             {updateCheck?.totalBytes ? <span>{formatBytes(updateCheck.downloadedBytes ?? 0)} / {formatBytes(updateCheck.totalBytes)}</span> : null}
           </div>
         </div>}
+        {updateStatus === 'downloaded' && <div className="about-update-landed">
+          <span className="about-update-landed-mark">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path className="about-update-tick" d="m5 12.5 4.5 4.5L19 7.5" /></svg>
+          </span>
+          <span>{t('Загружено — можно устанавливать')}</span>
+        </div>}
         {updateCheck?.releaseNotes && <p className="about-update-notes">{updateCheck.releaseNotes}</p>}
         {checkedAt && <div className="about-update-checked"><i /> {t('Проверено в')} {checkedAt}</div>}
         {/* Три шага показывают весь путь целиком. Раньше состояние читалось
             только по подписи кнопки, и было неясно, что произойдёт после
             нажатия — особенно на шаге установки. */}
-        {/* Шаги показываются, только когда обновление реально идёт. На «у вас
-            последняя версия» они висели серой лентой и сбивали с толку: путь
-            есть, а идти некуда. */}
-        {(updateStatus === 'available' || updateStatus === 'downloading' || updateStatus === 'downloaded') &&
-        <ol className="about-update-steps" aria-hidden="true">
-          {([t('Проверка'), t('Загрузка'), t('Установка')]).map((label, order) => {
-            const current = updateStatus === 'downloading' || updateStatus === 'available' ? 1
-              : updateStatus === 'downloaded' ? 2
-              : 0;
-            const done = order < current;
-            return <li key={label} className={`${done ? 'is-done' : ''} ${order === current ? 'is-current' : ''}`}>
-              <span className="about-update-step-mark">
-                {/* Галочка — настоящий значок, а не псевдоэлемент с наклонённой
-                    рамкой: тот приём даёт кривые концы линий и разную толщину
-                    на разных экранах. */}
-                {done
-                  ? <svg viewBox="0 0 24 24" aria-hidden="true"><path className="about-update-tick" d="m5 12.5 4.5 4.5L19 7.5" /></svg>
-                  : <i />}
-              </span>
-              <span className="about-update-step-label">{label}</span>
-            </li>;
-          })}
-        </ol>}
         <div className="about-update-actions">
           <button type="button" className="about-check-button" disabled={checkingUpdate || updateStatus === 'downloading'} onClick={() => void runUpdateAction('check')}>{checkingUpdate && updateStatus !== 'downloading' ? t('Проверяем…') : updateCheck ? t('Проверить снова') : t('Проверить')}</button>
           {updateStatus === 'available' && <button type="button" className="about-install-button is-ready" disabled={checkingUpdate} onClick={() => void runUpdateAction('download')}>{t('Скачать')}</button>}
