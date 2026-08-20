@@ -9,6 +9,8 @@ import { isElevated, relaunchElevated } from './elevation';
 import { companionCount } from './dpi-companions';
 import { DNS_PROVIDERS, isValidDnsAddress, resolveDnsServers } from './dns-servers';
 import { normalizeRoutingRules } from './routing-rules';
+import { checkDnsServer, measureDnsProviders, serversForSettings } from './dns-check';
+import { exportRoutingRules, importRoutingRules, mergeRoutingRules } from './routing-transfer';
 import { windowsVersionName } from './windows-version';
 import { COMMUNITY_LINKS, TELEGRAM_CHANNEL, isAllowedCommunityUrl } from './community';
 import { addDpiHost, readDpiHostlist, removeDpiHost } from './dpi-hostlist';
@@ -231,6 +233,66 @@ async function pickVpnApplications(): Promise<VpnSplitApp[]> {
   const result = owner ? await dialog.showOpenDialog(owner, options) : await dialog.showOpenDialog(options);
   if (result.canceled) return [];
   return normalizeVpnSplitApps(result.filePaths.map((filePath) => ({ executable: '', path: filePath })));
+}
+
+/**
+ * Сохраняет набор правил в файл.
+ *
+ * Диалог привязывается к окну: иначе он открывается отдельным окном и легко
+ * теряется за программой — человек решает, что ничего не произошло.
+ */
+async function saveRoutingRulesToFile(): Promise<{ saved: boolean; path?: string }> {
+  const owner = mainWindow && !mainWindow.isDestroyed() ? mainWindow : null;
+  const options: Electron.SaveDialogOptions = {
+    title: 'Сохранить набор правил',
+    defaultPath: `nexus-routing-${new Date().toISOString().slice(0, 10)}.json`,
+    filters: [{ name: 'Набор правил NEXUS', extensions: ['json'] }],
+  };
+  const result = owner ? await dialog.showSaveDialog(owner, options) : await dialog.showSaveDialog(options);
+  if (result.canceled || !result.filePath) return { saved: false };
+
+  await fs.writeFile(result.filePath, exportRoutingRules(settings.vpnRoutingRules), 'utf8');
+  return { saved: true, path: result.filePath };
+}
+
+/**
+ * Загружает набор правил из файла и добавляет к текущим.
+ *
+ * Именно добавляет, а не заменяет: замена стёрла бы уже настроенное, а вернуть
+ * его было бы неоткуда.
+ */
+async function loadRoutingRulesFromFile(): Promise<{ added: number; skipped: number; error?: string }> {
+  const owner = mainWindow && !mainWindow.isDestroyed() ? mainWindow : null;
+  const options: Electron.OpenDialogOptions = {
+    title: 'Загрузить набор правил',
+    buttonLabel: 'Загрузить',
+    properties: ['openFile'],
+    filters: [{ name: 'Набор правил NEXUS', extensions: ['json'] }],
+  };
+  const result = owner ? await dialog.showOpenDialog(owner, options) : await dialog.showOpenDialog(options);
+  if (result.canceled || !result.filePaths.length) return { added: 0, skipped: 0 };
+
+  let text: string;
+  try {
+    text = await fs.readFile(result.filePaths[0], 'utf8');
+  } catch {
+    return { added: 0, skipped: 0, error: 'Не удалось прочитать файл' };
+  }
+
+  const parsed = importRoutingRules(text);
+  if (parsed.error) return { added: 0, skipped: parsed.skipped, error: parsed.error };
+
+  const merged = mergeRoutingRules(settings.vpnRoutingRules, parsed.rules);
+  await saveSettings({ ...settings, vpnRoutingRules: merged.rules });
+
+  // Правила попадают в конфигурацию при старте ядра, поэтому активная сессия
+  // перезапускается — иначе загруженный набор не действовал бы до ручного
+  // переподключения.
+  const current = vpn?.runtime();
+  if (merged.added && current?.status === 'connected' && current.activeProfileId) {
+    await connectVpnProfile(current.activeProfileId, settings.vpnMode, current.connectedAt);
+  }
+  return { added: merged.added, skipped: parsed.skipped };
 }
 
 function showWindow(): void {
@@ -905,6 +967,15 @@ function wireIpc(): void {
   ipcMain.handle('vpn:remove', (_event, id: string) => vpn.remove(String(id ?? '')));
   ipcMain.handle('vpn:remove-subscription', (_event, url: string) => vpn.removeSubscription(String(url ?? '')));
   ipcMain.handle('vpn:pick-apps', () => pickVpnApplications());
+  ipcMain.handle('dns:check', (_event, server: unknown) => checkDnsServer(String(server ?? '')));
+  ipcMain.handle('dns:check-current', async () => {
+    const servers = serversForSettings(settings.vpnDnsProvider, settings.vpnDnsCustom);
+    if (!servers.length) return null;
+    return checkDnsServer(servers[0]);
+  });
+  ipcMain.handle('dns:measure-all', () => measureDnsProviders());
+  ipcMain.handle('routing:export', () => saveRoutingRulesToFile());
+  ipcMain.handle('routing:import', () => loadRoutingRulesFromFile());
   ipcMain.handle('vpn:running-apps', () => listRunningApps());
   ipcMain.handle('vpn:connect', (_event, id: string) => connectVpnProfile(String(id ?? '')));
   ipcMain.handle('vpn:disconnect', () => vpn.disconnect());

@@ -1,6 +1,7 @@
 import type { AboutSystemInfo, AppSettings, DpiExpertOptions, DpiHostlistResult, ModuleStatusReport, TgProxyOptions, ModuleLog, ModuleManifest, NexusUpdateCheck, UpdateInfo, UserProfile, VpnDiagnostics, VpnLatencySample, VpnProfile, VpnRuntime, VpnSplitApp } from '../main/types';
 import type { RunningApp } from '../main/running-apps';
 import type { CommunityLink } from '../main/community';
+import type { DnsCheckResult } from '../main/dns-check';
 
 declare global {
   /** Версия из package.json, подставляется на этапе сборки (см. vite.config.ts). */
@@ -48,6 +49,11 @@ declare global {
       removeVpn(id: string): Promise<void>;
       removeVpnSubscription(url: string): Promise<void>;
       pickVpnApps(): Promise<VpnSplitApp[]>;
+      checkDns(server: string): Promise<DnsCheckResult>;
+      checkCurrentDns(): Promise<DnsCheckResult | null>;
+      measureDnsProviders(): Promise<DnsCheckResult[]>;
+      exportRoutingRules(): Promise<{ saved: boolean; path?: string }>;
+      importRoutingRules(): Promise<{ added: number; skipped: number; error?: string }>;
       listRunningApps(): Promise<RunningApp[]>;
       connectVpn(id: string): Promise<VpnRuntime>;
       disconnectVpn(): Promise<VpnRuntime>;

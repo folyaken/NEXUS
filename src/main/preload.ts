@@ -1,5 +1,6 @@
 import { contextBridge, ipcRenderer } from 'electron';
 import type { CommunityLink } from './community';
+import type { DnsCheckResult } from './dns-check';
 import type { AboutSystemInfo, AppSettings, DpiExpertOptions, DpiHostlistResult, ModuleStatusReport, TgProxyOptions, ModuleLog, ModuleManifest, NexusUpdateCheck, UpdateInfo, UserProfile, VpnDiagnostics, VpnLatencySample, VpnProfile, VpnRuntime, VpnSplitApp } from './types';
 import type { RunningApp } from './running-apps';
 
@@ -48,6 +49,11 @@ contextBridge.exposeInMainWorld('nexus', {
   removeVpn: (id: string): Promise<void> => ipcRenderer.invoke('vpn:remove', id),
   removeVpnSubscription: (url: string): Promise<void> => ipcRenderer.invoke('vpn:remove-subscription', url),
   pickVpnApps: (): Promise<VpnSplitApp[]> => ipcRenderer.invoke('vpn:pick-apps'),
+  checkDns: (server: string): Promise<DnsCheckResult> => ipcRenderer.invoke('dns:check', server),
+  checkCurrentDns: (): Promise<DnsCheckResult | null> => ipcRenderer.invoke('dns:check-current'),
+  measureDnsProviders: (): Promise<DnsCheckResult[]> => ipcRenderer.invoke('dns:measure-all'),
+  exportRoutingRules: (): Promise<{ saved: boolean; path?: string }> => ipcRenderer.invoke('routing:export'),
+  importRoutingRules: (): Promise<{ added: number; skipped: number; error?: string }> => ipcRenderer.invoke('routing:import'),
   listRunningApps: (): Promise<RunningApp[]> => ipcRenderer.invoke('vpn:running-apps'),
   connectVpn: (id: string): Promise<VpnRuntime> => ipcRenderer.invoke('vpn:connect', id),
   disconnectVpn: (): Promise<VpnRuntime> => ipcRenderer.invoke('vpn:disconnect'),

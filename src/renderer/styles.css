@@ -2136,3 +2136,44 @@ kbd { padding: 3px 5px; border: 1px solid rgba(255,255,255,.1); border-radius: 5
 .app-frame.motion-off .routing-preset-chip,
 .app-frame.motion-off .routing-rule-move,
 .app-frame.motion-off .routing-rule-remove { transition: none; }
+
+/* ============================================================================
+   Проверка справочника имён и обмен наборами правил
+   ==========================================================================*/
+
+.dns-tools { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-top: 13px; }
+.dns-check-result { display: inline-flex; align-items: center; gap: 6px; padding: 6px 11px; border-radius: 9px; font-family: var(--font-data); font-size: 10.5px; }
+.dns-check-result i { width: 6px; height: 6px; border-radius: 50%; }
+.dns-check-result.is-ok { background: rgba(113,244,184,.12); color: #8fe9bd; }
+.dns-check-result.is-ok i { background: var(--mint); box-shadow: 0 0 8px rgba(113,244,184,.7); }
+.dns-check-result.is-bad { background: rgba(255,122,145,.12); color: #ff9fb0; }
+.dns-check-result.is-bad i { background: var(--red); }
+
+/* Список замеров. Показываем не только победителя: разница в пару миллисекунд
+   не повод менять справочник, и это видно только рядом с остальными. */
+.dns-ranking { display: grid; gap: 5px; margin: 11px 0 0; padding: 0; list-style: none; }
+.dns-ranking li { display: flex; align-items: center; gap: 9px; padding: 8px 11px; border: 1px solid rgba(255,255,255,.06); border-radius: 10px; background: rgba(255,255,255,.022); font-size: 11px; }
+.dns-ranking li.is-bad { opacity: .5; }
+.dns-ranking-place { display: grid; width: 18px; height: 18px; flex: 0 0 auto; place-items: center; border-radius: 6px; background: rgba(255,255,255,.05); color: #7f8b9f; font-family: var(--font-data); font-size: 9px; }
+/* Первое место выделяем: это и есть ответ на вопрос «какой выбрать». */
+.dns-ranking li:first-child:not(.is-bad) .dns-ranking-place { background: rgba(113,244,184,.16); color: #8fe9bd; }
+.dns-ranking-name { flex: 1; min-width: 0; overflow: hidden; color: #dbe4f1; text-overflow: ellipsis; white-space: nowrap; }
+.dns-ranking-time { flex: 0 0 auto; color: #8593a8; font-family: var(--font-data); font-size: 10.5px; }
+.dns-ranking-apply { flex: 0 0 auto; padding: 4px 10px; border: 1px solid rgba(124,242,213,.28); border-radius: 8px; background: rgba(124,242,213,.08); color: #9df3d5; font-size: 10px; transition: background .18s ease, border-color .18s ease; }
+.dns-ranking-apply:hover { border-color: rgba(124,242,213,.5); background: rgba(124,242,213,.16); }
+.dns-ranking-current { flex: 0 0 auto; padding: 4px 9px; border-radius: 8px; background: rgba(255,255,255,.05); color: #7f8b9f; font-size: 10px; }
+
+/* Обмен наборами правил. */
+.routing-transfer { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-top: 14px; padding-top: 14px; border-top: 1px solid rgba(255,255,255,.05); }
+.routing-transfer .ico { width: 15px; height: 15px; flex: 0 0 15px; }
+.routing-transfer-hint { color: #6f7d91; font-size: 10.5px; }
+
+.appearance-graphite .dns-check-result.is-ok { background: rgba(226,226,226,.1); color: #d6d6d6; }
+.appearance-graphite .dns-check-result.is-ok i { background: #d6d6d6; box-shadow: 0 0 8px rgba(214,214,214,.5); }
+.appearance-graphite .dns-ranking li:first-child:not(.is-bad) .dns-ranking-place { background: rgba(226,226,226,.14); color: #e2e2e2; }
+.appearance-graphite .dns-ranking-apply { border-color: rgba(226,226,226,.24); background: rgba(226,226,226,.08); color: #e2e2e2; }
+
+@media (prefers-reduced-motion: reduce) {
+  .app-frame:not(.motion-force) .dns-ranking-apply { transition: none; }
+}
+.app-frame.motion-off .dns-ranking-apply { transition: none; }

@@ -197,6 +197,9 @@ export function Jey2RayPage({
   const [dnsDraft, setDnsDraft] = useState(settings.vpnDnsCustom ?? '');
   const [ruleDraft, setRuleDraft] = useState('');
   const [ruleOutbound, setRuleOutbound] = useState<'proxy' | 'direct' | 'block'>('direct');
+  const [dnsCheck, setDnsCheck] = useState<{ ok: boolean; latencyMs: number | null; error?: string } | null>(null);
+  const [dnsBusy, setDnsBusy] = useState<'check' | 'measure' | null>(null);
+  const [dnsRanking, setDnsRanking] = useState<{ providerId: string; title: string; latencyMs: number | null; ok: boolean }[]>([]);
   const subscriptionImportInFlight = useRef(false);
   const desktop = Boolean(window.nexus);
   const xrayUpdate = updates.find((item) => item.id === 'jey2ray');
@@ -210,6 +213,84 @@ export function Jey2RayPage({
   const appRouting: VpnAppRoutingMode = mode === 'tun' && splitApps.length ? storedAppRouting : 'system';
   const appRoutingActive = appRouting === 'include' || appRouting === 'exclude';
   const routeSettingsLocked = runtime.status === 'connecting' || runtime.status === 'connected';
+
+  /** Проверка выбранного справочника: настоящий запрос, а не просто «порт открыт». */
+  const runDnsCheck = async () => {
+    if (dnsBusy) return;
+    setDnsBusy('check');
+    setDnsCheck(null);
+    try {
+      const result = await window.nexus?.checkCurrentDns();
+      if (!result) {
+        onToast(t('Выбран справочник Windows — проверять нечего'));
+        return;
+      }
+      setDnsCheck(result);
+      onToast(result.ok
+        ? `${t('Справочник отвечает')} · ${result.latencyMs ?? '—'} ${t('мс')}`
+        : `${t('Справочник не отвечает')}: ${result.error ?? ''}`);
+    } catch {
+      onToast(t('Не удалось проверить справочник'));
+    } finally {
+      setDnsBusy(null);
+    }
+  };
+
+  /**
+   * Подбор самого быстрого справочника.
+   *
+   * Скорость зависит от сети и провайдера: в одной быстрее Cloudflare, в другой
+   * Google. Угадать заранее нельзя — поэтому измеряем на месте.
+   */
+  const runDnsMeasure = async () => {
+    if (dnsBusy) return;
+    setDnsBusy('measure');
+    setDnsRanking([]);
+    try {
+      const results = await window.nexus?.measureDnsProviders();
+      if (!results?.length) {
+        onToast(t('Не удалось измерить справочники'));
+        return;
+      }
+      setDnsRanking(results);
+      const best = results.find((item) => item.ok);
+      onToast(best
+        ? `${t('Самый быстрый')}: ${t(best.title)} · ${best.latencyMs ?? '—'} ${t('мс')}`
+        : t('Ни один справочник не ответил'));
+    } catch {
+      onToast(t('Не удалось измерить справочники'));
+    } finally {
+      setDnsBusy(null);
+    }
+  };
+
+  const exportRules = async () => {
+    try {
+      const result = await window.nexus?.exportRoutingRules();
+      if (result?.saved) onToast(t('Набор правил сохранён'));
+    } catch {
+      onToast(t('Не удалось сохранить набор'));
+    }
+  };
+
+  const importRules = async () => {
+    try {
+      const result = await window.nexus?.importRoutingRules();
+      if (!result) return;
+      if (result.error) {
+        onToast(result.error);
+        return;
+      }
+      if (!result.added) {
+        onToast(t('Новых правил в файле нет'));
+        return;
+      }
+      const skipped = result.skipped ? ` · ${t('пропущено')} ${result.skipped}` : '';
+      onToast(`${t('Добавлено правил')}: ${result.added}${skipped}`);
+    } catch {
+      onToast(t('Не удалось загрузить набор'));
+    }
+  };
 
   const routingRules = settings.vpnRoutingRules ?? [];
 
@@ -828,6 +909,37 @@ export function Jey2RayPage({
               }}
             >{t('Применить')}</button>
           </div>}
+          <div className="dns-tools">
+            <button type="button" className="ghost-action" disabled={dnsBusy !== null} onClick={() => void runDnsCheck()}>
+              {dnsBusy === 'check' ? t('Проверяем…') : t('Проверить DNS')}
+            </button>
+            <button type="button" className="ghost-action" disabled={dnsBusy !== null} onClick={() => void runDnsMeasure()}>
+              {dnsBusy === 'measure' ? t('Измеряем…') : t('Найти самый быстрый')}
+            </button>
+            {dnsCheck && <span className={`dns-check-result ${dnsCheck.ok ? 'is-ok' : 'is-bad'}`}>
+              <i />{dnsCheck.ok ? `${dnsCheck.latencyMs ?? '—'} ${t('мс')}` : (dnsCheck.error ?? t('Нет ответа'))}
+            </span>}
+          </div>
+
+          {/* Замеры показываются списком: человеку важно не только «какой
+              быстрее», но и насколько — разница в 5 мс не повод менять. */}
+          {dnsRanking.length > 0 && <ul className="dns-ranking">
+            {dnsRanking.map((item, index) => <li key={item.providerId} className={item.ok ? '' : 'is-bad'}>
+              <span className="dns-ranking-place">{index + 1}</span>
+              <span className="dns-ranking-name">{t(item.title)}</span>
+              <span className="dns-ranking-time">{item.ok ? `${item.latencyMs} ${t('мс')}` : t('нет ответа')}</span>
+              {item.ok && settings.vpnDnsProvider !== item.providerId && <button
+                type="button"
+                className="dns-ranking-apply"
+                onClick={() => {
+                  onSettings({ ...settings, vpnDnsProvider: item.providerId });
+                  onToast(`${t('Справочник имён:')} ${t(item.title)}${runtime.status === 'connected' ? t(' · подключение перезапускается') : ''}`);
+                }}
+              >{t('Выбрать')}</button>}
+              {settings.vpnDnsProvider === item.providerId && <span className="dns-ranking-current">{t('выбран')}</span>}
+            </li>)}
+          </ul>}
+
           <p className="fragmentation-note">{t('Подходит обычный адрес вроде 1.1.1.1 или защищённый https://…/dns-query. Изменение применяется сразу: активное подключение перезапустится.')}</p>
         </section>
       </> : settingsTab === 'routing' ? <>
@@ -911,6 +1023,18 @@ export function Jey2RayPage({
             <strong>{t('Правил пока нет')}</strong>
             <p>{t('Весь трафик идёт через VPN. Добавьте правило или выберите готовый набор выше.')}</p>
           </div>}
+
+          <div className="routing-transfer">
+            <button type="button" className="ghost-action" onClick={() => void importRules()}>
+              <svg className="ico" viewBox="0 0 20 20" aria-hidden><path d="M10 3v9m0 0-3.2-3.2M10 12l3.2-3.2M4 15.5h12" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" /></svg>
+              {t('Загрузить набор')}
+            </button>
+            <button type="button" className="ghost-action" disabled={!routingRules.length} onClick={() => void exportRules()}>
+              <svg className="ico" viewBox="0 0 20 20" aria-hidden><path d="M10 13V4m0 0L6.8 7.2M10 4l3.2 3.2M4 15.5h12" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" /></svg>
+              {t('Сохранить набор')}
+            </button>
+            <span className="routing-transfer-hint">{t('Набором можно поделиться: обычный файл JSON.')}</span>
+          </div>
 
           <p className="fragmentation-note">{t('Правила применяются сверху вниз: срабатывает первое подходящее. Изменения вступают в силу сразу — активное подключение перезапустится.')}</p>
         </section>
