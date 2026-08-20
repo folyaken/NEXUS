@@ -45,3 +45,6 @@ Thumbs.db
 
 # Личный адрес канала обновлений: у каждого свой
 update-channel.json
+
+# generated brand fonts (rebuilt from assets/fonts via tools/convert_fonts.py)
+tools/fonts/
