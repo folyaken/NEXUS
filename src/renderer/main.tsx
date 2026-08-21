@@ -5,6 +5,8 @@ import './styles.css';
 // Оформление «Багровое» подключается после основного стиля: тема перекрывает
 // базовые цвета порядком правил, без !important.
 import './crimson.css';
+// Оформление «Графит» — тоже после основного стиля и по той же причине.
+import './graphite.css';
 
 class RenderErrorBoundary extends Component<{ children: ReactNode }, { error: Error | null }> {
   state = { error: null as Error | null };

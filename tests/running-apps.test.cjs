@@ -7,7 +7,12 @@ const { listRunningApps } = require(path.join(root, 'dist-electron', 'running-ap
 const source = fs.readFileSync(path.join(root, 'src', 'main', 'running-apps.ts'), 'utf8');
 const picker = fs.readFileSync(path.join(root, 'src', 'renderer', 'AppPicker.tsx'), 'utf8');
 const page = fs.readFileSync(path.join(root, 'src', 'renderer', 'Jey2RayPage.tsx'), 'utf8');
-const styles = fs.readFileSync(path.join(root, 'src', 'renderer', 'styles.css'), 'utf8');
+// Оформления «Графит» и «Багровое» создаются из основного стиля отдельными
+// файлами (см. scripts/make-*-theme.cjs). Проверки цвета обязаны видеть их
+// тоже, иначе тема считается «непокрашенной» просто потому, что лежит рядом.
+const baseStyles = fs.readFileSync(path.join(root, 'src', 'renderer', 'styles.css'), 'utf8');
+const graphiteStyles = fs.readFileSync(path.join(root, 'src', 'renderer', 'graphite.css'), 'utf8');
+const styles = `${baseStyles}\n${graphiteStyles}`;
 
 // Выбирать программу файлом неудобно: нужно помнить путь установки и опознать
 // её среди системных файлов. Добавлен привычный способ — список уже открытых
@@ -93,5 +98,11 @@ assert.match(pickerStyles, /\.app-picker \{[^}]*background: #141c2a/, 'фон о
 // «Графит» больше не чёрно-белый: у него графитовый корпус и лавандовый
 // акцент. Кнопка подтверждения — акцентная, значит она обязана быть лавандовой,
 // иначе окно выбора программ выпадет из оформления.
-assert.match(styles, /\.appearance-graphite \.app-picker-confirm \{ background: linear-gradient\(130deg, #c6b9f3, #cec2f5\)/);
+// Точный оттенок задаётся пересчётом в scripts/graphite-theme.cjs, поэтому
+// проверяем не строку, а что кнопка подтверждения осталась лавандовой.
+const confirmRule = /\.appearance-graphite \.app-picker-confirm \{[^}]*linear-gradient\([\d]+deg, #([0-9a-fA-F]{6})/.exec(styles);
+assert.ok(confirmRule, 'кнопка подтверждения обязана переопределяться темой');
+const confirmRgb = [0, 2, 4].map((o) => Number.parseInt(confirmRule[1].slice(o, o + 2), 16));
+assert.ok(confirmRgb[2] >= confirmRgb[0] && confirmRgb[0] > confirmRgb[1],
+  `кнопка подтверждения обязана быть лавандовой, сейчас #${confirmRule[1]}`);
 assert.match(styles, /\.appearance-graphite \.app-picker-row\.is-picked/);

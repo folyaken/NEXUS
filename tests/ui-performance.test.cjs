@@ -5,7 +5,12 @@ const path = require('node:path');
 const root = path.resolve(__dirname, '..');
 const app = fs.readFileSync(path.join(root, 'src', 'renderer', 'App.tsx'), 'utf8');
 const moduleSettings = fs.readFileSync(path.join(root, 'src', 'renderer', 'ModuleSettings.tsx'), 'utf8');
-const styles = fs.readFileSync(path.join(root, 'src', 'renderer', 'styles.css'), 'utf8');
+// Оформления «Графит» и «Багровое» создаются из основного стиля отдельными
+// файлами (см. scripts/make-*-theme.cjs). Проверки цвета обязаны видеть их
+// тоже, иначе тема считается «непокрашенной» просто потому, что лежит рядом.
+const baseStyles = fs.readFileSync(path.join(root, 'src', 'renderer', 'styles.css'), 'utf8');
+const graphiteStyles = fs.readFileSync(path.join(root, 'src', 'renderer', 'graphite.css'), 'utf8');
+const styles = `${baseStyles}\n${graphiteStyles}`;
 
 // --- Производительность интерфейса ------------------------------------------
 // Бесконечные пружины @react-spring считаются в JavaScript на каждом кадре и

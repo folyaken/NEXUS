@@ -4,7 +4,12 @@ const fs = require('node:fs');
 const path = require('node:path');
 
 const root = path.resolve(__dirname, '..');
-const styles = fs.readFileSync(path.join(root, 'src', 'renderer', 'styles.css'), 'utf8');
+// Оформления «Графит» и «Багровое» создаются из основного стиля отдельными
+// файлами (см. scripts/make-*-theme.cjs). Проверки цвета обязаны видеть их
+// тоже, иначе тема считается «непокрашенной» просто потому, что лежит рядом.
+const baseStyles = fs.readFileSync(path.join(root, 'src', 'renderer', 'styles.css'), 'utf8');
+const graphiteStyles = fs.readFileSync(path.join(root, 'src', 'renderer', 'graphite.css'), 'utf8');
+const styles = `${baseStyles}\n${graphiteStyles}`;
 const packageJson = JSON.parse(fs.readFileSync(path.join(root, 'package.json'), 'utf8'));
 const gitignore = fs.readFileSync(path.join(root, '.gitignore'), 'utf8');
 

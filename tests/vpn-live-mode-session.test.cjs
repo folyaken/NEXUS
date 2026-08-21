@@ -49,7 +49,12 @@ const rendererMain = fs.readFileSync(path.join(root, 'src', 'renderer', 'main.ts
 const subscriptionManager = fs.readFileSync(path.join(root, 'src', 'renderer', 'SubscriptionManager.tsx'), 'utf8');
 const ensureXray = fs.readFileSync(path.join(root, 'scripts', 'ensure-xray.cjs'), 'utf8');
 const ensureSingbox = fs.readFileSync(path.join(root, 'scripts', 'ensure-singbox.cjs'), 'utf8');
-const styles = fs.readFileSync(path.join(root, 'src', 'renderer', 'styles.css'), 'utf8');
+// Оформления «Графит» и «Багровое» создаются из основного стиля отдельными
+// файлами (см. scripts/make-*-theme.cjs). Проверки цвета обязаны видеть их
+// тоже, иначе тема считается «непокрашенной» просто потому, что лежит рядом.
+const baseStyles = fs.readFileSync(path.join(root, 'src', 'renderer', 'styles.css'), 'utf8');
+const graphiteStyles = fs.readFileSync(path.join(root, 'src', 'renderer', 'graphite.css'), 'utf8');
+const styles = `${baseStyles}\n${graphiteStyles}`;
 const packageJson = JSON.parse(fs.readFileSync(path.join(root, 'package.json'), 'utf8'));
 
 function pngDimensions(filePath) {
@@ -266,10 +271,12 @@ const readChannels = (token) => {
 const isLavender = ([r, g, b]) => b >= r && r > g && (b - g) > 12;
 
 // Акценты обязаны быть лавандовыми: это лицо темы.
+// Полоска активного пункта красится переменной --cyan, поэтому прямого цвета в
+// её правиле нет — она проверяется через переменные ниже.
 for (const [selector, sample] of [
-  ['.appearance-graphite .nav-item.active:before', /background: (#[0-9a-fA-F]{6})/],
-  ['.appearance-graphite .primary-button', /linear-gradient\(135deg, (#[0-9a-fA-F]{6})/],
-  ['.appearance-graphite .brand-orb', /color: (#[0-9a-fA-F]{6})/],
+  ['.appearance-graphite .primary-button', /linear-gradient\([\d]+deg, (#[0-9a-fA-F]{6})/],
+  ['.appearance-graphite .app-picker-confirm', /linear-gradient\([\d]+deg, (#[0-9a-fA-F]{6})/],
+  ['.appearance-graphite .server-row.is-live', /inset 3px 0 0 (#[0-9a-fA-F]{6})/],
 ]) {
   const at = styles.indexOf(selector);
   assert.ok(at !== -1, `тема обязана переопределять ${selector}`);
@@ -283,7 +290,12 @@ for (const [selector, sample] of [
 // Переменные темы: лаванда как основной акцент, тёмный графитовый корпус.
 const graphiteVars = styles.slice(styles.indexOf('.appearance-graphite {'));
 const varsBlock = graphiteVars.slice(0, graphiteVars.indexOf('}'));
-assert.match(varsBlock, /--cyan: #b8a7f0/, 'основным акцентом обязана быть лаванда из макета');
+// Акцент обязан быть лавандовым. Точный оттенок задаётся пересчётом в
+// scripts/graphite-theme.cjs, поэтому проверяем не строку, а сам цвет.
+const cyanVar = /--cyan: (#[0-9a-fA-F]{6})/.exec(varsBlock);
+assert.ok(cyanVar, 'у темы должен быть основной акцент');
+assert.ok(isLavender(readChannels(cyanVar[1])),
+  `основной акцент обязан быть лавандовым, сейчас ${cyanVar[1]}`);
 const bg = /--bg: (#[0-9a-fA-F]{6})/.exec(varsBlock);
 assert.ok(bg, 'у темы должен быть свой фон');
 const bgChannels = readChannels(bg[1]);
@@ -298,7 +310,9 @@ for (const token of [bg[1]]) {
 }
 
 // Флаги стран остаются цветными — страну узнают именно по ним.
-assert.match(styles, /\.appearance-graphite \.server-flag-svg \{ filter: none; \}/,
+// Правило может стоять в перечислении через запятую, поэтому шаблон не
+// требует, чтобы селектор и свойство были на одной строке.
+assert.match(styles, /\.appearance-graphite \.server-flag-svg[\s\S]{0,80}filter: none/,
   'Graphite flags must keep their original colour');
 
 assert.doesNotMatch(styles, /Graphite keeps its neutral base while retaining restrained semantic colour/);
