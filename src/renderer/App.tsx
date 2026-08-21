@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { animated, config, useSpring } from '@react-spring/web';
 import type { AboutSystemInfo, AppSettings, ModuleLog, ModuleManifest, ModuleStatus, NexusUpdateCheck, UpdateInfo, UserProfile } from '../main/types';
 import { DEFAULT_SETTINGS } from '../main/types';
@@ -874,6 +874,32 @@ function App() {
     setPage(next);
   };
 
+  // «Ползунок» подсветки в левом меню. Позиция измеряется по активному пункту
+  // и передаётся в CSS через transform: браузер анимирует переезд сам, без
+  // пружин на каждый кадр. useLayoutEffect ставит ползунок на место ещё до
+  // первой отрисовки — при открытии окна подсветка не «вырастает» из угла.
+  const asideRef = useRef<HTMLElement>(null);
+  const [navGlider, setNavGlider] = useState({ top: 0, height: 0 });
+  useLayoutEffect(() => {
+    const aside = asideRef.current;
+    if (!aside) return;
+    const target = aside.querySelector<HTMLButtonElement>(`.nav-item[data-nav="${page}"]`);
+    if (!target) return;
+    const measure = () => {
+      if (!target.isConnected) return;
+      const asideBox = aside.getBoundingClientRect();
+      const targetBox = target.getBoundingClientRect();
+      setNavGlider({ top: targetBox.top - asideBox.top, height: targetBox.height });
+    };
+    measure();
+    // Высоту пункт может поменять после загрузки шрифтов или смены языка —
+    // наблюдатель перемеряет ползунок, когда это случится.
+    const observer = new ResizeObserver(() => measure());
+    observer.observe(aside);
+    observer.observe(target);
+    return () => observer.disconnect();
+  }, [page, sidebarCollapsed, settings.language]);
+
   // Из «Быстрого доступа» настройки открываются без захода в раздел модулей.
   const openModuleSettings = (module: ModuleManifest) => {
     setSettingsModuleId(module.id);
@@ -949,14 +975,15 @@ function App() {
   };
 
   return <div className={`app-frame appearance-${settings.appearance} ${settings.motion === 'full' ? 'motion-force' : ''} ${settings.motion === 'reduced' ? 'motion-off' : ''}`}><WindowBar maximized={maximized} /><div className={`app-shell ${sidebarCollapsed ? 'is-sidebar-collapsed' : ''}`}><div className="ambient ambient-one" /><div className="ambient ambient-two" /><NodeWeb />
-    <aside className="sidebar">
+    <aside className="sidebar" ref={asideRef}>
+      <span className="nav-glider" aria-hidden="true" style={{ height: `${navGlider.height}px`, transform: `translateY(${navGlider.top}px)` }} />
       <button type="button" className="sidebar-collapse-button" aria-label={sidebarCollapsed ? t('Развернуть боковую панель') : t('Свернуть боковую панель')} title={sidebarCollapsed ? t('Развернуть панель') : t('Свернуть панель')} aria-pressed={sidebarCollapsed} onClick={() => setSidebarCollapsed((value) => !value)}><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m14.5 6-6 6 6 6" /></svg></button>
       <div className="brand"><div className="brand-orb"><NexusMark /></div><div className="sidebar-copy"><strong>NEXUS</strong><span>NETWORK CONTROL</span></div></div>
       <div className="workspace-selector workspace-static" title={sidebarCollapsed ? (profile.deviceName || t('Локальное устройство')) : undefined}><span className="workspace-avatar">N</span><div className="sidebar-copy"><span className="workspace-label">DEVICE PROFILE · {profile.deviceId}</span><strong>{profile.deviceName || t('Локальное устройство')}</strong></div><span className="workspace-badge sidebar-copy">LOCAL</span></div>
       <div className="nav-label sidebar-copy">CONTROL CENTER</div>
-      <nav>{navItems.map((item) => <button key={item.id} aria-label={t(item.label)} title={sidebarCollapsed ? t(item.label) : undefined} className={`nav-item ${page === item.id ? 'active' : ''}`} onClick={() => openPage(item.id)}><span className="nav-glyph"><NavGlyph name={item.icon} /></span><span className="nav-item-label sidebar-copy">{t(item.label)}</span>{item.id === 'logs' && logs.length > 0 ? <em className="sidebar-copy">{Math.min(logs.length, 99)}</em> : null}</button>)}</nav>
+      <nav>{navItems.map((item) => <button key={item.id} data-nav={item.id} aria-label={t(item.label)} title={sidebarCollapsed ? t(item.label) : undefined} className={`nav-item ${page === item.id ? 'active' : ''}`} onClick={() => openPage(item.id)}><span className="nav-glyph"><NavGlyph name={item.icon} /></span><span className="nav-item-label sidebar-copy">{t(item.label)}</span>{item.id === 'logs' && logs.length > 0 ? <em className="sidebar-copy">{Math.min(logs.length, 99)}</em> : null}</button>)}</nav>
       <div className="sidebar-bottom">
-        <button type="button" aria-label={t('О программе')} title={sidebarCollapsed ? t('О программе') : undefined} className={`nav-item sidebar-about ${page === 'about' ? 'active' : ''} ${updateReady ? 'has-update' : ''}`} onClick={() => openPage('about')}><span className="nav-glyph"><NavGlyph name="about" /></span><span className="nav-item-label sidebar-copy">{t('О программе')}</span>{updateReady ? <em className="nav-update-dot" title={t('Доступно обновление — откройте, чтобы установить')}><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v11" /><path d="m7 12 5 5 5-5" /></svg></em> : null}</button>
+        <button type="button" data-nav="about" aria-label={t('О программе')} title={sidebarCollapsed ? t('О программе') : undefined} className={`nav-item sidebar-about ${page === 'about' ? 'active' : ''} ${updateReady ? 'has-update' : ''}`} onClick={() => openPage('about')}><span className="nav-glyph"><NavGlyph name="about" /></span><span className="nav-item-label sidebar-copy">{t('О программе')}</span>{updateReady ? <em className="nav-update-dot" title={t('Доступно обновление — откройте, чтобы установить')}><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v11" /><path d="m7 12 5 5 5-5" /></svg></em> : null}</button>
         <div className="system-status" title={sidebarCollapsed ? `${systemTitle}: ${systemNote}` : undefined}><StatusDot tone={systemTone} /><div className="sidebar-copy"><span>{systemTitle}</span><small>{systemNote}</small></div></div>
         <div className="version-row sidebar-copy"><span>NEXUS v{__APP_VERSION__}</span><span className="online-dot" /> LOCAL</div>
       </div>

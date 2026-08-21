@@ -30,8 +30,9 @@
 .appearance-crimson .user-avatar { color: #181213; background: linear-gradient(135deg, #d15763, #d36284); }
 .appearance-crimson .workspace-selector strong { color: #e5ddde; }
 .appearance-crimson .workspace-badge { border: 1px solid rgba(222,71,86,.16); }
-.appearance-crimson .nav-item.active { color: #f8f2f3; background: linear-gradient(100deg, rgba(210,79,92,.14), rgba(218,87,126,.06)); box-shadow: inset 0 0 0 1px rgba(216,80,93,.1), 0 10px 26px rgba(0,0,0,.15); }
-.appearance-crimson .nav-item.active:before { box-shadow: 0 0 15px rgba(216,80,93,.7); }
+.appearance-crimson .nav-item.active { color: #f8f2f3; }
+.appearance-crimson .nav-glider { background: linear-gradient(100deg, rgba(210,79,92,.14), rgba(218,87,126,.06)); box-shadow: inset 0 0 0 1px rgba(216,80,93,.1), 0 10px 26px rgba(0,0,0,.15); }
+.appearance-crimson .nav-glider:before { box-shadow: 0 0 15px rgba(216,80,93,.7); }
 .appearance-crimson .nav-item em { border: 1px solid rgba(216,80,93,.18); background: rgba(216,80,93,.08); }
 .appearance-crimson .system-status { border: 1px solid rgba(222,71,86,.12); background: rgba(222,71,86,.045); }
 .appearance-crimson .system-status span:not(.status-dot) { color: #eee2e4; }

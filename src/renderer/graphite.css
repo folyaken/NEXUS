@@ -31,8 +31,9 @@
 .appearance-graphite .user-avatar { color: #141319; background: linear-gradient(135deg, #a392dc, #baa9f2); }
 .appearance-graphite .workspace-selector strong { color: #dfdde5; }
 .appearance-graphite .workspace-badge { border: 1px solid rgba(159,142,215,.16); }
-.appearance-graphite .nav-item.active { color: #f4f3f7; background: linear-gradient(100deg, rgba(152,135,209,.14), rgba(178,161,235,.06)); box-shadow: inset 0 0 0 1px rgba(163,146,220,.1), 0 10px 26px rgba(0,0,0,.15); }
-.appearance-graphite .nav-item.active:before { box-shadow: 0 0 15px rgba(163,146,220,.7); }
+.appearance-graphite .nav-item.active { color: #f4f3f7; }
+.appearance-graphite .nav-glider { background: linear-gradient(100deg, rgba(152,135,209,.14), rgba(178,161,235,.06)); box-shadow: inset 0 0 0 1px rgba(163,146,220,.1), 0 10px 26px rgba(0,0,0,.15); }
+.appearance-graphite .nav-glider:before { box-shadow: 0 0 15px rgba(163,146,220,.7); }
 .appearance-graphite .nav-item em { border: 1px solid rgba(163,146,220,.18); background: rgba(163,146,220,.08); }
 .appearance-graphite .system-status { border: 1px solid rgba(159,142,215,.12); background: rgba(159,142,215,.045); }
 .appearance-graphite .system-status span:not(.status-dot) { color: #e5e3ed; }
@@ -808,6 +809,12 @@
   50% { box-shadow: 0 3px 10px rgba(0,0,0,.5), 0 0 20px rgba(198,182,251,.5); }
 }
 .appearance-graphite .server-row.is-best .server-crown { animation-name: crown-glow-graphite; }
+
+/* Карточка «Последний скан» — сведения, а не предупреждение: жёлтый здесь
+   ничего не сообщает и спорит с лавандовым акцентом. Пересчёт сохраняет
+   жёлтый для настоящих предупреждений, поэтому карточка перекрашивается
+   отдельным правилом. */
+.appearance-graphite .stat-card.tone-amber .stat-icon { border-color: rgba(178,161,234,.24); background: linear-gradient(150deg, rgba(178,161,234,.2), rgba(178,161,234,.05)); color: #c6b6fb; box-shadow: inset 0 1px rgba(255,255,255,.1), 0 6px 16px rgba(122,99,224,.16); }
 
 /* Флаги стран, кружки выбора темы и чужие логотипы остаются цветными:
    страну и марку узнают именно по цвету. */
