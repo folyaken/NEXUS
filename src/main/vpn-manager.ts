@@ -13,7 +13,7 @@ import { profileConnectionKey, profileIdentityKey, profileSourceKey, stableProfi
 import { applyGeo } from './vpn-geo';
 import { buildXrayConfig } from './xray-config';
 import { buildSingboxConfig } from './singbox-config';
-import type { RoutingRule } from './routing-rules';
+import { migrateLegacyRoutingTag, type RoutingRule } from './routing-rules';
 import { inboundListenAddress, lanEndpoints } from './lan-share';
 import { clearSystemProxy, setSystemProxy } from './system-proxy';
 import { createVpnDiagnostics } from './vpn-diagnostics';
@@ -1030,28 +1030,52 @@ export class VpnManager extends EventEmitter {
       } else {
         const tail = probeText.slice(-400);
         logStream.write(`[${new Date().toISOString()}] ядро не приняло конфигурацию с групповыми правилами (код ${probe.status ?? 'timeout'}): ${tail}\n`);
-        this.emitLog('warn', `Групповые правила не поддерживаются этим ядром: ${tail.slice(0, 200)}`);
-        // Собираем конфиг без групповых правил и проверяем ещё раз: если он
-        // принят — запускаемся без них сразу, а не после первого падения.
-        const fallbackRules = routingRules.filter((rule) => !/^(geosite|geoip|ext):/i.test(rule.value));
-        const fallbackConfig = buildXrayConfig(profile.params, port, mode, activeSplitApps, activeAppRouting, fragmentation, allowLan, dnsServers, fallbackRules);
-        await fs.writeFile(configFile, `${JSON.stringify(fallbackConfig, null, 2)}\n`, 'utf8');
-        const probe2 = spawnSync(engine, ['-test', '-config', configFile], {
-          encoding: 'utf8',
-          timeout: 10_000,
-          windowsHide: true,
-          shell: false,
-        });
-        if (probe2.status !== 0) {
-          // Без групповых правил тоже не принято — возвращаем исходный конфиг:
-          // настоящую причину покажет сам запуск.
-          await fs.writeFile(configFile, `${JSON.stringify(config, null, 2)}\n`, 'utf8');
+        // Ищем виновника по отдельности: проверяем каждый уникальный тег
+        // набора своим крошечным конфигом. Теги, которых нет в файлах наборов,
+        // отбрасываются, остальные правила продолжают работать — вместо
+        // «выключить всё разом».
+        // Пробиваются те значения, что реально ушли в конфиг: устаревшие
+        // теги к этому моменту уже подменены актуальными именами.
+        const geoValues = [...new Set(
+          usableRules
+            .map((rule) => migrateLegacyRoutingTag(rule.value.trim()).toLowerCase())
+            .filter((value) => /^(geosite|geoip):/i.test(value)),
+        )];
+        const deadTags = new Set<string>();
+        const probeConfigPath = path.join(this.configsDir(), 'probe_config.json');
+        for (const tag of geoValues) {
+          const probeConfig = buildXrayConfig(profile.params, port, 'proxy', [], 'system', false, false, [], [{
+            id: 'probe',
+            value: tag,
+            outbound: 'direct',
+            enabled: true,
+          }]);
+          await fs.writeFile(probeConfigPath, `${JSON.stringify(probeConfig, null, 2)}\n`, 'utf8');
+          const tagProbe = spawnSync(engine, ['-test', '-config', probeConfigPath], {
+            encoding: 'utf8',
+            timeout: 10_000,
+            windowsHide: true,
+            shell: false,
+          });
+          if (tagProbe.status === 0) continue;
+          const tagProbeText = stripAnsi(`${tagProbe.stdout || ''}\n${tagProbe.stderr || ''}`).trim();
+          if (/no such file|not found|cannot find|failed to load|tag/i.test(tagProbeText)) {
+            deadTags.add(tag);
+            this.emitLog('warn', `Тег ${tag} отсутствует в наборах адресов — правило отключено.`);
+          }
+        }
+        await fs.rm(probeConfigPath, { force: true });
+        if (deadTags.size) {
+          // Пересобираем конфиг без мёртвых тегов и запускаемся сразу —
+          // остальные правила при этом работают.
+          const liveRules = usableRules.filter((rule) => !deadTags.has(migrateLegacyRoutingTag(rule.value.trim()).toLowerCase()));
+          const liveConfig = buildXrayConfig(profile.params, port, mode, activeSplitApps, activeAppRouting, fragmentation, allowLan, dnsServers, liveRules);
+          await fs.writeFile(configFile, `${JSON.stringify(liveConfig, null, 2)}\n`, 'utf8');
+          this.lastConfigIncludedGeo = liveRules.some((rule) => /^(geosite|geoip|ext):/i.test(rule.value));
         } else {
-          // До перезапуска приложения остаёмся без групповых правил: после
-          // обновления ядра они вернутся сами.
-          this.geoRulesForbidden = true;
-          this.lastConfigIncludedGeo = false;
-          this.emitLog('warn', 'Групповые правила отключены: VPN подключится без них. После «Проверить обновления» и перезапуска правила вернутся.');
+          // Ни один тег не виноват — возвращаем исходный конфиг: настоящую
+          // причину покажет сам запуск.
+          await fs.writeFile(configFile, `${JSON.stringify(config, null, 2)}\n`, 'utf8');
         }
       }
     }

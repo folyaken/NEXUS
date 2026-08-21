@@ -407,6 +407,7 @@ const EN: Record<string, string> = {
   'Адреса вида 192.168.x.x и подобные.': 'Addresses like 192.168.x.x and similar.',
   'Соцсети': 'Social networks',
   'Социальные сети и мессенджеры.': 'Social networks and messengers.',
+  'Социальные сети и мессенджеры (кроме китайских).': 'Social networks and messengers (except Chinese ones).',
   'Справочник имён': 'Name resolver',
   'DNS-сервер для определения адресов': 'DNS server used to resolve addresses',
   'Справочник Windows': 'Windows resolver',

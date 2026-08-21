@@ -50,8 +50,13 @@ assert.match(vpnManager, /datFile\.replace\(\/\\\.dat\$\/i, ''\)/);
 // ядро их не принимает, NEXUS пересобирает конфиг без них и запускается сразу,
 // а не после первого падения с кодом 23.
 assert.match(vpnManager, /spawnSync\(engine, \['-test', '-config', configFile\]/);
-assert.match(vpnManager, /fallbackRules = routingRules\.filter/);
-assert.match(vpnManager, /geoRulesForbidden = true/);
+// Мёртвые теги отбрасываются по одному: каждый уникальный тег проверяется
+// своим крошечным конфигом, и выкидывается только нерабочий — остальные
+// правила продолжают действовать.
+assert.match(vpnManager, /probeConfigPath = path\.join\(this\.configsDir\(\), 'probe_config\.json'\)/);
+assert.match(vpnManager, /deadTags = new Set/);
+assert.match(vpnManager, /Тег \$\{tag\} отсутствует в наборах адресов/);
+assert.match(vpnManager, /const liveRules = usableRules\.filter/);
 const ensureXray = fs.readFileSync(path.join(root, 'scripts', 'ensure-xray.cjs'), 'utf8');
 assert.match(ensureXray, /replace\(\/\\\.dat\$\/i, ''\)/, 'скрипт установки ядра тоже обязан класть копию без расширения');
 const updater = fs.readFileSync(path.join(root, 'src', 'main', 'github-updater.ts'), 'utf8');

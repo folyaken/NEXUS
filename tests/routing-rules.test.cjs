@@ -56,7 +56,9 @@ const rules = [
 const xray = xrayRoutingRules(rules);
 assert.equal(xray.length, 3, 'выключенное правило в конфигурацию не попадает');
 // Домены и адреса описываются разными полями — перепутать нельзя.
-assert.deepEqual(xray[0], { type: 'field', domain: ['geosite:ru'], outboundTag: 'direct' });
+// Устаревший тег `geosite:ru` подменяется актуальным `geosite:category-ru`:
+// свежие наборы старого имени не содержат, и ядро упало бы при запуске.
+assert.deepEqual(xray[0], { type: 'field', domain: ['geosite:category-ru'], outboundTag: 'direct' });
 assert.deepEqual(xray[1], { type: 'field', ip: ['10.0.0.0/8'], outboundTag: 'direct' });
 assert.equal(xray[2].outboundTag, 'block');
 
@@ -76,7 +78,7 @@ const config = buildXrayConfig(
 );
 const configRules = config.routing.rules;
 assert.ok(configRules.length > 3);
-assert.equal(configRules[0].domain[0], 'geosite:ru', 'правила пользователя идут первыми');
+assert.equal(configRules[0].domain[0], 'geosite:category-ru', 'правила пользователя идут первыми (с миграцией устаревшего тега)');
 // Для правил по адресам нужен разбор имени в IP, иначе geoip не срабатывает.
 assert.equal(config.routing.domainStrategy, 'IPIfNonMatch');
 
@@ -125,6 +127,22 @@ for (const preset of ROUTING_PRESETS) {
   assert.equal(hasTranslation('en', preset.title), true, `нужен перевод: ${preset.title}`);
   assert.equal(hasTranslation('en', preset.description), true, `нужен перевод описания: ${preset.title}`);
 }
+
+// --- Актуальные теги наборов адресов -----------------------------------------------------
+// Свежие наборы v2fly больше не содержат `ru` и `category-social-media`:
+// ядро падало на таких тегах с кодом 23. Пресеты обязаны ссылаться только на
+// живые теги, а старые — подменяться при построении конфигурации.
+const presetValues = ROUTING_PRESETS.map((preset) => preset.value);
+assert.ok(presetValues.includes('geosite:category-ru'), 'российские сайты обязаны идти через category-ru');
+assert.ok(!presetValues.includes('geosite:ru'), 'тег ru больше не существует в наборах');
+assert.ok(presetValues.includes('geosite:category-social-media-!cn'), 'соцсети обязаны идти через живой тег');
+assert.ok(!presetValues.includes('geosite:category-social-media'), 'тег category-social-media больше не существует');
+const { migrateLegacyRoutingTag } = require(path.join(root, 'dist-electron', 'routing-rules.js'));
+assert.equal(migrateLegacyRoutingTag('geosite:ru'), 'geosite:category-ru');
+assert.equal(migrateLegacyRoutingTag('geosite:RU'), 'geosite:category-ru', 'регистр не должен мешать миграции');
+assert.equal(migrateLegacyRoutingTag('geosite:category-social-media'), 'geosite:category-social-media-!cn');
+assert.equal(migrateLegacyRoutingTag('geosite:category-ads-all'), 'geosite:category-ads-all', 'живые теги не трогаются');
+assert.equal(migrateLegacyRoutingTag('example.com'), 'example.com', 'обычные домены не трогаются');
 
 // --- Файлы наборов адресов --------------------------------------------------------
 // Правило вида `geosite:ru` работает только когда рядом с ядром лежат

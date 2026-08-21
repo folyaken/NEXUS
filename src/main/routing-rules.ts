@@ -32,16 +32,41 @@ export interface RoutingRule {
  */
 export const ROUTING_PRESETS: { value: string; title: string; description: string }[] = [
   { value: 'geosite:category-ads-all', title: 'Реклама и слежка', description: 'Рекламные и следящие домены. Обычно их блокируют.' },
-  { value: 'geosite:ru', title: 'Российские сайты', description: 'Госуслуги, банки, локальные сервисы. Обычно — напрямую.' },
+  { value: 'geosite:category-ru', title: 'Российские сайты', description: 'Госуслуги, банки, локальные сервисы. Обычно — напрямую.' },
   { value: 'geoip:ru', title: 'Российские адреса', description: 'Серверы, расположенные в России.' },
   { value: 'geosite:private', title: 'Домашняя сеть', description: 'Роутер, принтер, сетевой диск. Всегда напрямую.' },
   { value: 'geoip:private', title: 'Локальные адреса', description: 'Адреса вида 192.168.x.x и подобные.' },
-  { value: 'geosite:category-social-media', title: 'Соцсети', description: 'Социальные сети и мессенджеры.' },
+  { value: 'geosite:category-social-media-!cn', title: 'Соцсети', description: 'Социальные сети и мессенджеры (кроме китайских).' },
 ];
 
 /** Пределы: список правил не должен разрастаться бесконтрольно. */
 export const MAX_ROUTING_RULES = 100;
 const MAX_VALUE_LENGTH = 200;
+
+/**
+ * Устаревшие теги наборов адресов и их нынешние имена.
+ *
+ * v2fly время от времени переименовывает списки: `ru` стал `category-ru`,
+ * а `category-social-media` разбился на региональные списки. Свежий
+ * geosite.dat таких тегов уже не содержит, и ядро падает при запуске —
+ * с кодом 23 и без объяснения. Сохранённые правила пользователя при этом
+ * остаются старыми, поэтому тег подменяется здесь, при построении конфига.
+ */
+const LEGACY_GEO_TAGS: Record<string, string> = {
+  'geosite:ru': 'geosite:category-ru',
+  'geosite:category-social-media': 'geosite:category-social-media-!cn',
+};
+
+/**
+ * Возвращает значение правила с актуальным тегом набора.
+ *
+ * Подменяются только точные совпадения с известными устаревшими тегами —
+ * всё остальное передаётся как есть, чтобы не трогать чужие правила.
+ */
+export function migrateLegacyRoutingTag(value: string): string {
+  const key = value.trim().toLowerCase();
+  return LEGACY_GEO_TAGS[key] ?? value;
+}
 
 /**
  * Проверка того, что ввёл пользователь.
@@ -113,7 +138,9 @@ export function xrayRoutingRules(rules: RoutingRule[]): Record<string, unknown>[
 
   for (const rule of rules) {
     if (!rule.enabled) continue;
-    const value = rule.value.trim();
+    // Устаревшие теги подменяются актуальными: свежие наборы их не содержат,
+    // и ядро упало бы на таком правиле при запуске.
+    const value = migrateLegacyRoutingTag(rule.value.trim());
     const outboundTag = rule.outbound === 'block' ? 'block' : rule.outbound === 'direct' ? 'direct' : 'proxy';
 
     // IP-адреса, подсети и наборы geoip описываются полем ip, домены — domain.
