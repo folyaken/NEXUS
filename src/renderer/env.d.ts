@@ -23,6 +23,8 @@ declare global {
       addDpiHost(host: string): Promise<DpiHostlistResult>;
       removeDpiHost(host: string): Promise<DpiHostlistResult>;
       getLogs(id?: string): Promise<ModuleLog[]>;
+      /** Открывает папку с логами в проводнике; возвращает текст ошибки или null. */
+      openLogsFolder(): Promise<string | null>;
       getUpdates(): Promise<UpdateInfo[]>;
       syncUpdates(): Promise<UpdateInfo[]>;
       getProfile(): Promise<UserProfile>;

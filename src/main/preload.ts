@@ -19,6 +19,7 @@ contextBridge.exposeInMainWorld('nexus', {
   addDpiHost: (host: string): Promise<DpiHostlistResult> => ipcRenderer.invoke('dpi:add-host', host),
   removeDpiHost: (host: string): Promise<DpiHostlistResult> => ipcRenderer.invoke('dpi:remove-host', host),
   getLogs: (id?: string): Promise<ModuleLog[]> => ipcRenderer.invoke('logs:list', id),
+  openLogsFolder: (): Promise<string | null> => ipcRenderer.invoke('logs:open-folder'),
   getUpdates: (): Promise<UpdateInfo[]> => ipcRenderer.invoke('updates:list'),
   syncUpdates: (): Promise<UpdateInfo[]> => ipcRenderer.invoke('updates:sync'),
   getProfile: (): Promise<UserProfile> => ipcRenderer.invoke('profile:get'),

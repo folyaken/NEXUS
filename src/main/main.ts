@@ -946,6 +946,16 @@ function wireIpc(): void {
       .sort((left, right) => Date.parse(right.timestamp) - Date.parse(left.timestamp))
       .slice(0, 200);
   });
+  // Папку логов человек открывает одним кликом, чтобы прислать файлы в
+  // поддержку — раньше путь приходилось объяснять словами. Путь берётся
+  // только из modulesDir, ввод пользователя сюда не попадает, поэтому
+  // открыть через него можно лишь эту папку и ничего другого.
+  ipcMain.handle('logs:open-folder', async () => {
+    const logsDir = path.join(manager.getModulesDir(), 'logs');
+    await fs.mkdir(logsDir, { recursive: true });
+    const failure = await shell.openPath(logsDir);
+    return failure ? String(failure) : null;
+  });
   ipcMain.handle('updates:list', () => updater.list());
   ipcMain.handle('updates:sync', () => updater.syncAll());
   ipcMain.handle('profile:get', () => readProfile());

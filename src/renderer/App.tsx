@@ -540,6 +540,18 @@ function LogsPage({ logs, category, setCategory, onNotice, t }: { logs: ModuleLo
     }
   };
 
+  // Папка логов открывается в проводнике одним кликом: чтобы прислать файлы
+  // в поддержку, человеку не нужно объяснять путь словами. В браузерном
+  // предпросмотре папки нет — честно говорим об этом всплывающей подсказкой.
+  const openLogsFolder = async () => {
+    if (!window.nexus?.openLogsFolder) {
+      onNotice(t('Папка с логами доступна в установленной программе'));
+      return;
+    }
+    const failure = await window.nexus.openLogsFolder();
+    if (failure) onNotice(t('Не удалось открыть папку с логами'));
+  };
+
   useEffect(() => {
     const consoleElement = consoleRef.current;
     if (consoleElement) consoleElement.scrollTop = consoleElement.scrollHeight;
@@ -557,7 +569,7 @@ function LogsPage({ logs, category, setCategory, onNotice, t }: { logs: ModuleLo
   }, [reportText]);
 
   return <section className="page-section logs-page">
-    <div className="page-heading logs-heading"><div><span className="section-kicker">{t('КОНСОЛЬ СОБЫТИЙ')}</span><h1>{t('Логи')}</h1><p>{t('Системные события NEXUS в реальном времени.')}</p></div><button className="logs-report-button" onClick={() => void copyReport()}><NavGlyph name="logs" /> {t('Скопировать отчёт')}</button></div>
+    <div className="page-heading logs-heading"><div><span className="section-kicker">{t('КОНСОЛЬ СОБЫТИЙ')}</span><h1>{t('Логи')}</h1><p>{t('Системные события NEXUS в реальном времени.')}</p></div><div className="logs-heading-actions"><button className="logs-report-button" onClick={() => void openLogsFolder()}><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 7.2h6.2l2 2.4H21v7.8a2.4 2.4 0 0 1-2.4 2.4H5.4A2.4 2.4 0 0 1 3 17.4Z" /><path d="M3 9.6V6.8a1.8 1.8 0 0 1 1.8-1.8H9" /></svg> {t('Открыть папку с логами')}</button><button className="logs-report-button" onClick={() => void copyReport()}><NavGlyph name="logs" /> {t('Скопировать отчёт')}</button></div></div>
     <div className="logs-hint"><span className="logs-hint-icon">i</span><span>{t('Нажмите')} <kbd>Ctrl</kbd> + <kbd>R</kbd>{t(', чтобы скопировать отчёт выбранной категории.')}</span><span className="logs-live-state"><i /> LIVE</span></div>
     <div className="log-source-tabs" role="tablist" aria-label={t('Источники логов')}>
       {LOG_CATEGORIES.map((tab) => <button key={tab.id} type="button" role="tab" aria-selected={category === tab.id} className={category === tab.id ? 'is-active' : ''} onClick={() => setCategory(tab.id)}>{t(tab.label)}</button>)}

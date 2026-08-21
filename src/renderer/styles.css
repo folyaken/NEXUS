@@ -848,7 +848,8 @@ kbd { padding: 3px 5px; border: 1px solid rgba(255,255,255,.1); border-radius: 5
 
 .logs-page { max-width: 1260px; }
 .logs-heading { align-items: center; }
-.logs-report-button { display: inline-flex; align-items: center; gap: 8px; padding: 10px 13px; border: 1px solid rgba(255,255,255,.08); border-radius: 11px; background: rgba(255,255,255,.035); color: #aeb9ca; font-size: 11px; font-weight: 700; transition: border-color .18s ease, background .18s ease, color .18s ease; }
+.logs-heading-actions { display: flex; flex: 0 0 auto; align-items: center; gap: 8px; }
+.logs-report-button { display: inline-flex; align-items: center; gap: 8px; padding: 10px 13px; border: 1px solid rgba(255,255,255,.08); border-radius: 11px; background: rgba(255,255,255,.035); color: #aeb9ca; font-size: 11px; font-weight: 700; white-space: nowrap; transition: border-color .18s ease, background .18s ease, color .18s ease; }
 .logs-report-button:hover { border-color: rgba(124,242,213,.18); background: rgba(124,242,213,.07); color: #e9fff9; }
 .logs-report-button svg { width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-linecap: round; stroke-width: 1.7; }
 .logs-hint { display: flex; min-height: 44px; align-items: center; gap: 10px; margin-top: 22px; padding: 10px 13px; border: 1px solid rgba(124,242,213,.1); border-radius: 12px; background: rgba(124,242,213,.035); color: #7f8ca0; font-size: 11px; }
