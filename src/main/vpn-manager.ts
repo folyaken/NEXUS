@@ -1,5 +1,5 @@
 import { EventEmitter } from 'node:events';
-import { copyFileSync, createWriteStream, existsSync, mkdirSync } from 'node:fs';
+import { copyFileSync, createWriteStream, existsSync, mkdirSync, rmSync, statSync } from 'node:fs';
 import { promises as fs } from 'node:fs';
 import { createServer, Socket } from 'node:net';
 import { connect as connectTls, type TLSSocket } from 'node:tls';
@@ -137,9 +137,85 @@ export class VpnManager extends EventEmitter {
    * запуска — с кодом 23 и без внятного объяснения. Проверяем заранее, чтобы
    * отбросить такие правила и сохранить работающее подключение: остальные
    * правила при этом продолжают действовать.
+   *
+   * Файл считается годным только при ненулевом размере: оборванная загрузка
+   * оставляет пустышку, и ядро падает на ней так же, как на отсутствующем.
    */
   hasGeoFiles(): boolean {
-    return existsSync(this.binPath('geosite.dat')) && existsSync(this.binPath('geoip.dat'));
+    return ['geoip.dat', 'geosite.dat'].every((name) => this.validGeoFile(this.binPath(name)));
+  }
+
+  /** Файл существует и не пустышка от оборванной загрузки. */
+  private validGeoFile(file: string): boolean {
+    if (!existsSync(file)) return false;
+    try { return statSync(file).size > 1024; } catch { return false; }
+  }
+
+  /** Места, где могут лежать наборы адресов, кроме папки самого ядра. */
+  private geoFileCandidates(name: string): string[] {
+    const places = [
+      path.join(this.modulesDir, 'bin', name),
+      path.join(this.vpnRoot(), 'bin', name),
+      path.join(process.cwd(), 'modules', 'bin', name),
+    ];
+    try {
+      const { app } = require('electron') as typeof import('electron');
+      if (app?.isPackaged) places.unshift(path.join(process.resourcesPath, 'modules', 'bin', name));
+    } catch { /* вне Electron */ }
+    return places;
+  }
+
+  /**
+   * Кладёт валидные наборы адресов рядом с ядром, из которого будет запуск.
+   *
+   * Ядро ищет geosite.dat и geoip.dat в своей рабочей папке. После обновления
+   * ядра файлы могут оказаться в другом каталоге (например, докачаться в
+   * пользовательскую папку, пока само ядро осталось в папке установки) —
+   * тогда hasGeoFiles() видит файлы, правила попадают в конфиг, а ядро падает
+   * с кодом 23. Валидная копия переносится к ядру — тем же способом, каким
+   * переносится драйвер wintun. Битые копии удаляются, чтобы их не подхватило
+   * ни ядро, ни следующая проверка.
+   */
+  private ensureGeoFilesBesideEngine(enginePath: string): boolean {
+    const engineDir = path.dirname(enginePath);
+    return ['geoip.dat', 'geosite.dat'].every((name) => {
+      const beside = path.join(engineDir, name);
+      if (this.validGeoFile(beside)) return true;
+      for (const candidate of this.geoFileCandidates(name)) {
+        if (candidate === beside) continue;
+        if (!existsSync(candidate)) continue;
+        if (!this.validGeoFile(candidate)) {
+          // Пустышка от оборванной загрузки: убираем, иначе она так и будет
+          // выглядеть «файлом на месте» при следующей проверке.
+          try {
+            rmSync(candidate, { force: true });
+            this.emitLog('warn', `Удалён повреждённый файл ${name} — набор будет загружен заново при проверке обновлений.`);
+          } catch { /* нет прав — пропускаем */ }
+          continue;
+        }
+        try {
+          mkdirSync(engineDir, { recursive: true });
+          copyFileSync(candidate, beside);
+          this.emitLog('info', `${name} перенесён к ядру VPN.`);
+          return true;
+        } catch {
+          // Папка установки может быть защищена от записи — пробуем дальше.
+        }
+      }
+      return false;
+    });
+  }
+
+  /** После падения с кодом 23 убираем битые копии наборов адресов. */
+  private dropBrokenGeoFiles(): void {
+    for (const name of ['geoip.dat', 'geosite.dat']) {
+      const places = [path.join(path.dirname(this.xrayPath()), name), ...this.geoFileCandidates(name)];
+      for (const file of new Set(places)) {
+        if (existsSync(file) && !this.validGeoFile(file)) {
+          try { rmSync(file, { force: true }); } catch { /* нет прав — оставляем */ }
+        }
+      }
+    }
   }
 
   private binPath(name: string): string {
@@ -874,9 +950,11 @@ export class VpnManager extends EventEmitter {
       : 'system';
     const activeSplitApps = activeAppRouting === 'system' ? [] : splitApps;
     // Групповые наборы работают только когда рядом с ядром лежат файлы с их
-    // содержимым. Если файлов нет, такие правила молча отбрасываются: лучше
-    // подключиться без части правил, чем не подключиться вовсе.
-    const geoReady = this.hasGeoFiles();
+    // содержимым. Валидные копии переносятся к ядру; если их нигде нет, такие
+    // правила молча отбрасываются: лучше подключиться без части правил, чем
+    // не подключиться вовсе. Для sing-box проверка не нужна: групповые наборы
+    // в его конфиг не попадают вовсе.
+    const geoReady = useSingbox || this.ensureGeoFilesBesideEngine(engine);
     const usableRules = geoReady
       ? routingRules
       : routingRules.filter((rule) => !/^(geosite|geoip|ext):/i.test(rule.value));
@@ -945,7 +1023,17 @@ export class VpnManager extends EventEmitter {
       void fs.rm(this.generatedPath(), { force: true });
       if (this.status === 'connecting' || this.status === 'connected') {
         const failed = code !== 0 && code !== null;
-        const reason = failed ? (lastErr ? describeVpnFailure(lastErr, mode) : `VPN-ядро завершилось с кодом ${code}`) : undefined;
+        let reason: string | undefined;
+        if (failed && code === 23) {
+          // Код 23 — ядро не смогло загрузить файлы наборов адресов: они
+          // отсутствуют рядом с ядром или повреждены. Показываем, что делать,
+          // а битые копии убираем — иначе падение повторится на следующем
+          // подключении к тем же правилам.
+          reason = 'VPN-ядро не загрузило файлы наборов адресов (код 23). Откройте «Модули» → «Проверить обновления», чтобы восстановить их.';
+          this.dropBrokenGeoFiles();
+        } else {
+          reason = failed ? (lastErr ? describeVpnFailure(lastErr, mode) : `VPN-ядро завершилось с кодом ${code}`) : undefined;
+        }
         this.setState(failed ? 'error' : 'disconnected', failed ? id : null, null, reason);
       }
     });

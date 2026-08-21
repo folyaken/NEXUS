@@ -686,6 +686,7 @@ const EN: Record<string, string> = {
   'Включить VPN': 'Turn VPN on',
   'Выключить VPN': 'Turn VPN off',
   'Не удалось подключиться': 'Could not connect',
+  'VPN-ядро не загрузило файлы наборов адресов (код 23). Откройте «Модули» → «Проверить обновления», чтобы восстановить их.': 'The VPN core could not load the address set files (code 23). Open "Modules" → "Check for updates" to restore them.',
   'Не удалось отключить VPN': 'Could not disconnect the VPN',
   'Не удалось переключить режим VPN': 'Could not switch the VPN mode',
   'Дождитесь завершения текущего подключения': 'Wait for the current connection to finish',
