@@ -67,8 +67,8 @@ assert.match(indexHtml, /if \(!root\.children\.length\)/);
 assert.match(indexHtml, /MIN_VISIBLE/, 'у заставки должен быть минимальный показ');
 const minVisible = /MIN_VISIBLE = calm \? (\d+) : (\d+)/.exec(indexHtml);
 assert.ok(minVisible, 'минимальное время показа должно задаваться явно');
-assert.ok(Number(minVisible[2]) >= 2500,
-  `анимация обязана успевать проиграться, сейчас ${minVisible[2]}мс`);
+assert.ok(Number(minVisible[2]) >= 4000,
+  `заставка обязана быть видна целиком, сейчас ${minVisible[2]}мс`);
 // При отключённых анимациях держать окно незачем — показывать нечего.
 assert.ok(Number(minVisible[1]) < Number(minVisible[2]),
   'без анимаций заставка не должна задерживать запуск');

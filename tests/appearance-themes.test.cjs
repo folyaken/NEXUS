@@ -314,4 +314,15 @@ assert.match(styles, /@keyframes vpn-beam-run/);
 assert.match(styles, /@keyframes dust-chain-wave/);
 assert.match(styles, /@keyframes heat-stream-rise/);
 
+// --- Звёздная россыпь «Индиго» ----------------------------------------------------------
+// Спокойная глубина фона: стационарные точки мерцают вразнобой. В отличие от
+// пакетов и линий, звёзды намеренно не реагируют на запущенные модули — они
+// задают «спокойный пол», на фоне которого остальное оживает.
+assert.match(styles, /\.appearance-indigo \.packet-star \{/);
+assert.match(styles, /@keyframes packet-star-twinkle/);
+assert.match(app, /packet-stars/, 'россыпь должна быть в разметке фона');
+assert.doesNotMatch(styles, /has-activity \.packet-star/,
+  'звёзды живут сами по себе и не ускоряются от модулей');
+assert.match(styles, /\.app-frame\.motion-off \.packet-star \{ animation: none; opacity: \.5; \}/);
+
 console.log('Appearance theme checks passed.');

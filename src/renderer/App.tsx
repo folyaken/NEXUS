@@ -303,6 +303,26 @@ function PulsePanel({ running, total, errors }: { running: number; total: number
  * а точка на ободе движется вместе с дугой — та же механика, что у орбит
  * на «Обзоре».
  */
+/**
+ * Звёздная россыпь фона «Индиго»: x, y — доля окна, size — пиксели,
+ * d — отрицательная задержка, чтобы звёзды уже мерцали при открытии,
+ * dur — собственный темп, cls — цвет.
+ */
+const PACKET_STARS = [
+  { x: 8, y: 22, size: 2, d: -2, dur: 5.5, cls: 'cyan' },
+  { x: 16, y: 64, size: 1, d: -4, dur: 7, cls: 'violet' },
+  { x: 24, y: 12, size: 2, d: -1, dur: 6, cls: 'mint' },
+  { x: 31, y: 48, size: 1, d: -5, dur: 8, cls: 'cyan' },
+  { x: 39, y: 78, size: 2, d: -3, dur: 5, cls: 'violet' },
+  { x: 46, y: 20, size: 1, d: -6, dur: 7.5, cls: 'mint' },
+  { x: 54, y: 58, size: 2, d: -2.5, dur: 6.5, cls: 'cyan' },
+  { x: 62, y: 88, size: 1, d: -4.5, dur: 9, cls: 'violet' },
+  { x: 70, y: 34, size: 2, d: -1.5, dur: 5.8, cls: 'mint' },
+  { x: 78, y: 66, size: 1, d: -3.5, dur: 8.5, cls: 'cyan' },
+  { x: 86, y: 14, size: 2, d: -5.5, dur: 6.8, cls: 'violet' },
+  { x: 94, y: 52, size: 1, d: -7, dur: 7.8, cls: 'mint' },
+];
+
 function PacketWeb() {
   return <div className="packet-web" aria-hidden="true">
     <span className="packet-track packet-track-a"><i /></span>
@@ -317,6 +337,23 @@ function PacketWeb() {
     {/* VPN-элемент «Индиго»: луч туннеля, по которому после подключения
         бежит пакет вниз. */}
     <span className="vpn-beam"><i /></span>
+    {/* Звёздная россыпь: стационарные точки, медленно мерцающие вразнобой.
+        Это спокойная глубина фона — в отличие от пакетов и линий, она живёт
+        сама по себе и не отзывается на запущенные модули. */}
+    <span className="packet-stars">
+      {PACKET_STARS.map((star, index) => <i
+        key={index}
+        className={`packet-star ${star.cls}`}
+        style={{
+          left: `${star.x}%`,
+          top: `${star.y}%`,
+          width: `${star.size}px`,
+          height: `${star.size}px`,
+          animationDelay: `${star.d}s`,
+          animationDuration: `${star.dur}s`,
+        }}
+      />)}
+    </span>
   </div>;
 }
 

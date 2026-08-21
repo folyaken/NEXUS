@@ -2347,6 +2347,25 @@ kbd { padding: 3px 5px; border: 1px solid rgba(255,255,255,.1); border-radius: 5
   3.5% { opacity: 1; }
 }
 
+/* Звёздная россыпь: стационарные точки трёх акцентных цветов, медленно
+   мерцающие вразнобой. Это спокойная глубина фона — в отличие от пакетов
+   и линий, она живёт сама по себе и не отзывается на запущенные модули. */
+.appearance-indigo .packet-stars { position: absolute; inset: 0; }
+.appearance-indigo .packet-star {
+  position: absolute;
+  border-radius: 50%;
+  opacity: .4;
+  will-change: opacity, transform;
+  animation: packet-star-twinkle 6s ease-in-out infinite;
+}
+.appearance-indigo .packet-star.cyan { background: #7cf2d5; box-shadow: 0 0 5px 1px rgba(124,242,213,.4); }
+.appearance-indigo .packet-star.violet { background: #a895ff; box-shadow: 0 0 5px 1px rgba(168,149,255,.4); }
+.appearance-indigo .packet-star.mint { background: #71f4b8; box-shadow: 0 0 5px 1px rgba(113,244,184,.38); }
+@keyframes packet-star-twinkle {
+  0%, 100% { opacity: .25; transform: scale(.8); }
+  50% { opacity: .75; transform: scale(1.15); }
+}
+
 /* Настройка анимаций старше системной, как во всём интерфейсе. Пакеты при
    этом прячутся (без движения они зависли бы в случайной точке), а созвездие
    остаётся видимым статично. */
@@ -2355,11 +2374,13 @@ kbd { padding: 3px 5px; border: 1px solid rgba(255,255,255,.1); border-radius: 5
   .app-frame:not(.motion-force) .packet-track i,
   .app-frame:not(.motion-force) .packet-link { display: none; }
   .app-frame:not(.motion-force) .packet-node { animation: none; opacity: .55; }
+  .app-frame:not(.motion-force) .packet-star { animation: none; opacity: .5; }
 }
 .app-frame.motion-off .packet-track { animation: none; }
 .app-frame.motion-off .packet-track i,
 .app-frame.motion-off .packet-link { display: none; }
 .app-frame.motion-off .packet-node { animation: none; opacity: .55; }
+.app-frame.motion-off .packet-star { animation: none; opacity: .5; }
 
 /* ============================================================================
    Живой фон оформления «Графит»: светящаяся пыль и лавандовые пятна

@@ -809,6 +809,9 @@
 .appearance-crimson .appearance-indigo .packet-node-hub { background: #d8505d; box-shadow: 0 0 7px 1px rgba(216,80,93,.5); }
 .appearance-crimson .appearance-indigo .packet-node-a { background: #d8505d; box-shadow: 0 0 6px 1px rgba(216,80,93,.3375); }
 .appearance-crimson .appearance-indigo .packet-node-b { background: #d65c81; box-shadow: 0 0 6px 1px rgba(214,92,129,.315); }
+.appearance-crimson .appearance-indigo .packet-star.cyan { background: #d8505d; box-shadow: 0 0 5px 1px rgba(216,80,93,.3); }
+.appearance-crimson .appearance-indigo .packet-star.violet { background: #d65c81; box-shadow: 0 0 5px 1px rgba(214,92,129,.3); }
+.appearance-crimson .appearance-indigo .packet-star.mint { background: #aa3443; box-shadow: 0 0 5px 1px rgba(170,52,67,.285); }
 .appearance-crimson .appearance-indigo.has-activity .packet-track-a i { box-shadow: 0 0 8px 2px rgba(216,80,93,.85), 0 0 20px 6px rgba(216,80,93,.3); }
 .appearance-crimson .appearance-indigo.has-activity .packet-track-b i { box-shadow: 0 0 8px 2px rgba(214,92,129,.8), 0 0 20px 6px rgba(214,92,129,.285); }
 .appearance-crimson .appearance-indigo.vpn-ghost .vpn-beam,
