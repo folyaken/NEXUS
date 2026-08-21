@@ -2071,13 +2071,17 @@ kbd { padding: 3px 5px; border: 1px solid rgba(255,255,255,.1); border-radius: 5
 .app-frame.motion-off .theme-dot-label { transition: none; }
 
 /* ============================================================================
-   Живой фон оформления «Графит»: сеть узлов и лавандовые пятна
+   Живой фон оформления «Графит»: светящаяся пыль и лавандовые пятна
    ==========================================================================*/
 
 /*
   Узор виден только в «Графите» — это его отличительная черта. В остальных
   оформлениях он не скрыт правилом-исключением, а просто не появляется:
   показывается лишь тем, кто выбрал эту тему.
+
+  Раньше здесь была сеть узлов со связями. Линии тянулись через весь экран и
+  проходили под карточками — фон читался как чертёж поверх интерфейса. Осталась
+  пыль: она даёт глубину и не спорит с содержимым.
 
   Слой лежит под интерфейсом и не перехватывает нажатия. Движение целиком на
   CSS: анимируются opacity и transform, которые считает видеокарта, поэтому на
@@ -2093,28 +2097,17 @@ kbd { padding: 3px 5px; border: 1px solid rgba(255,255,255,.1); border-radius: 5
   overflow: hidden;
   pointer-events: none;
 }
-.appearance-graphite .node-web svg {
-  width: 100%;
-  height: 100%;
-  /* Растягиваем по окну: сеть — фон, а не схема, пропорции не важны.
-     Прозрачность слоя перемножается с прозрачностью линий и точек, поэтому
-     держим её высокой, а приглушаем уже сами элементы — так тоньше настройка. */
-  opacity: .9;
-}
 
-/* Связи еле видны и медленно «дышат»: сеть выглядит живой, но читать её
-   не нужно, поэтому яркость намеренно на пределе различимости. */
-.appearance-graphite .node-web-links line {
-  stroke: #b8a7f0;
-  stroke-width: .12;
-  opacity: .16;
-  animation: node-link-breathe 13s ease-in-out infinite;
-}
-/* Узлы мерцают вразнобой — иначе сеть пульсирует целиком и это отвлекает. */
-.appearance-graphite .node-web-dots circle {
-  fill: #c6b9f3;
-  opacity: .5;
-  animation: node-dot-breathe 9s ease-in-out infinite;
+/* Пылинка: мягкая точка со свечением, медленно всплывающая вверх. */
+.appearance-graphite .node-mote {
+  position: absolute;
+  display: block;
+  border-radius: 50%;
+  background: #c6b6fb;
+  /* Свечение отдельной тенью: так мелкая точка не выглядит жёстким пикселем. */
+  box-shadow: 0 0 6px 1px rgba(198,182,251,.55);
+  opacity: 0;
+  animation: node-mote-drift 22s ease-in-out infinite;
 }
 
 /* Лавандовые пятна: очень медленно перетекают, добавляя фону глубину. */
@@ -2127,23 +2120,29 @@ kbd { padding: 3px 5px; border: 1px solid rgba(255,255,255,.1); border-radius: 5
 .appearance-graphite .node-web-glow.one {
   width: 520px; height: 520px;
   top: -190px; left: 6%;
-  background: rgba(184,167,240,.16);
+  background: rgba(198,182,251,.15);
   animation: node-glow-a 26s ease-in-out infinite;
 }
 .appearance-graphite .node-web-glow.two {
   width: 460px; height: 460px;
   right: 4%; bottom: -180px;
-  background: rgba(140,120,210,.14);
+  background: rgba(122,99,224,.16);
   animation: node-glow-b 31s ease-in-out infinite;
 }
 
-@keyframes node-link-breathe {
-  0%, 100% { opacity: .08; }
-  50% { opacity: .26; }
-}
-@keyframes node-dot-breathe {
-  0%, 100% { opacity: .3; }
-  50% { opacity: .85; }
+/*
+  Пылинка всплывает и гаснет по краям пути.
+
+  Прозрачность держится нулевой в начале и в конце, поэтому появление и
+  исчезновение не читаются как рывок: частица словно выплывает из темноты и
+  растворяется в ней же.
+*/
+@keyframes node-mote-drift {
+  0% { opacity: 0; transform: translateY(14px); }
+  18% { opacity: .5; }
+  50% { opacity: .75; transform: translateY(-10px); }
+  82% { opacity: .45; }
+  100% { opacity: 0; transform: translateY(-26px); }
 }
 @keyframes node-glow-a {
   0%, 100% { transform: translate(0, 0); }
@@ -2154,12 +2153,13 @@ kbd { padding: 3px 5px; border: 1px solid rgba(255,255,255,.1); border-radius: 5
   50% { transform: translate(-52px, -34px); }
 }
 
-/* Настройка анимаций старше системной: как и во всём остальном интерфейсе. */
+/* Настройка анимаций старше системной: как и во всём остальном интерфейсе.
+   Пылинки при этом остаются видимыми — просто перестают двигаться. */
 @media (prefers-reduced-motion: reduce) {
-  .app-frame:not(.motion-force) .node-web-links line,
-  .app-frame:not(.motion-force) .node-web-dots circle,
+  .app-frame:not(.motion-force) .node-mote,
   .app-frame:not(.motion-force) .node-web-glow { animation: none; }
+  .app-frame:not(.motion-force) .node-mote { opacity: .5; }
 }
-.app-frame.motion-off .node-web-links line,
-.app-frame.motion-off .node-web-dots circle,
+.app-frame.motion-off .node-mote,
 .app-frame.motion-off .node-web-glow { animation: none; }
+.app-frame.motion-off .node-mote { opacity: .5; }

@@ -149,8 +149,19 @@ const webRule = styles.slice(styles.indexOf('.appearance-graphite .node-web {'))
 assert.match(webRule.slice(0, webRule.indexOf('}')), /pointer-events: none/,
   'фон обязан пропускать нажатия к интерфейсу');
 // И подчиняться настройке анимаций, как всё остальное движение.
-assert.match(styles, /\.app-frame\.motion-off \.node-web-links line/);
-assert.match(styles, /\.app-frame:not\(\.motion-force\) \.node-web-links line/);
+assert.match(styles, /\.app-frame\.motion-off \.node-mote/);
+assert.match(styles, /\.app-frame:not\(\.motion-force\) \.node-mote/);
+
+// Сеть узлов убрана: линии тянулись через весь экран и проходили под
+// карточками, фон читался как чертёж поверх интерфейса. Осталась только пыль.
+assert.doesNotMatch(styles, /node-web-links|node-web-dots/,
+  'соединительные линии убраны — они мешали читать интерфейс');
+// Проверяем сам компонент фона, а не весь файл: <linearGradient> в логотипе
+// к сети отношения не имеет и попадаться под шаблон не должен.
+const webStart = app2.indexOf('function NodeWeb');
+const webBody = app2.slice(webStart, app2.indexOf('function HeroVisual'));
+assert.doesNotMatch(webBody, /<line\b/, 'в фоне не должно остаться соединительных линий');
+assert.match(webBody, /node-mote/, 'фон обязан рисоваться пылинками');
 
 // --- Список серверов не перерисовывается по таймеру ---------------------------
 // На странице тикает счётчик времени сессии. Без memo он раз в секунду

@@ -1,7 +1,7 @@
 {
   "name": "nexus-network-tools",
-  "version": "1.5.0",
-  "patchLevel": 96,
+  "version": "1.5.1",
+  "patchLevel": 97,
   "private": true,
   "description": "NEXUS - network tools for Windows",
   "license": "SEE LICENSE IN LICENSE",
