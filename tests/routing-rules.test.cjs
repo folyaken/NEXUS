@@ -56,9 +56,9 @@ const rules = [
 const xray = xrayRoutingRules(rules);
 assert.equal(xray.length, 3, 'выключенное правило в конфигурацию не попадает');
 // Домены и адреса описываются разными полями — перепутать нельзя.
-// Устаревший тег `geosite:ru` подменяется актуальным `geosite:category-ru`:
-// свежие наборы старого имени не содержат, и ядро упало бы при запуске.
-assert.deepEqual(xray[0], { type: 'field', domain: ['geosite:category-ru'], outboundTag: 'direct' });
+// Российская зона больше не полагается на чужой тег (его в наборах не было
+// никогда): она разворачивается в собственное правило по окончанию домена.
+assert.deepEqual(xray[0], { type: 'field', domain: ['regexp:(^|\\.)(ru|su|xn--p1ai)$'], outboundTag: 'direct' });
 assert.deepEqual(xray[1], { type: 'field', ip: ['10.0.0.0/8'], outboundTag: 'direct' });
 assert.equal(xray[2].outboundTag, 'block');
 
@@ -78,7 +78,7 @@ const config = buildXrayConfig(
 );
 const configRules = config.routing.rules;
 assert.ok(configRules.length > 3);
-assert.equal(configRules[0].domain[0], 'geosite:category-ru', 'правила пользователя идут первыми (с миграцией устаревшего тега)');
+assert.equal(configRules[0].domain[0], 'regexp:(^|\\.)(ru|su|xn--p1ai)$', 'правила пользователя идут первыми');
 // Для правил по адресам нужен разбор имени в IP, иначе geoip не срабатывает.
 assert.equal(config.routing.domainStrategy, 'IPIfNonMatch');
 
@@ -90,10 +90,29 @@ const plain = buildXrayConfig(
 assert.equal(plain.routing, undefined, 'без правил секция routing не нужна');
 
 // sing-box: групповые наборы пропускаются — они требуют отдельных файлов, и
-// ядро с ними просто не запустится.
+// ядро с ними просто не запустится. Исключение — российская зона и соцсети:
+// они разворачиваются в суффиксы доменов и не зависят от наборов.
 const singbox = singboxRoutingRules(rules);
 assert.ok(!singbox.some((rule) => JSON.stringify(rule).includes('geosite')), 'geosite в sing-box не поддерживается');
 assert.ok(singbox.some((rule) => rule.action === 'reject'), 'блокировка обязана работать');
+assert.ok(singbox.some((rule) => Array.isArray(rule.domain_suffix) && rule.domain_suffix.includes('ru')),
+  'российская зона в sing-box обязана разворачиваться в суффиксы');
+const singboxSocial = singboxRoutingRules([{ id: 's', value: 'geosite:category-social-media-!cn', outbound: 'direct', enabled: true }]);
+assert.ok(singboxSocial.some((rule) => Array.isArray(rule.domain_suffix) && rule.domain_suffix.includes('t.me')),
+  'соцсети в sing-box обязаны разворачиваться в список доменов');
+
+// --- Собственные правила вместо чужих тегов ----------------------------------------------
+// Тега `ru` в наборах не было никогда, `category-ru` появился недавно, а
+// `category-social-media` удалён: правила на таких тегах молча не срабатывали.
+// Российская зона и соцсети описываются собственными правилами NEXUS и
+// работают с любым geosite.dat и любым ядром.
+const russian = xrayRoutingRules([{ id: 'r', value: 'geosite:category-ru', outbound: 'direct', enabled: true }]);
+assert.deepEqual(russian, [{ type: 'field', domain: ['regexp:(^|\\.)(ru|su|xn--p1ai)$'], outboundTag: 'direct' }]);
+const social = xrayRoutingRules([{ id: 's', value: 'geosite:category-social-media-!cn', outbound: 'direct', enabled: true }]);
+assert.equal(social.length, 1);
+assert.ok(social[0].domain.includes('domain:vk.com'), 'соцсети обязаны включать vk.com');
+assert.ok(social[0].domain.includes('domain:t.me'), 'соцсети обязаны включать t.me');
+assert.ok(social[0].domain.includes('domain:youtube.com'), 'соцсети обязаны включать youtube.com');
 
 // --- Настройки ---------------------------------------------------------------------------
 assert.deepEqual(DEFAULT_SETTINGS.vpnRoutingRules, [], 'по умолчанию правил нет');

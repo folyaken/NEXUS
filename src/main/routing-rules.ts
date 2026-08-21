@@ -92,6 +92,46 @@ export function geoTagAlternatives(tag: string): string[] {
 }
 
 /**
+ * Соцсети и мессенджеры одним списком доменов.
+ *
+ * Чужого тега для них больше нет: `category-social-media` из наборов удалён,
+ * а региональные списки появились недавно и в старых файлах отсутствуют.
+ * Собственный список работает одинаково с любым geosite.dat и любым ядром.
+ */
+const SOCIAL_DOMAINS = [
+  'vk.com', 'ok.ru', 'viber.com', 'telegram.org', 't.me',
+  'facebook.com', 'fb.com', 'instagram.com', 'threads.net',
+  'twitter.com', 'x.com', 'youtube.com', 'youtu.be', 'tiktok.com',
+  'whatsapp.com', 'wa.me', 'discord.com', 'discord.gg', 'reddit.com',
+  'linkedin.com', 'pinterest.com', 'snapchat.com', 'twitch.tv',
+  'signal.org', 'skype.com',
+];
+
+/**
+ * Замена гео-тегов собственными правилами NEXUS.
+ *
+ * Тега `ru` в наборах никогда не было, `category-ru` появился лишь в свежих
+ * файлах: правило на чужом теге работало или молчало в зависимости от возраста
+ * geosite.dat, и «российские сайты напрямую» у половины пользователей не
+ * действовали. Российская зона описывается окончанием домена (.ru/.su/.рф),
+ * соцсети — списком известных доменов: от наборов адресов это не зависит вовсе.
+ */
+const GEO_TAG_EXPANSIONS: Record<string, string[]> = {
+  'geosite:ru': ['regexp:(^|\\.)(ru|su|xn--p1ai)$'],
+  'geosite:category-ru': ['regexp:(^|\\.)(ru|su|xn--p1ai)$'],
+  'geosite:category-social-media': SOCIAL_DOMAINS.map((domain) => `domain:${domain}`),
+  'geosite:category-social-media-!cn': SOCIAL_DOMAINS.map((domain) => `domain:${domain}`),
+};
+
+/** То же самое для sing-box: там списки суффиксов доменов. */
+const SINGBOX_GEO_EXPANSIONS: Record<string, string[]> = {
+  'geosite:ru': ['ru', 'su', 'xn--p1ai'],
+  'geosite:category-ru': ['ru', 'su', 'xn--p1ai'],
+  'geosite:category-social-media': SOCIAL_DOMAINS,
+  'geosite:category-social-media-!cn': SOCIAL_DOMAINS,
+};
+
+/**
  * Проверка того, что ввёл пользователь.
  *
  * Ошибка здесь стоит дорого: неверная строка в конфигурации не даёт ядру
@@ -170,9 +210,13 @@ export function xrayRoutingRules(rules: RoutingRule[]): Record<string, unknown>[
     const isAddress = /^geoip:/i.test(value)
       || /^\d{1,3}(\.\d{1,3}){3}(\/\d{1,2})?$/.test(value);
 
+    // Чужие теги, которых может не быть в файле наборов, заменяются
+    // собственными правилами — они работают с любым geosite.dat и ядром.
+    const matchers = GEO_TAG_EXPANSIONS[value.toLowerCase()] ?? [value];
+
     result.push(isAddress
-      ? { type: 'field', ip: [value], outboundTag }
-      : { type: 'field', domain: [value], outboundTag });
+      ? { type: 'field', ip: matchers, outboundTag }
+      : { type: 'field', domain: matchers, outboundTag });
   }
   return result;
 }
@@ -189,12 +233,22 @@ export function singboxRoutingRules(rules: RoutingRule[]): Record<string, unknow
 
   for (const rule of rules) {
     if (!rule.enabled) continue;
-    const value = rule.value.trim();
-    if (/^(geosite|geoip|ext):/i.test(value)) continue;
+    const value = migrateLegacyRoutingTag(rule.value.trim());
+
+    // Российская зона и соцсети разворачиваются в суффиксы доменов — они
+    // не зависят от файлов наборов. Прочие geosite/geoip пропускаются:
+    // в sing-box они подключаются иначе и требуют отдельных файлов.
+    const expansion = SINGBOX_GEO_EXPANSIONS[value.toLowerCase()];
+    if (!expansion && /^(geosite|geoip|ext):/i.test(value)) continue;
 
     const action = rule.outbound === 'block'
       ? { action: 'reject' }
       : { action: 'route', outbound: rule.outbound === 'direct' ? 'direct' : 'proxy' };
+
+    if (expansion) {
+      result.push({ domain_suffix: expansion, ...action });
+      continue;
+    }
 
     if (/^\d{1,3}(\.\d{1,3}){3}(\/\d{1,2})?$/.test(value)) {
       result.push({ ip_cidr: [value.includes('/') ? value : `${value}/32`], ...action });
