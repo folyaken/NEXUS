@@ -160,14 +160,16 @@ convert g-tile5.png -gravity Center -font "$F_MONO" -pointsize 10 -kerning 3 \
   -fill "$DIM" -annotate +0+132 'NETWORK CONTROL' g-tile.png
 
 # ── Шапка слева ────────────────────────────────────────────────────────────
-convert -size 84x28 xc:none \
-  -fill 'rgba(198,182,251,0.12)' -stroke 'rgba(198,182,251,0.5)' -strokewidth 1 \
-  -draw 'roundrectangle 0,0 83,27 9,9' g-vbadge.png
+# Плашка версии стоит на визуальном центре слова NEXUS и обведена заметной
+# рамкой, чтобы версия читалась как часть шапки, а не плавала рядом.
+convert -size 86x28 xc:none \
+  -fill 'rgba(198,182,251,0.14)' -stroke 'rgba(198,182,251,0.75)' -strokewidth 1 \
+  -draw 'roundrectangle 0,0 85,27 9,9' g-vbadge.png
 
 convert g-bg5.png g-tile.png -geometry +830+100 -composite \
   -font "$F_GROT" -pointsize 30 -kerning 4 -fill "$INK" -annotate +88+116 'NEXUS' \
-  g-vbadge.png -geometry +224+94 -composite \
-  -font "$F_MONO" -pointsize 13 -fill "$LAV" -annotate +242+112 'v1.6.0' \
+  g-vbadge.png -geometry +224+92 -composite \
+  -font "$F_MONO" -pointsize 13 -fill "$LAV" -annotate +242+110 'v1.6.0' \
   -font "$F_REG" -pointsize 15 -fill "$DIM" -annotate +88+146 'сетевые инструменты для Windows' \
   g-head.png
 
@@ -198,7 +200,7 @@ convert -size 316x100 xc:none \
   -fill 'rgba(198,182,251,0.05)' -stroke 'rgba(198,182,251,0.13)' -strokewidth 1 \
   -draw 'roundrectangle 0,0 315,99 18,18' g-fcard.png
 
-# Значки рисуются на холсте 168x168 и уменьшаются до 42x42: штрих получается
+# Значки рисуются на холсте 168x168 и уменьшаются до 32x32: штрих получается
 # ровным и со сглаживанием, в отличие от рисования сразу в мелком размере.
 icon() { # icon <файл> <glyph-draw...>
   local out="$1"; shift
@@ -207,7 +209,7 @@ icon() { # icon <файл> <glyph-draw...>
     -stroke "$LAV" -strokewidth 8 -fill none \
     -draw "stroke-linejoin round stroke-linecap round $*" \
     "$big"
-  convert "$big" -resize 42x42 "$out"
+  convert "$big" -resize 32x32 "$out"
   rm -f "$big"
 }
 
@@ -225,23 +227,25 @@ convert g-title.png \
   g-fcard.png -geometry +424+416 -composite \
   g-fcard.png -geometry +88+528 -composite \
   g-fcard.png -geometry +424+528 -composite \
-  g-i1.png -geometry +106+434 -composite \
-  g-i2.png -geometry +442+434 -composite \
-  g-i3.png -geometry +106+546 -composite \
-  g-i4.png -geometry +442+546 -composite \
+  g-i1.png -geometry +108+450 -composite \
+  g-i2.png -geometry +444+450 -composite \
+  g-i3.png -geometry +108+562 -composite \
+  g-i4.png -geometry +444+562 -composite \
   g-grid.png
 
+# Текст выровнен по центру карточки: значок и подписи сидят на одной
+# средней линии, пустых полос сверху или снизу нет.
 convert g-grid.png \
   -font "$F_SEMI" -pointsize 17 -fill "$INK" \
-    -annotate +162+454 'Оформление «Графит»' \
-    -annotate +498+454 'Стало быстрее' \
-    -annotate +162+566 'Автозапуск надёжнее' \
-    -annotate +498+566 'Экран запуска ожил' \
+    -annotate +162+460 'Оформление «Графит»' \
+    -annotate +498+460 'Стало быстрее' \
+    -annotate +162+572 'Автозапуск надёжнее' \
+    -annotate +498+572 'Экран запуска ожил' \
   -font "$F_REG" -pointsize 12.2 -fill "$MUT" \
-    -annotate +162+478 'графит и лаванда, светящаяся пыль' \
-    -annotate +498+478 'список не тормозит, меню плавное' \
-    -annotate +162+590 'модули поднимаются сами, без рук' \
-    -annotate +498+590 'знак NEXUS с огоньками и кольцами' \
+    -annotate +162+484 'графит и лаванда, светящаяся пыль' \
+    -annotate +498+484 'список не тормозит, меню плавное' \
+    -annotate +162+596 'модули поднимаются сами, без рук' \
+    -annotate +498+596 'знак NEXUS с огоньками и кольцами' \
   -font "$F_MONO" -pointsize 10 -fill "$DIM" \
     -annotate +368+440 '01' \
     -annotate +704+440 '02' \
@@ -250,32 +254,33 @@ convert g-grid.png \
   g-body.png
 
 # ── Обновление в один клик: минимум декора, три ровные пилюли ─────────────
-# Без коробки-рамки: заголовок, пилюли с шагами и примечание. Пилюли рисуются
-# чётко — тонкая рамка и лёгкая заливка; последняя, «Скачать», — сплошной
-# градиент, как главная кнопка в интерфейсе.
-P1X=830; P2X=948; P3X=1054; PY=502
-convert -size 110x32 xc:none \
-  -fill 'rgba(198,182,251,0.07)' -stroke 'rgba(198,182,251,0.32)' -strokewidth 1 \
-  -draw 'roundrectangle 0.5,0.5 109.5,31.5 9,9' g-pill1.png
-convert -size 98x32 xc:none \
-  -fill 'rgba(198,182,251,0.07)' -stroke 'rgba(198,182,251,0.32)' -strokewidth 1 \
-  -draw 'roundrectangle 0.5,0.5 97.5,31.5 9,9' g-pill2.png
-convert -size 84x32 gradient:"$LAV"-"$DEEP" g-pill3.png
-convert -size 84x32 xc:black -fill white -draw 'roundrectangle 0,0 83,31 9,9' g-pill3mask.png
+# Без коробки-рамки: заголовок, пилюли с шагами и примечание. Пилюли одной
+# высоты, текст в них по центру; последняя, «Скачать», — сплошной градиент,
+# как главная кнопка в интерфейсе. Шевроны между пилюлями — ровные
+# треугольники по средней линии.
+P1X=830; P2X=948; P3X=1054; PY=512
+convert -size 110x34 xc:none \
+  -fill 'rgba(198,182,251,0.07)' -stroke 'rgba(198,182,251,0.35)' -strokewidth 1 \
+  -draw 'roundrectangle 0.5,0.5 109.5,33.5 10,10' g-pill1.png
+convert -size 96x34 xc:none \
+  -fill 'rgba(198,182,251,0.07)' -stroke 'rgba(198,182,251,0.35)' -strokewidth 1 \
+  -draw 'roundrectangle 0.5,0.5 95.5,33.5 10,10' g-pill2.png
+convert -size 84x34 gradient:"$LAV"-"$DEEP" g-pill3.png
+convert -size 84x34 xc:black -fill white -draw 'roundrectangle 0,0 83,33 10,10' g-pill3mask.png
 convert g-pill3.png g-pill3mask.png -compose DstIn -composite g-pill3.png
 
 convert g-body.png \
-  -font "$F_SEMI" -pointsize 17 -fill "$INK" -annotate +830+478 'Обновление в один клик' \
+  -font "$F_SEMI" -pointsize 17 -fill "$INK" -annotate +830+490 'Обновление в один клик' \
   g-pill1.png -geometry +${P1X}+${PY} -composite \
   g-pill2.png -geometry +${P2X}+${PY} -composite \
   g-pill3.png -geometry +${P3X}+${PY} -composite \
   -font "$F_SEMI" -pointsize 13 -fill "$INK" \
-    -annotate +843+521 'О программе' \
-    -annotate +961+521 'Проверить' \
-  -font "$F_SEMI" -pointsize 13 -fill '#14121c' -annotate +1069+521 'Скачать' \
-  -draw "fill '$LAV' polygon 944,512 950,518 944,524" \
-  -draw "fill '$LAV' polygon 1050,512 1056,518 1050,524" \
-  -font "$F_REG" -pointsize 12 -fill "$MUT" -annotate +830+560 'дальше NEXUS обновится и запустится сам' \
+    -annotate +843+534 'О программе' \
+    -annotate +960+534 'Проверить' \
+  -font "$F_SEMI" -pointsize 13 -fill '#14121c' -annotate +1069+534 'Скачать' \
+  -draw "fill '$LAV' polygon 942,525 947,529 942,533" \
+  -draw "fill '$LAV' polygon 1047,525 1052,529 1047,533" \
+  -font "$F_REG" -pointsize 12 -fill "$MUT" -annotate +830+576 'дальше NEXUS обновится и запустится сам' \
   g-body2.png
 
 # ── Подвал: разделитель, две ровные пилюли-ссылки и условия ───────────────
@@ -294,12 +299,10 @@ convert g-body2.png \
   g-pillB.png -geometry +302+664 -composite \
   g-foot.png
 
-# Маркер канала — точка-пульс; маркер релизов — стрелка загрузки: штрих
-# вниз и остриё. Оба по центру пилюли (y=682).
+# Маркеры обеих ссылок одинаковые — точки-пульсы по центру пилюль (y=682).
 convert g-foot.png \
   -fill "$LAV" -stroke none -draw "circle 108,682 108,685.5" \
-  -draw "fill '$LAV' rectangle 316,670 320,678" \
-  -draw "fill '$LAV' polygon 312,676 324,676 318,686" \
+  -fill "$LAV" -stroke none -draw "circle 318,682 318,685.5" \
   -font "$F_MONO" -pointsize 13.5 -fill "$LAV" -annotate +122+686 't.me/nexus_flex' \
   -font "$F_MONO" -pointsize 12.5 -fill "$LAV" -annotate +336+686 'github.com/folyaken/NEXUS-releases' \
   g-foot2.png
