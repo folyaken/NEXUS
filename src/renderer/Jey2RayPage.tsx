@@ -1360,13 +1360,17 @@ export function Jey2RayPage({
       </div>
       <button
         type="button"
-        className="quick-connect"
+        className={`quick-connect ${action === 'ping' || runtime.status === 'connecting' ? 'is-working' : ''} ${runtime.status === 'connected' && runtime.activeProfileId === fastest?.id ? 'is-done' : ''}`}
         disabled={busy || Boolean(action) || runtime.status === 'connecting'}
         onClick={() => void quickConnect()}
-        title={t('Замерить пинг и подключиться к самому быстрому серверу')}
       >
-        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M13.2 2.6 5 13.4h5.2l-.8 8 8.4-11H12.4l.8-7.8Z" /></svg>
-        {action === 'ping' ? t('Замеряем пинг…') : t('Подключиться к лучшему')}
+        {runtime.status === 'connected' && runtime.activeProfileId === fastest?.id
+          ? <svg className="quick-connect-check" viewBox="0 0 24 24" aria-hidden="true"><path d="m5 12.5 4.5 4.5L19 7.5" /></svg>
+          : <svg className="quick-connect-bolt" viewBox="0 0 24 24" aria-hidden="true"><path d="M13.2 2.6 5 13.4h5.2l-.8 8 8.4-11H12.4l.8-7.8Z" /></svg>}
+        {action === 'ping' ? t('Замеряем пинг…')
+          : runtime.status === 'connecting' ? t('Подключаемся…')
+          : runtime.status === 'connected' && runtime.activeProfileId === fastest?.id ? t('Подключено к лучшему')
+          : t('Подключиться к лучшему')}
       </button>
       <div className="mode-switch" aria-label={t('Режим подключения')}>
         <div className="mode-switch-options">

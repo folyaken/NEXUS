@@ -288,11 +288,62 @@ kbd { padding: 3px 5px; border: 1px solid rgba(255,255,255,.1); border-radius: 5
 .power-meta { display: grid; justify-items: center; gap: 5px; margin-top: 14px; text-align: center; }
 .power-meta > strong { color: #edf3fb; font-family: var(--font-heading); font-size: 19px; font-weight: 650; letter-spacing: -.02em; }
 /* «Подключиться к лучшему»: главное действие для тех, кто не хочет выбирать
-   сервер руками. Стоит сразу под карточкой сервера, в панели справа. */
-.quick-connect { display: flex; width: 100%; align-items: center; justify-content: center; gap: 8px; margin-top: 14px; padding: 11px 14px; border: 1px solid rgba(124,242,213,.26); border-radius: 12px; background: linear-gradient(130deg, rgba(124,242,213,.13), rgba(168,149,255,.11)); color: #d9fff1; font-size: 12px; font-weight: 700; transition: border-color .18s ease, background .18s ease, transform .18s ease, color .18s ease; }
-.quick-connect:hover:not(:disabled) { border-color: rgba(124,242,213,.5); background: linear-gradient(130deg, rgba(124,242,213,.2), rgba(168,149,255,.16)); transform: translateY(-1px); }
+   сервер руками. Стоит сразу под карточкой сервера, в панели справа.
+   Кнопка живёт тремя состояниями: в покое — молния, при наведении — молния
+   «заряжается» и по кнопке пробегает блик, во время замера и подключения —
+   по ней ходит сканирующий луч, а когда VPN уже на лучшем сервере — кнопка
+   гаснет и показывает галочку. */
+.quick-connect { position: relative; display: flex; width: 100%; align-items: center; justify-content: center; gap: 8px; margin-top: 14px; padding: 11px 14px; overflow: hidden; border: 1px solid rgba(124,242,213,.26); border-radius: 12px; background: linear-gradient(130deg, rgba(124,242,213,.13), rgba(168,149,255,.11)); color: #d9fff1; font-size: 12px; font-weight: 700; transition: border-color .18s ease, background .18s ease, transform .18s ease, color .18s ease; }
+.quick-connect:hover:not(:disabled):not(.is-done) { border-color: rgba(124,242,213,.5); background: linear-gradient(130deg, rgba(124,242,213,.2), rgba(168,149,255,.16)); transform: translateY(-1px); }
 .quick-connect:disabled { cursor: wait; opacity: .55; }
 .quick-connect svg { width: 15px; height: 15px; fill: none; stroke: currentColor; stroke-linecap: round; stroke-linejoin: round; stroke-width: 1.7; }
+
+/* Блик на наведении: пробегает по кнопке слева направо, как у главной
+   кнопки «Открыть модули». */
+.quick-connect::after { position: absolute; top: 0; left: -60%; width: 40%; height: 100%; background: linear-gradient(100deg, transparent, rgba(255,255,255,.3), transparent); content: ''; pointer-events: none; transform: skewX(-18deg); transition: left .55s ease; }
+.quick-connect:hover:not(:disabled):not(.is-done)::after { left: 130%; }
+
+/* Молния на наведении «заряжается»: мелко дрожит и вспыхивает свечением
+   в цвет темы (currentColor). */
+.quick-connect:hover:not(:disabled):not(.is-done) .quick-connect-bolt { animation: quick-bolt .9s ease-in-out infinite; }
+@keyframes quick-bolt {
+  0%, 100% { transform: rotate(0deg) scale(1); filter: none; }
+  30% { transform: rotate(-6deg) scale(1.08); filter: drop-shadow(0 0 5px currentColor); }
+  70% { transform: rotate(5deg) scale(1.05); filter: drop-shadow(0 0 8px currentColor); }
+}
+
+/* Пока идёт замер пинга или подключение, по кнопке туда-сюда ходит
+   сканирующий луч — видно, что работа идёт, и направление не реверсирует
+   (обратный ход зашит в ключевые кадры). */
+.quick-connect.is-working::before { position: absolute; top: 0; bottom: 0; left: 0; width: 46px; background: linear-gradient(100deg, transparent, rgba(255,255,255,.13) 30%, rgba(255,255,255,.38) 50%, rgba(255,255,255,.13) 70%, transparent); content: ''; pointer-events: none; transform: translateX(-60px); animation: quick-scan 1.8s ease-in-out infinite; }
+@keyframes quick-scan {
+  0% { transform: translateX(-60px); }
+  50% { transform: translateX(330px); }
+  100% { transform: translateX(-60px); }
+}
+/* Молния во время работы тихо пульсирует — кнопка «дышит», а не мельтешит. */
+.quick-connect.is-working .quick-connect-bolt { animation: quick-bolt-pulse 1.1s ease-in-out infinite; }
+@keyframes quick-bolt-pulse {
+  0%, 100% { opacity: .65; filter: none; }
+  50% { opacity: 1; filter: drop-shadow(0 0 7px currentColor); }
+}
+
+/* VPN уже на лучшем сервере: кнопка гаснет и показывает галочку — нажимать
+   нечего, и это видно без чтения подписи. */
+.quick-connect.is-done { border-color: rgba(113,244,184,.16); background: rgba(113,244,184,.05); color: #8fd8b8; }
+.quick-connect.is-done:hover { transform: none; }
+.quick-connect.is-done::before,
+.quick-connect.is-done::after { display: none; }
+
+/* Движение подчиняется настройке анимаций, как всё остальное. */
+@media (prefers-reduced-motion: reduce) {
+  .app-frame:not(.motion-force) .quick-connect::after { transition: none; }
+  .app-frame:not(.motion-force) .quick-connect-bolt,
+  .app-frame:not(.motion-force) .quick-connect.is-working::before { animation: none; }
+}
+.app-frame.motion-off .quick-connect::after { transition: none; }
+.app-frame.motion-off .quick-connect-bolt,
+.app-frame.motion-off .quick-connect.is-working::before { animation: none; }
 .power-meta small.power-location { max-width: 266px; color: #8d9bb0; font-size: 11px; line-height: 1.45; }
 .power-connected, .power-state { display: inline-flex; align-items: center; justify-content: center; gap: 6px; margin-top: 3px; color: #75d8b2; font-size: 11px; }
 .power-connected i { width: 6px; height: 6px; border-radius: 50%; background: #71f4b8; box-shadow: 0 0 8px rgba(113,244,184,.58); }

@@ -28,15 +28,36 @@ assert.match(page, /Замеряем пинг…/);
 assert.match(page, /Уже подключены к самому быстрому серверу/);
 assert.match(page, /Нет доступных серверов/);
 // Кнопка не мешает во время подключения и не запускает второе действие.
-assert.match(page, /className="quick-connect"/);
+assert.match(page, /className=\{`quick-connect /);
 assert.match(page, /disabled=\{busy \|\| Boolean\(action\) \|\| runtime\.status === 'connecting'\}/);
+// Подсказка при наведении убрана намеренно: она дублировала подпись кнопки
+// и мешала. Кнопка должна объяснять себя сама.
+assert.doesNotMatch(page, /Замерить пинг и подключиться к самому быстрому серверу/,
+  'лишняя всплывающая подсказка не нужна');
+// Состояния кнопки: работает (замер/подключение) и «сделано» (VPN на лучшем).
+assert.match(page, /is-working/, 'во время замера и подключения кнопка должна показывать работу');
+assert.match(page, /is-done/, 'после подключения кнопка должна гаснуть');
+assert.match(page, /quick-connect-check/, 'в состоянии «сделано» молния сменяется галочкой');
+assert.match(page, /Подключаемся…/);
+assert.match(page, /Подключено к лучшему/);
 
 // Кнопка оформлена в стиле интерфейса и красится темами вместе с остальным.
 assert.match(styles, /\.quick-connect \{/);
 assert.match(styles, /\.quick-connect:disabled/);
+// Анимации: молния заряжается на наведении, блик пробегает по кнопке, во
+// время работы ходит сканирующий луч, в конце кнопка гаснет с галочкой.
+assert.match(styles, /@keyframes quick-bolt/);
+assert.match(styles, /@keyframes quick-bolt-pulse/);
+assert.match(styles, /@keyframes quick-scan/);
+assert.match(styles, /\.quick-connect\.is-working::before/);
+assert.match(styles, /\.quick-connect\.is-done \{/);
+assert.match(styles, /\.quick-connect:hover:not\(:disabled\):not\(\.is-done\) \.quick-connect-bolt/);
+// Движение подчиняется настройке анимаций.
+assert.match(styles, /\.app-frame\.motion-off \.quick-connect\.is-working::before \{ animation: none; \}/);
 
 // Переводы: кнопка обязана переводиться, как весь интерфейс.
-for (const phrase of ['Подключиться к лучшему', 'Замеряем пинг…', 'Нет доступных серверов',
+for (const phrase of ['Подключиться к лучшему', 'Подключаемся…', 'Подключено к лучшему',
+  'Замеряем пинг…', 'Нет доступных серверов',
   'Уже подключены к самому быстрому серверу', 'Не удалось измерить пинг']) {
   assert.equal(hasTranslation('en', phrase), true, `нет перевода: ${phrase}`);
 }
