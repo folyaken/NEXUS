@@ -14,7 +14,7 @@ import { exportRoutingRules, importRoutingRules, mergeRoutingRules } from './rou
 import { windowsVersionName } from './windows-version';
 import { COMMUNITY_LINKS, TELEGRAM_CHANNEL, isAllowedCommunityUrl } from './community';
 import { addDpiHost, readDpiHostlist, removeDpiHost } from './dpi-hostlist';
-import { clearSystemProxy, clearSystemProxySync } from './system-proxy';
+import { clearSystemProxy, clearSystemProxySync, stopModuleWorkersSync } from './system-proxy';
 import { ModuleManager } from './module-manager';
 import { AppUpdater } from './app-updater';
 import { GithubUpdater } from './github-updater';
@@ -69,6 +69,15 @@ function prepareChromiumCache(): void {
 }
 
 if (gotLock) prepareChromiumCache();
+
+/**
+ * Сколько автозапуск ждёт проверку обновлений, прежде чем поднять модули.
+ *
+ * Двадцати секунд хватает быстрой сети, чтобы модуль стартовал уже обновлённым.
+ * Если сеть медленная или GitHub недоступен, защита включится и без свежей
+ * версии — это лучше, чем не включиться вовсе.
+ */
+const STARTUP_UPDATE_WAIT_MS = 20_000;
 
 let mainWindow: BrowserWindow | null = null;
 let tray: Tray | null = null;
@@ -659,9 +668,9 @@ function createWindow(): void {
  * отдельности. Легко забыть один пункт — и остаётся работающий winws.exe или
  * прописанный в Windows прокси, а человек уже думает, что всё выключено.
  *
- * Модули останавливаются с persistEnabled: true — их отметки «включён»
- * сохраняются. Это не выключение навсегда, а пауза: при следующем запуске
- * NEXUS поднимет то, что было включено.
+ * Модули останавливаются с forget: false — их отметки «включён» сохраняются.
+ * Это не выключение навсегда, а пауза: при следующем запуске NEXUS поднимет
+ * то, что было включено.
  */
 async function shutdownEverything(): Promise<{ stoppedVpn: boolean; stoppedModules: number }> {
   const runningBefore = manager?.list().filter((item) => item.status === 'running').length ?? 0;
@@ -670,7 +679,7 @@ async function shutdownEverything(): Promise<{ stoppedVpn: boolean; stoppedModul
   // VPN отключается первым: он правит системный прокси, и снимать его нужно
   // до остановки остальных модулей.
   await vpn?.disconnect().catch(() => undefined);
-  await manager?.stopAll({ persistEnabled: true }).catch(() => undefined);
+  await manager?.stopAll({ forget: false }).catch(() => undefined);
   // Подстраховка: если ядро упало раньше и не успело откатить настройку,
   // прокси Windows остался бы прописанным на несуществующий порт.
   await clearSystemProxy().catch(() => undefined);
@@ -688,7 +697,9 @@ async function quitApp(): Promise<void> {
   isQuitting = true;
   try {
     await vpn?.disconnect();
-    await manager?.stopAll({ persistEnabled: false });
+    // Выход — это пауза, а не отказ от модулей: отметки «включён» сохраняются,
+    // и при следующем запуске автозапуск поднимет то, что работало.
+    await manager?.stopAll({ forget: false });
   } catch {
     /* still quit */
   }
@@ -699,12 +710,19 @@ async function quitApp(): Promise<void> {
 }
 
 /**
- * Снимает системный прокси при аварийном завершении.
+ * Приводит систему в порядок при аварийном завершении.
  *
- * В режиме PROXY приложение прописывает себя в настройки Windows. Штатный выход
- * это откатывает, но при падении процесса или закрытии из диспетчера задач
- * настройка остаётся: система продолжает слать трафик на локальный порт,
- * которого уже нет, и пользователь теряет интернет без видимой причины.
+ * Снимаются две вещи, каждая из которых поодиночке ломает интернет.
+ *
+ * Системный прокси. В режиме PROXY приложение прописывает себя в настройки
+ * Windows. Штатный выход это откатывает, но при падении процесса или закрытии
+ * из диспетчера задач настройка остаётся: система продолжает слать трафик на
+ * локальный порт, которого уже нет.
+ *
+ * Рабочие процессы модулей. Они живут отдельно от NEXUS и переживают его
+ * падение. Осиротевший winws.exe держит драйвер WinDivert и продолжает
+ * разбирать трафик на портах 80 и 443 — часть сайтов перестаёт открываться,
+ * хотя программа уже закрыта и причину увидеть неоткуда.
  *
  * Обработчики намеренно синхронные — на этом этапе цикл событий уже может не
  * успеть выполнить асинхронную работу.
@@ -716,6 +734,11 @@ function registerEmergencyCleanup(): void {
     cleaned = true;
     try {
       clearSystemProxySync();
+    } catch {
+      /* аварийный путь: помешать выходу нельзя */
+    }
+    try {
+      stopModuleWorkersSync();
     } catch {
       /* аварийный путь: помешать выходу нельзя */
     }
@@ -877,7 +900,7 @@ async function prepareForUpdateRestart(): Promise<void> {
   isQuitting = true;
   try {
     await vpn?.disconnect();
-    await manager?.stopAll({ persistEnabled: true });
+    await manager?.stopAll({ forget: false });
   } finally {
     stopTrayAnimation();
     tray?.destroy();
@@ -889,7 +912,11 @@ function wireIpc(): void {
   ipcMain.handle('modules:list', () => manager.list());
   ipcMain.handle('modules:reload', () => manager.reload());
   ipcMain.handle('modules:start', (_event, id: string) => manager.start(id));
-  ipcMain.handle('modules:stop', (_event, id: string) => manager.stop(id));
+  // Выключение переключателем — единственный случай, когда модуль забывается:
+  // человек сам решил его не использовать, и возвращать его при следующем
+  // запуске нельзя. Все остальные остановки (выход, «Отключить всё», перезапуск
+  // на обновление) — пауза с сохранением отметки.
+  ipcMain.handle('modules:stop', (_event, id: string) => manager.stop(id, { forget: true }));
   ipcMain.handle('modules:set-strategy', (_event, id: string, strategy: string) => manager.setStrategy(id, strategy));
   ipcMain.handle('runtime:is-elevated', () => isElevated());
   ipcMain.handle('modules:set-extra-args', (_event, id: string, options: unknown) => manager.setExtraArgs(String(id ?? ''), options));
@@ -1087,7 +1114,24 @@ if (gotLock) {
 
     const startupUpdates = updater.syncAll();
     if (settings.autoStart || (settings.autoConnectVpn && settings.lastVpnProfileId)) {
-      void startupUpdates.then(async () => {
+      /*
+        Автозапуск ждёт проверку обновлений, но не бесконечно.
+
+        Раньше модули поднимались строго после `syncAll()`. Проверка ходит на
+        GitHub за каждым модулем, и если сети нет или она медленная (обычное
+        дело при старте вместе с Windows — система ещё поднимает адаптеры),
+        ожидание растягивалось на минуты. Со стороны это выглядело так:
+        программа запустилась, а модули не включились вовсе.
+
+        Ждём разумный срок и запускаем в любом случае. Проверка обновлений при
+        этом не отменяется — она продолжается в фоне, просто больше не держит
+        защиту выключенной.
+      */
+      const updatesOrTimeout = Promise.race([
+        startupUpdates.catch(() => undefined),
+        new Promise((resolve) => setTimeout(resolve, STARTUP_UPDATE_WAIT_MS)),
+      ]);
+      void updatesOrTimeout.then(async () => {
         if (settings.autoStart) await manager.startEnabled();
         if (settings.autoConnectVpn && settings.lastVpnProfileId) {
           await connectVpnProfile(settings.lastVpnProfileId);

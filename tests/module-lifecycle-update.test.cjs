@@ -424,9 +424,35 @@ async function run() {
     assert.equal(JSON.parse(await fsp.readFile(path.join(temp, 'healthy.module.json'), 'utf8')).enabled, true);
 
     assert.throws(() => manager.beginUpdate('healthy'), /Остановите модуль/);
-    await manager.stop('healthy');
+    // forget: true — так останавливает переключатель в интерфейсе: человек сам
+    // выключил модуль, значит отметка «включён» снимается и автозапуск его не
+    // поднимет. Все прочие остановки — пауза, они проверяются ниже.
+    await manager.stop('healthy', { forget: true });
     assert.equal(manager.isRunning('healthy'), false);
     assert.equal(manager.list().find((item) => item.id === 'healthy').status, 'stopped');
+    assert.equal(JSON.parse(await fsp.readFile(path.join(temp, 'healthy.module.json'), 'utf8')).enabled, false);
+
+    // --- Пауза сохраняет отметку --------------------------------------------
+    // Выход из программы, «Отключить всё» и перезапуск на обновление обязаны
+    // оставлять модуль включённым, иначе после перезапуска не поднимется
+    // ничего. Раньше параметр назывался persistEnabled и работал наоборот
+    // своему названию — именно из-за этого модули и «забывались».
+    await manager.start('healthy');
+    assert.equal(manager.isRunning('healthy'), true);
+    await manager.stop('healthy');
+    assert.equal(manager.isRunning('healthy'), false);
+    assert.equal(JSON.parse(await fsp.readFile(path.join(temp, 'healthy.module.json'), 'utf8')).enabled, true,
+      'остановка без forget — пауза, отметка обязана сохраниться');
+
+    // stopAll без forget ведёт себя так же: это выход, а не отказ от модулей.
+    await manager.start('healthy');
+    await manager.stopAll();
+    assert.equal(JSON.parse(await fsp.readFile(path.join(temp, 'healthy.module.json'), 'utf8')).enabled, true,
+      'stopAll по умолчанию обязан сохранять отметки');
+
+    // Возвращаем модуль в выключенное состояние для следующих проверок.
+    await manager.start('healthy');
+    await manager.stop('healthy', { forget: true });
     assert.equal(JSON.parse(await fsp.readFile(path.join(temp, 'healthy.module.json'), 'utf8')).enabled, false);
 
     const releaseLock = manager.beginUpdate('healthy');

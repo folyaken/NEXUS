@@ -191,7 +191,7 @@ export class ModuleManager extends EventEmitter {
 
     const extraArgs = buildDpiExtraArgs(normalizeDpiExpertOptions(options));
     const wasRunning = this.isRunning(id);
-    if (wasRunning) await this.stop(id, { persistEnabled: true });
+    if (wasRunning) await this.stop(id, { forget: false });
 
     module.extra_args = extraArgs;
     await this.persistModule(module);
@@ -229,7 +229,7 @@ export class ModuleManager extends EventEmitter {
       throw new Error(`Порт ${normalized.port} уже занят другим приложением. Выберите свободный порт.`);
     }
 
-    if (wasRunning) await this.stop(id, { persistEnabled: true });
+    if (wasRunning) await this.stop(id, { forget: false });
 
     module.args = buildTgProxyArgs(normalized);
     module.healthcheck = { ...(module.healthcheck ?? { type: 'tcp', timeout_ms: 15000 }), type: 'tcp', host: '127.0.0.1', port: normalized.port };
@@ -255,7 +255,7 @@ export class ModuleManager extends EventEmitter {
     if (!module || id !== 'zapret') return false;
     if (this.isUpdating(id) || !this.isRunning(id)) return false;
 
-    await this.stop(id, { persistEnabled: true });
+    await this.stop(id, { forget: false });
     await this.start(id);
     this.emitLog(id, 'info', 'Модуль перезапущен — новый список сайтов активен');
     return true;
@@ -631,13 +631,27 @@ export class ModuleManager extends EventEmitter {
     return module;
   }
 
-  async stop(id: string, options: { persistEnabled?: boolean } = {}): Promise<ModuleManifest> {
+  /**
+   * Останавливает модуль.
+   *
+   * `forget` — снимать ли отметку «включён». Раньше параметр назывался
+   * persistEnabled и работал наоборот своему названию: `persistEnabled: true`
+   * означало «сбросить отметку», а `false` — «сохранить». Из-за этого
+   * «Отключить всё» в трее и перезапуск после обновления стирали список
+   * включённых модулей, и при следующем старте не поднималось ничего, хотя
+   * комментарии обещали обратное.
+   *
+   * Теперь имя совпадает со смыслом: forget: true — забыть модуль
+   * (пользователь выключил его сам), forget: false или без параметра — это
+   * пауза, отметка сохраняется.
+   */
+  async stop(id: string, options: { forget?: boolean } = {}): Promise<ModuleManifest> {
     const module = this.modules.get(id);
     if (!module) throw new Error('Модуль не найден');
     const child = this.processes.get(id);
     const workerPid = this.workerPids.get(id);
     if (!child && !workerPid) {
-      if (options.persistEnabled !== false) {
+      if (options.forget) {
         module.enabled = false;
         await this.persistModule(module);
       }
@@ -652,7 +666,7 @@ export class ModuleManager extends EventEmitter {
     if (child) await waitForExit(child, 8000);
     this.processes.delete(id);
     this.workerPids.delete(id);
-    if (options.persistEnabled !== false) {
+    if (options.forget) {
       module.enabled = false;
       await this.persistModule(module);
     }
@@ -661,7 +675,7 @@ export class ModuleManager extends EventEmitter {
     return module;
   }
 
-  async stopAll(options: { persistEnabled?: boolean } = {}): Promise<void> {
+  async stopAll(options: { forget?: boolean } = {}): Promise<void> {
     const ids = new Set([...this.processes.keys(), ...this.workerPids.keys()]);
     await Promise.all([...ids].map((id) => this.stop(id, options).catch(() => undefined)));
   }
@@ -689,9 +703,20 @@ export class ModuleManager extends EventEmitter {
     }
     this.workerPids.delete(module.id);
     this.clearWatch(module.id);
-    module.enabled = false;
-    await this.persistModule(module);
     const failed = signal !== null || (code !== null && code !== 0);
+    /*
+      Аварийно упавший модуль остаётся включённым.
+
+      Раньше отметка снималась при любом завершении процесса, в том числе при
+      сбое. Итог: защита однажды падала, тихо забывалась и больше никогда не
+      поднималась сама — человек об этом не знал и сидел без обхода блокировок.
+      Отметку снимаем только при нормальном завершении; после сбоя модуль
+      попробует подняться при следующем запуске.
+    */
+    if (!failed) {
+      module.enabled = false;
+      await this.persistModule(module);
+    }
     const message = failed ? this.exitFailureMessage(module, code, signal) : undefined;
     if (message) module.error = message;
     this.setStatus(module, failed ? 'error' : 'stopped', null);
@@ -723,8 +748,8 @@ export class ModuleManager extends EventEmitter {
     this.workerPids.delete(module.id);
     this.clearWatch(module.id);
     if (module.status === 'running') {
-      module.enabled = false;
-      await this.persistModule(module);
+      // Процесс пропал сам, без нашей команды — это сбой. Отметку «включён»
+      // сохраняем, чтобы модуль вернулся при следующем запуске.
       module.error = 'Рабочий процесс завершился';
       this.setStatus(module, 'error', null);
       this.emitLog(module.id, 'error', module.id === 'zapret' ? 'Рабочий процесс Zapret больше не запущен' : 'Рабочий процесс модуля больше не запущен');
