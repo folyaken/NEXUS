@@ -1,10 +1,10 @@
 #!/usr/bin/env bash
 # Карточка релиза NEXUS для Telegram (1280x720), оформление «Графит».
 #
-# Цвета взяты из переменных темы (src/renderer/graphite.css): фон #0a090e,
-# текст #f3f2f6, светлая лаванда #c6b6fb, глубокая #7a63e0, пятна фона — как
-# в .app-shell, пыль — как в живом фоне темы. Карточка и программа выглядят
-# одинаково.
+# Дизайн повторяет язык интерфейса: графитовый фон со светящейся пылью,
+# лавандовая пара #c6b6fb / #7a63e0 из темы, знак NEXUS как в приложении
+# (лента с градиентом, тень и светящееся ядро), Space Grotesk у названия,
+# Inter у подписей, JetBrains Mono у служебного текста и ссылок.
 #
 # Стрелки и типографские значки рисуются фигурами, а не текстом: в шрифтах
 # приложения нарезаны только кириллица и латиница, остальное превращалось
@@ -25,16 +25,17 @@ BG='#0a090e'        # --bg темы «Графит»
 INK='#f3f2f6'       # --text
 MUT='#a5a3ae'       # --muted
 DIM='#716e7a'       # --muted-2
-LAV='#c6b6fb'       # светлая лаванда (текст, значки, тонкие линии)
-DEEP='#7a63e0'      # глубокая лаванда (заливки, свечения)
+LAV='#c6b6fb'       # светлая лаванда: текст, значки, тонкие линии
+DEEP='#7a63e0'      # глубокая лаванда: заливки, свечения
 
 F_BOLD=/tmp/fonts/Inter-Bold.ttf
 F_SEMI=/tmp/fonts/Inter-Semi.ttf
 F_REG=/tmp/fonts/Inter-Regular.ttf
 F_MONO=/tmp/fonts/Mono-Medium.ttf
+F_GROT=/tmp/fonts/SpaceGrotesk-Bold.ttf
 
 # ── Шрифты: если их ещё нет, нарезаются из шрифтов приложения ─────────────
-if [ ! -f "$F_BOLD" ] || [ ! -f "$F_REG" ] || [ ! -f "$F_MONO" ]; then
+if [ ! -f "$F_BOLD" ] || [ ! -f "$F_REG" ] || [ ! -f "$F_MONO" ] || [ ! -f "$F_GROT" ]; then
   ROOT="$(cd "$(dirname "$0")/.." && pwd)"
   python3 - "$ROOT" <<'PYEOF'
 import sys, os
@@ -59,185 +60,257 @@ for wght, name in [(400, 'Regular'), (600, 'Semi'), (700, 'Bold')]:
 instance('jetbrains-mono-latin-wght-normal.woff2', 500, f'{fonts_dir}/Mono-Medium-latin.ttf')
 instance('jetbrains-mono-cyrillic-wght-normal.woff2', 500, f'{fonts_dir}/Mono-Medium-cyr.ttf')
 merger.merge([f'{fonts_dir}/Mono-Medium-latin.ttf', f'{fonts_dir}/Mono-Medium-cyr.ttf']).save(f'{fonts_dir}/Mono-Medium.ttf')
+
+# У названия NEXUS — фирменный гротеск заголовков. Он латинский, кириллицы
+# в нём и не нужно.
+instance('space-grotesk-latin-wght-normal.woff2', 700, f'{fonts_dir}/SpaceGrotesk-Bold.ttf')
 PYEOF
 fi
 
 cd /tmp
+rm -f g-*.png
 
-# ── Фон: пятна как в .app-shell, диагонали и светящаяся пыль ───────────────
-convert -size 900x900 radial-gradient:"$DEEP"-none -alpha set -channel A -evaluate multiply 0.22 +channel glowA.png
-convert -size 820x820 radial-gradient:'#4b3a9e'-none -alpha set -channel A -evaluate multiply 0.18 +channel glowB.png
+# ── Фон: пятна как в .app-shell, диагонали, пыль и орбиты ─────────────────
+convert -size 900x900 radial-gradient:"$DEEP"-none -alpha set -channel A -evaluate multiply 0.20 +channel g-glowA.png
+convert -size 820x820 radial-gradient:'#4b3a9e'-none -alpha set -channel A -evaluate multiply 0.16 +channel g-glowB.png
 convert -size ${W}x${H} xc:"$BG" \
-  glowA.png -geometry +560-420 -composite \
-  glowB.png -geometry -260+440 -composite \
-  bg1.png
+  g-glowA.png -geometry +560-420 -composite \
+  g-glowB.png -geometry -260+440 -composite \
+  g-bg1.png
 
 convert -size ${W}x${H} xc:none \
   -draw "stroke '#ffffff' stroke-width 1 fill none line 980,0 1280,300" \
   -draw "stroke '#ffffff' stroke-width 1 fill none line 1060,0 1280,220" \
   -draw "stroke '#ffffff' stroke-width 1 fill none line 900,0 1280,380" \
-  -alpha set -channel A -evaluate multiply 0.04 +channel lines.png
-convert bg1.png lines.png -composite bg2.png
+  -alpha set -channel A -evaluate multiply 0.04 +channel g-lines.png
+convert g-bg1.png g-lines.png -composite g-bg2.png
 
-# Пыль — отличительная черта живого фона «Графита»: редкие мягкие точки,
-# плотнее вокруг логотипа и в нижней части.
+# Тонкие орбиты вокруг будущей плитки с логотипом — отсылка к орбитам
+# «Обзора». Плитка ляжет поверх них, кольца останутся видимыми по краям.
+convert g-bg2.png \
+  -draw "stroke 'rgba(198,182,251,0.055)' stroke-width 1 fill none circle 1002,272 1002,458" \
+  -draw "stroke 'rgba(198,182,251,0.035)' stroke-width 1 fill none circle 1002,272 1002,498" \
+  g-bg3.png
+
+# Вертикальная линия-разделитель между колонкой текста и логотипом.
+convert g-bg3.png \
+  -draw "fill 'rgba(255,255,255,0.05)' rectangle 764,96 765,640" \
+  g-bg4.png
+
+# Пыль — фирменная черта живого фона «Графита»: редкие мягкие точки.
 convert -size ${W}x${H} xc:none \
-  -fill 'rgba(198,182,251,0.30)' -draw "circle 84,646 84,649" \
-  -fill 'rgba(198,182,251,0.22)' -draw "circle 152,700 152,702" \
-  -fill 'rgba(198,182,251,0.34)' -draw "circle 218,636 218,640" \
-  -fill 'rgba(198,182,251,0.20)' -draw "circle 302,694 302,696" \
-  -fill 'rgba(198,182,251,0.28)' -draw "circle 371,660 371,663" \
-  -fill 'rgba(198,182,251,0.18)' -draw "circle 452,706 452,708" \
-  -fill 'rgba(198,182,251,0.26)' -draw "circle 528,648 528,651" \
-  -fill 'rgba(198,182,251,0.16)' -draw "circle 610,690 610,692" \
-  -fill 'rgba(198,182,251,0.30)' -draw "circle 668,622 668,625" \
-  -fill 'rgba(198,182,251,0.22)' -draw "circle 706,676 706,678" \
-  -fill 'rgba(198,182,251,0.26)' -draw "circle 60,300 60,303" \
-  -fill 'rgba(198,182,251,0.16)' -draw "circle 740,120 740,122" \
-  -fill 'rgba(198,182,251,0.30)' -draw "circle 726,214 726,217" \
-  -fill 'rgba(198,182,251,0.24)' -draw "circle 758,342 758,345" \
-  -fill 'rgba(198,182,251,0.34)' -draw "circle 1252,282 1252,286" \
-  -fill 'rgba(198,182,251,0.22)' -draw "circle 1240,150 1240,152" \
-  -fill 'rgba(198,182,251,0.28)' -draw "circle 1180,84 1180,87" \
-  -fill 'rgba(198,182,251,0.20)' -draw "circle 1090,300 1090,302" \
-  -fill 'rgba(198,182,251,0.26)' -draw "circle 1144,236 1144,239" \
-  -fill 'rgba(198,182,251,0.18)' -draw "circle 1030,118 1030,120" \
-  -fill 'rgba(198,182,251,0.24)' -draw "circle 896,470 896,472" \
-  -fill 'rgba(198,182,251,0.20)' -draw "circle 790,520 790,522" \
-  -fill 'rgba(198,182,251,0.26)' -draw "circle 84,470 84,473" \
-  -fill 'rgba(198,182,251,0.18)' -draw "circle 40,540 40,542" \
-  -fill 'rgba(198,182,251,0.22)' -draw "circle 950,70 950,72" \
-  -blur 0x2.5 dust.png
-convert bg2.png dust.png -composite bg3.png
+  -fill 'rgba(198,182,251,0.30)' -draw "circle 60,300 60,303" \
+  -fill 'rgba(198,182,251,0.18)' -draw "circle 700,150 700,152" \
+  -fill 'rgba(198,182,251,0.22)' -draw "circle 1240,90 1240,92" \
+  -fill 'rgba(198,182,251,0.20)' -draw "circle 1210,610 1210,612" \
+  -fill 'rgba(198,182,251,0.16)' -draw "circle 60,120 60,122" \
+  -fill 'rgba(198,182,251,0.24)' -draw "circle 760,430 760,432" \
+  -fill 'rgba(198,182,251,0.16)' -draw "circle 800,520 800,522" \
+  -fill 'rgba(198,182,251,0.22)' -draw "circle 300,700 300,702" \
+  -fill 'rgba(198,182,251,0.18)' -draw "circle 560,160 560,162" \
+  -fill 'rgba(198,182,251,0.26)' -draw "circle 84,646 84,649" \
+  -blur 0x2.5 g-dust.png
+convert g-bg4.png g-dust.png -composite g-bg5.png
 
-# ── Логотип: знак бесконечности из интерфейса, в лаванде ─────────────────
-convert -size 288x288 xc:none \
-  -stroke "$DEEP" -strokewidth 6.5 -fill none \
-  -draw "stroke-linejoin round stroke-linecap round translate 6,10 scale 12,12 path 'M4.2 14.2v-4l3-3 4.8 5.2 4.8-5.2 3 3v4l-3 3-4.8-5.2-4.8 5.2-3-3Z'" \
-  -blur 0x9 logo-shadow.png
-convert logo-shadow.png -alpha set -channel A -evaluate multiply 0.55 +channel logo-shadow.png
+# ── Плитка логотипа: стеклянный квадрат со знаком NEXUS ───────────────────
+# Заливка плитки: лавандовый налёт, светлее сверху — как у бренд-орба.
+convert -size 344x344 gradient:'#2a2536'-'#131118' g-tgrad.png
+convert -size 344x344 xc:black -fill white -draw 'roundrectangle 0,0 343,343 44,44' g-tmask.png
+convert g-tgrad.png g-tmask.png -compose DstIn -composite -alpha set -channel A -evaluate multiply 0.4 +channel g-tfill.png
+convert g-tfill.png -fill none -stroke 'rgba(198,182,251,0.18)' -strokewidth 1 \
+  -draw 'roundrectangle 0,0 343,343 44,44' g-tile1.png
 
-convert -size 288x288 xc:none \
-  -fill 'rgba(198,182,251,0.55)' -draw "translate 6,6 scale 12,12 circle 12,11.8 12,13.1" \
-  -blur 0x7 logo-core-glow.png
+# Орбитальное кольцо внутри плитки и точка-спутник на нём.
+convert g-tile1.png \
+  -draw "stroke 'rgba(198,182,251,0.12)' stroke-width 1.2 fill none circle 172,172 172,54" \
+  g-tile2.png
+convert g-tile2.png \
+  -fill 'rgba(198,182,251,0.45)' -stroke none -draw "circle 255.4,88.6 255.4,97.6" \
+  -blur 0x2 g-tile3.png
+convert g-tile3.png \
+  -fill "$LAV" -stroke none -draw "circle 255.4,88.6 255.4,93.1" \
+  g-tile4.png
 
-convert -size 288x288 xc:none \
-  -stroke "$LAV" -strokewidth 3.4 -fill none \
-  -draw "stroke-linejoin round stroke-linecap round translate 6,6 scale 12,12 path 'M4.2 14.2v-4l3-3 4.8 5.2 4.8-5.2 3 3v4l-3 3-4.8-5.2-4.8 5.2-3-3Z'" \
-  -fill '#eae4ff' -stroke none \
-  -draw "translate 6,6 scale 12,12 circle 12,11.8 12,12.8" \
-  logo-face.png
+# Лента знака: сначала глубокая тень со сдвигом (как ribbon-shadow в коде),
+# затем сама лента с градиентом, и светящееся ядро в перекрестье.
+#
+# Координаты ленты пересчитаны в пиксели заранее. Нельзя рисовать её через
+# `translate/scale` внутри -draw: в ImageMagick 6 штрих такой ломаной при
+# этом начинает заливать внутренности, и вместо знака выходила сплошная
+# клякса — из-за этого логотип на старой карточке и выглядел плохо.
+# В финальных координатах штрих любой толщины чистый.
+RIBBON='M70.6 198v-52l39-39 62.4 67.6 62.4-67.6 39 39v52l-39 39-62.4-67.6-62.4 67.6-39-39Z'
+# Та же лента, сдвинутая на 9px вниз — для тени.
+RIBBON_SHADOW='M70.6 207v-52l39-39 62.4 67.6 62.4-67.6 39 39v52l-39 39-62.4-67.6-62.4 67.6-39-39Z'
 
-convert -size 288x288 xc:none \
-  logo-shadow.png -composite \
-  logo-core-glow.png -composite \
-  logo-face.png -composite \
-  logo.png
+convert -size 344x344 xc:none \
+  -stroke 'rgba(146,129,203,0.55)' -strokewidth 12 -fill none \
+  -draw "stroke-linejoin round stroke-linecap round path '$RIBBON_SHADOW'" \
+  -blur 0x6 g-ribbon-shadow.png
 
-# ── Свечение и кольца за логотипом ─────────────────────────────────────────
-convert -size 560x560 radial-gradient:'rgba(122,99,224,0.34)'-none -alpha set -channel A -evaluate multiply 0.55 +channel lglow.png
-convert -size ${W}x${H} xc:none \
-  -stroke 'rgba(198,182,251,0.10)' -strokewidth 1 -fill none -draw "circle 992,250 992,400" \
-  -stroke 'rgba(198,182,251,0.06)' -strokewidth 1 -fill none -draw "circle 992,250 992,446" \
-  rings.png
+convert -size 344x344 xc:none \
+  -stroke white -strokewidth 12 -fill none \
+  -draw "stroke-linejoin round stroke-linecap round path '$RIBBON'" \
+  g-ribbon-mask.png
 
-convert bg3.png \
-  lglow.png -geometry +712-30 -composite \
-  rings.png -composite \
-  logo.png -geometry +848+106 -composite \
-  bg4.png
+# Градиентная лента: градиент обрезается по маске.
+convert -size 344x344 gradient:"$LAV"-"$DEEP" g-ribbon-mask.png \
+  -compose CopyOpacity -composite g-ribbon.png
 
-# ── Шапка ──────────────────────────────────────────────────────────────────
-convert -size 92x30 xc:none \
-  -draw "fill '#c6b6fb22' stroke '#c6b6fb59' stroke-width 1 roundrectangle 0,0 91,29 9,9" vbadge.png
+convert g-tile4.png g-ribbon-shadow.png -composite g-ribbon.png -composite \
+  -fill 'rgba(255,255,255,0.25)' -stroke none -draw "circle 172,166.8 172,184.8" \
+  -blur 0x4 g-tile5.png
+convert g-tile5.png \
+  -fill '#f3efff' -stroke none -draw "circle 172,166.8 172,176.8" \
+  g-tile6.png
 
-convert bg4.png \
-  -font "$F_BOLD" -pointsize 28 -fill "$INK" -annotate +88+114 'NEXUS' \
-  vbadge.png -geometry +204+92 -composite \
-  -font "$F_MONO" -pointsize 15 -fill "$LAV" -annotate +222+112 'v1.6.0' \
-  -font "$F_REG"  -pointsize 17 -fill "$DIM" -annotate +88+146 'сетевые инструменты для Windows' \
-  head.png
+# Подпись под знаком внутри плитки — как «NETWORK CONTROL» в боковой панели.
+convert g-tile6.png -gravity Center -font "$F_MONO" -pointsize 10 -kerning 3 \
+  -fill "$DIM" -annotate +0+132 'NETWORK CONTROL' g-tile.png
 
-# Акцентная полоска: светлая лаванда перетекает в глубокую, как в интерфейсе
-convert -size 60x3 gradient:"$LAV"-"$DEEP" stripe.png
-convert head.png stripe.png -geometry +88+186 -composite head2.png
+# ── Шапка слева ────────────────────────────────────────────────────────────
+convert -size 84x30 xc:none \
+  -fill 'rgba(198,182,251,0.12)' -stroke 'rgba(198,182,251,0.35)' -strokewidth 1 \
+  -draw 'roundrectangle 0,0 83,29 9,9' g-vbadge.png
 
-# ── Заголовок ──────────────────────────────────────────────────────────────
-# Вторая строка набрана лавандой — в программе так же выделяется слово
-# в главном заголовке «Обзора».
-convert head2.png \
-  -font "$F_BOLD" -pointsize 62 -fill "$INK" -annotate +88+258 'Красивее, быстрее' \
-  -font "$F_BOLD" -pointsize 62 -fill "$LAV" -annotate +88+330 'и надёжнее' \
-  -font "$F_REG"  -pointsize 19 -fill "$MUT" -annotate +88+372 'пять версий с прошлого поста — коротко о главном' \
-  title.png
+convert g-bg5.png g-tile.png -geometry +830+100 -composite \
+  -font "$F_GROT" -pointsize 30 -kerning 4 -fill "$INK" -annotate +88+116 'NEXUS' \
+  g-vbadge.png -geometry +224+92 -composite \
+  -font "$F_MONO" -pointsize 13 -fill "$LAV" -annotate +242+113 'v1.6.0' \
+  -font "$F_REG" -pointsize 15 -fill "$DIM" -annotate +88+146 'сетевые инструменты для Windows' \
+  g-head.png
 
-# ── Список изменений ───────────────────────────────────────────────────────
-convert -size 620x66 xc:none \
-  -draw "fill '#c6b6fb0d' stroke '#c6b6fb1f' stroke-width 1 roundrectangle 0,0 619,65 16,16" chip.png
-convert -size 36x36 xc:none \
-  -draw "fill '#c6b6fb1f' stroke '#c6b6fb4d' stroke-width 1 roundrectangle 0,0 35,35 11,11" badge.png
+# Акцентная полоска: светлая лаванда перетекает в глубокую.
+convert -size 56x3 gradient:"$LAV"-"$DEEP" g-stripe.png
+convert g-head.png g-stripe.png -geometry +88+172 -composite g-head2.png
 
-Y1=404; Y2=478; Y3=552; Y4=626
-convert title.png \
-  chip.png -geometry +88+${Y1} -composite \
-  chip.png -geometry +88+${Y2} -composite \
-  chip.png -geometry +88+${Y3} -composite \
-  chip.png -geometry +88+${Y4} -composite \
-  badge.png -geometry +110+$((Y1+15)) -composite \
-  badge.png -geometry +110+$((Y2+15)) -composite \
-  badge.png -geometry +110+$((Y3+15)) -composite \
-  badge.png -geometry +110+$((Y4+15)) -composite \
-  chips.png
+# Кикер с квадратиком-маркером, как служебные подписи в интерфейсе.
+convert g-head2.png \
+  -draw "fill '$LAV' roundrectangle 88,196 94,202 2,2" \
+  -font "$F_MONO" -pointsize 11 -kerning 3 -fill "$LAV" -annotate +104+206 'БОЛЬШОЕ ОБНОВЛЕНИЕ' \
+  g-head3.png
 
-convert chips.png \
-  -font "$F_SEMI" -pointsize 21 -fill "$INK" \
-    -annotate +166+$((Y1+27)) 'Оформление «Графит»' \
-    -annotate +166+$((Y2+27)) 'Стало быстрее' \
-    -annotate +166+$((Y3+27)) 'Автозапуск надёжнее' \
-    -annotate +166+$((Y4+27)) 'Экран запуска ожил' \
-  -font "$F_REG" -pointsize 15 -fill "$MUT" \
-    -annotate +166+$((Y1+49)) 'графит и лаванда, светящаяся пыль на фоне' \
-    -annotate +166+$((Y2+49)) 'список серверов не тормозит, меню переливается' \
-    -annotate +166+$((Y3+49)) 'модули поднимаются сами, лишние процессы убираются' \
-    -annotate +166+$((Y4+49)) 'знак NEXUS с огоньками, кольцами и плавными подписями' \
-  -font "$F_MONO" -pointsize 15 -fill "$LAV" \
-    -annotate +121+$((Y1+40)) '01' \
-    -annotate +121+$((Y2+40)) '02' \
-    -annotate +121+$((Y3+40)) '03' \
-    -annotate +121+$((Y4+40)) '04' \
-  list.png
+# ── Заголовок: первая строка белая, вторая — градиентная лаванда ──────────
+convert -size 760x70 xc:none -font "$F_BOLD" -pointsize 54 -fill white \
+  -annotate +0+53 'и надёжнее' g-h1b-mask.png
+convert -size 760x70 gradient:'#d6c8fc'-'#8b76e4' g-h1b-mask.png \
+  -compose CopyOpacity -composite g-h1b.png
 
-# ── Подвал справа: обновление в один клик и контакты ──────────────────────
-arrow() { # x y — маленький шеврон между шагами
-  echo "fill '$LAV' polygon $1,$2 $(($1+7)),$(($2+5)) $1,$(($2+10)) $(($1+3)),$(($2+5))"
+convert g-head3.png \
+  -font "$F_BOLD" -pointsize 54 -fill "$INK" -annotate +88+280 'Красивее, быстрее' \
+  g-h1b.png -geometry +88+287 -composite \
+  -font "$F_REG" -pointsize 16 -fill "$MUT" -annotate +88+380 'пять версий с прошлого поста — коротко о главном' \
+  g-title.png
+
+# ── Карточки изменений 2x2: плитки со значками как на «Обзоре» ────────────
+convert -size 316x100 xc:none \
+  -fill 'rgba(198,182,251,0.05)' -stroke 'rgba(198,182,251,0.13)' -strokewidth 1 \
+  -draw 'roundrectangle 0,0 315,99 18,18' g-fcard.png
+
+icon() { # icon <файл> <glyph-draw...> — плитка 42x42 с нарисованным значком
+  local out="$1"; shift
+  convert -size 42x42 xc:none \
+    -fill 'rgba(198,182,251,0.10)' -stroke 'rgba(198,182,251,0.24)' -strokewidth 1 \
+    -draw 'roundrectangle 0,0 41,41 12,12' \
+    -stroke "$LAV" -strokewidth 2.2 -fill none -draw "stroke-linejoin round stroke-linecap round $*" \
+    "$out"
 }
 
-convert list.png \
-  -font "$F_SEMI" -pointsize 19 -fill "$INK" -annotate +792+470 'Обновление в один клик' \
-  -font "$F_REG"  -pointsize 15 -fill "$MUT" \
-    -annotate +792+506 'О программе' \
-    -annotate +928+506 'Проверить' \
-    -annotate +1048+506 'Скачать' \
-  -draw "$(arrow 902 495)" \
-  -draw "$(arrow 1016 495)" \
-  foot1.png
+# Искра — новое оформление
+icon g-i1.png "path 'M21 11.5 L23.4 16.6 L28.5 19 L23.4 21.4 L21 26.5 L18.6 21.4 L13.5 19 L18.6 16.6 Z'"
+convert g-i1.png -fill "$LAV" -stroke none -draw "circle 30.5,30.5 30.5,31.8" g-i1.png
+# Молния — скорость
+icon g-i2.png "path 'M23.5 3.5 L8.5 22.5 L15.5 22.5 L13 37.5 L28.5 17.5 L21 17.5 Z'"
+# Щит с галочкой — надёжность
+icon g-i3.png "path 'M21 4.5 L31 8.5 L31 15 C31 21.8 26.8 27 21 29.3 C15.2 27 11 21.8 11 15 L11 8.5 Z' path 'M16.5 20.5 L19.5 23.5 L26.5 16.5'"
+# Кольца — оживший экран запуска
+icon g-i4.png "circle 21,21 21,9.5 circle 21,21 21,14.5"
+convert g-i4.png -fill "$LAV" -stroke none -draw "circle 21,21 21,23.4" g-i4.png
 
-convert foot1.png \
-  -draw "fill '#ffffff14' rectangle 792,534 1192,535" \
-  foot2.png
+convert g-title.png \
+  g-fcard.png -geometry +88+416 -composite \
+  g-fcard.png -geometry +424+416 -composite \
+  g-fcard.png -geometry +88+528 -composite \
+  g-fcard.png -geometry +424+528 -composite \
+  g-i1.png -geometry +106+434 -composite \
+  g-i2.png -geometry +442+434 -composite \
+  g-i3.png -geometry +106+546 -composite \
+  g-i4.png -geometry +442+546 -composite \
+  g-grid.png
 
-# Метки перед ссылками: точка-пульс для канала, стрелка вниз для релизов
-convert foot2.png \
-  -stroke 'rgba(198,182,251,0.6)' -strokewidth 1.4 -fill none -draw "circle 800,570 800,578" \
-  -fill "$LAV" -stroke none -draw "circle 800,570 800,572.6" \
-  -fill "$LAV" -stroke none -draw "polygon 794,618 806,618 800,626" \
-  -font "$F_REG" -pointsize 11 -fill "$DIM" \
-    -annotate +792+556 'Канал в Telegram' \
-    -annotate +792+602 'Все релизы и установщик' \
-  -font "$F_MONO" -pointsize 17 -fill "$LAV" -annotate +812+578 't.me/nexus_flex' \
-  -font "$F_MONO" -pointsize 15 -fill "$LAV" -annotate +812+632 'github.com/folyaken/NEXUS-releases' \
-  -font "$F_REG" -pointsize 13 -fill "$DIM" -annotate +792+666 'Windows 10 / 11 · 64-bit · бесплатно' \
-  card.png
+convert g-grid.png \
+  -font "$F_SEMI" -pointsize 17 -fill "$INK" \
+    -annotate +162+454 'Оформление «Графит»' \
+    -annotate +498+454 'Стало быстрее' \
+    -annotate +162+566 'Автозапуск надёжнее' \
+    -annotate +498+566 'Экран запуска ожил' \
+  -font "$F_REG" -pointsize 12.2 -fill "$MUT" \
+    -annotate +162+478 'графит и лаванда, светящаяся пыль' \
+    -annotate +498+478 'список не тормозит, меню плавное' \
+    -annotate +162+590 'модули поднимаются сами, без рук' \
+    -annotate +498+590 'знак NEXUS с огоньками и кольцами' \
+  -font "$F_MONO" -pointsize 10 -fill "$DIM" \
+    -annotate +368+440 '01' \
+    -annotate +704+440 '02' \
+    -annotate +368+552 '03' \
+    -annotate +704+552 '04' \
+  g-body.png
 
-convert card.png -depth 8 -strip "$OUT"
+# ── Панель обновления: шаги как пилюли ────────────────────────────────────
+convert -size 344x140 xc:none \
+  -fill 'rgba(198,182,251,0.05)' -stroke 'rgba(198,182,251,0.12)' -strokewidth 1 \
+  -draw 'roundrectangle 0,0 343,139 20,20' g-panel.png
+
+convert -size 106x34 xc:none \
+  -fill 'rgba(198,182,251,0.07)' -stroke 'rgba(198,182,251,0.25)' -strokewidth 1 \
+  -draw 'roundrectangle 0,0 105,33 10,10' g-pill.png
+convert -size 86x34 gradient:"$LAV"-"$DEEP" g-pillgrad.png
+convert -size 86x34 xc:black -fill white -draw 'roundrectangle 0,0 85,33 10,10' g-pillmask.png
+convert g-pillgrad.png g-pillmask.png -compose DstIn -composite \
+  -fill none -stroke 'rgba(255,255,255,0.28)' -strokewidth 1 \
+  -draw 'roundrectangle 0,0 85,33 10,10' g-pill3.png
+
+convert g-body.png \
+  g-panel.png -geometry +830+468 -composite \
+  g-pill.png -geometry +849+524 -composite \
+  g-pill.png -geometry +963+524 -composite \
+  g-pill3.png -geometry +1069+524 -composite \
+  g-updates.png
+
+convert g-updates.png \
+  -font "$F_SEMI" -pointsize 17 -fill "$INK" -annotate +858+504 'Обновление в один клик' \
+  -font "$F_SEMI" -pointsize 13 -fill "$INK" \
+    -annotate +866+547 'О программе' \
+    -annotate +983+547 'Проверить' \
+  -font "$F_SEMI" -pointsize 13 -fill '#14121c' -annotate +1089+547 'Скачать' \
+  -font "$F_REG" -pointsize 12 -fill "$MUT" -annotate +858+590 'дальше NEXUS обновится и запустится сам' \
+  -draw "fill '$LAV' polygon 955,536 962,541 955,546" \
+  -draw "fill '$LAV' polygon 1061,536 1068,541 1061,546" \
+  g-body2.png
+
+# ── Подвал: разделитель, пилюли-ссылки и условия ──────────────────────────
+convert -size 196x36 xc:none \
+  -fill 'rgba(198,182,251,0.07)' -stroke 'rgba(198,182,251,0.26)' -strokewidth 1 \
+  -draw 'roundrectangle 0,0 195,35 10,10' g-pillA.png
+convert -size 330x36 xc:none \
+  -fill 'rgba(198,182,251,0.07)' -stroke 'rgba(198,182,251,0.26)' -strokewidth 1 \
+  -draw 'roundrectangle 0,0 329,35 10,10' g-pillB.png
+
+convert g-body2.png \
+  -draw "fill 'rgba(255,255,255,0.08)' rectangle 84,646 1196,647" \
+  g-pillA.png -geometry +88+664 -composite \
+  g-pillB.png -geometry +302+664 -composite \
+  g-foot.png
+
+convert g-foot.png \
+  -font "$F_MONO" -pointsize 16 -fill "$LAV" -annotate +104+689 '@' \
+  -font "$F_MONO" -pointsize 13.5 -fill "$LAV" -annotate +126+688 't.me/nexus_flex' \
+  -draw "fill '$LAV' polygon 311,674 324,674 317.5,687" \
+  -font "$F_MONO" -pointsize 12.5 -fill "$LAV" -annotate +334+688 'github.com/folyaken/NEXUS-releases' \
+  g-foot2.png
+
+convert g-foot2.png -gravity SouthEast -font "$F_REG" -pointsize 12.5 -fill "$DIM" \
+  -annotate +88+33 'Windows 10 / 11 · 64-bit · бесплатно' g-card.png
+
+convert g-card.png -depth 8 -strip "$OUT"
 echo "карточка «Графит» готова: $OUT"
