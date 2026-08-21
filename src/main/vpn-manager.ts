@@ -4,7 +4,7 @@ import { promises as fs } from 'node:fs';
 import { createServer, Socket } from 'node:net';
 import { connect as connectTls, type TLSSocket } from 'node:tls';
 import path from 'node:path';
-import { spawn, type ChildProcess } from 'node:child_process';
+import { spawn, spawnSync, type ChildProcess } from 'node:child_process';
 import { createProfileFromLink, isSubscriptionUrl } from './share-link';
 import { fetchSubscriptionMaterial, validateSubscriptionUrl } from './subscription';
 import { readSubscriptionUrlFromPage } from './subscription-page';
@@ -1007,6 +1007,55 @@ export class VpnManager extends EventEmitter {
     mkdirSync(path.dirname(this.logPath()), { recursive: true });
     const logStream = createWriteStream(this.logPath(), { flags: 'a' });
     let lastErr = '';
+
+    // Предполётная проверка конфигурации с групповыми правилами.
+    //
+    // Ядро принимает или отвергает конфиг на той самой стадии, где оно
+    // падает с кодом 23 (сборка таблицы маршрутизации). Проверка `-test`
+    // проходит за миллисекунды и показывает настоящую причину до запуска:
+    // раньше человек видел лишь «код 23» после падения, а правила молча
+    // отбрасывались только со второй попытки.
+    const geoRulesUsed = !useSingbox
+      && usableRules.some((rule) => /^(geosite|geoip|ext):/i.test(rule.value));
+    if (geoRulesUsed) {
+      const probe = spawnSync(engine, ['-test', '-config', configFile], {
+        encoding: 'utf8',
+        timeout: 10_000,
+        windowsHide: true,
+        shell: false,
+      });
+      const probeText = stripAnsi(`${probe.stdout || ''}\n${probe.stderr || ''}`).trim();
+      if (probe.status === 0) {
+        this.emitLog('info', 'Конфигурация с групповыми правилами проверена ядром.');
+      } else {
+        const tail = probeText.slice(-400);
+        logStream.write(`[${new Date().toISOString()}] ядро не приняло конфигурацию с групповыми правилами (код ${probe.status ?? 'timeout'}): ${tail}\n`);
+        this.emitLog('warn', `Групповые правила не поддерживаются этим ядром: ${tail.slice(0, 200)}`);
+        // Собираем конфиг без групповых правил и проверяем ещё раз: если он
+        // принят — запускаемся без них сразу, а не после первого падения.
+        const fallbackRules = routingRules.filter((rule) => !/^(geosite|geoip|ext):/i.test(rule.value));
+        const fallbackConfig = buildXrayConfig(profile.params, port, mode, activeSplitApps, activeAppRouting, fragmentation, allowLan, dnsServers, fallbackRules);
+        await fs.writeFile(configFile, `${JSON.stringify(fallbackConfig, null, 2)}\n`, 'utf8');
+        const probe2 = spawnSync(engine, ['-test', '-config', configFile], {
+          encoding: 'utf8',
+          timeout: 10_000,
+          windowsHide: true,
+          shell: false,
+        });
+        if (probe2.status !== 0) {
+          // Без групповых правил тоже не принято — возвращаем исходный конфиг:
+          // настоящую причину покажет сам запуск.
+          await fs.writeFile(configFile, `${JSON.stringify(config, null, 2)}\n`, 'utf8');
+        } else {
+          // До перезапуска приложения остаёмся без групповых правил: после
+          // обновления ядра они вернутся сами.
+          this.geoRulesForbidden = true;
+          this.lastConfigIncludedGeo = false;
+          this.emitLog('warn', 'Групповые правила отключены: VPN подключится без них. После «Проверить обновления» и перезапуска правила вернутся.');
+        }
+      }
+    }
+
     const args = useSingbox ? ['run', '-c', configFile] : ['-config', configFile];
     const child = spawn(engine, args, {
       cwd: path.dirname(engine),

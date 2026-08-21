@@ -46,6 +46,12 @@ assert.match(vpnManager, /geoRulesAllowed = geoReady && !this\.geoRulesForbidden
 // файл `geosite` без `.dat` и падали с кодом 23 даже при наличном geosite.dat.
 assert.match(vpnManager, /placeGeoAlias/);
 assert.match(vpnManager, /datFile\.replace\(\/\\\.dat\$\/i, ''\)/);
+// Конфиг с групповыми правилами проверяется ядром до запуска (-test): если
+// ядро их не принимает, NEXUS пересобирает конфиг без них и запускается сразу,
+// а не после первого падения с кодом 23.
+assert.match(vpnManager, /spawnSync\(engine, \['-test', '-config', configFile\]/);
+assert.match(vpnManager, /fallbackRules = routingRules\.filter/);
+assert.match(vpnManager, /geoRulesForbidden = true/);
 const ensureXray = fs.readFileSync(path.join(root, 'scripts', 'ensure-xray.cjs'), 'utf8');
 assert.match(ensureXray, /replace\(\/\\\.dat\$\/i, ''\)/, 'скрипт установки ядра тоже обязан класть копию без расширения');
 const updater = fs.readFileSync(path.join(root, 'src', 'main', 'github-updater.ts'), 'utf8');
