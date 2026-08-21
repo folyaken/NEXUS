@@ -217,6 +217,8 @@
 .appearance-crimson .server-signal.ok i.on { background: #e37242; }
 .appearance-crimson .server-signal.weak i.on { background: #f2662b; }
 .appearance-crimson .power-meta > strong { color: #f6f2f2; }
+.appearance-crimson .quick-connect { border: 1px solid rgba(216,80,93,.195); background: linear-gradient(130deg, rgba(216,80,93,.0975), rgba(214,92,129,.0825)); color: #f2e6e8; }
+.appearance-crimson .quick-connect:hover:not(:disabled) { border-color: rgba(216,80,93,.5); background: linear-gradient(130deg, rgba(216,80,93,.15), rgba(214,92,129,.12)); }
 .appearance-crimson .power-meta small.power-location { color: #b7acad; }
 .appearance-crimson .power-connected,
 .appearance-crimson .power-state { color: #943b47; }

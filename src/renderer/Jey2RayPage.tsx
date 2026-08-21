@@ -630,6 +630,49 @@ export function Jey2RayPage({
     else await connect(selected.id);
   };
 
+  /*
+    «Подключиться к лучшему»: человек не выбирает сервер руками — кнопка сама
+    измеряет пинг (если ещё не мерили) и подключает самый быстрый из доступных.
+    Пока идёт замер, крутится стрелка на кнопке «Обновить» сверху — тот же
+    индикатор, что у обычного замера пинга.
+  */
+  const quickConnect = async () => {
+    if (busy) return;
+    if (runtime.status === 'connected' && runtime.activeProfileId === fastest?.id) {
+      onToast(t('Уже подключены к самому быстрому серверу'));
+      return;
+    }
+    // Пинги измерялись не всегда: без свежего замера «самый быстрый» был бы
+    // просто первым в списке. Поэтому сперва замеряем, затем выбираем.
+    const unmeasured = visible.some((item) => !canConnect(item) && item.pingMs == null);
+    let fresh = visible;
+    if (unmeasured && desktop) {
+      setAction('ping');
+      const started = Date.now();
+      try {
+        const next = await window.nexus?.pingVpn();
+        if (next) {
+          setProfiles(next);
+          fresh = next.filter((item) => item.kind !== 'notice');
+        }
+      } catch (error) {
+        onToast(cleanError(error) || t('Не удалось измерить пинг'));
+        return;
+      } finally {
+        const wait = 2200 - (Date.now() - started);
+        if (wait > 0) await new Promise((resolve) => setTimeout(resolve, wait));
+        setAction(null);
+      }
+    }
+    const target = pickFastest(fresh);
+    if (!target) {
+      onToast(t('Нет доступных серверов'));
+      return;
+    }
+    setSelectedId(target.id);
+    await connect(target.id);
+  };
+
   const holdAction = async (kind: 'refresh' | 'ping', work: () => Promise<void>, minMs: number) => {
     setAction(kind);
     const started = Date.now();
@@ -1315,6 +1358,16 @@ export function Jey2RayPage({
           ? <span className={`power-connected ${latencyUnavailable ? 'is-unavailable' : ''}`}><i />{t('Подключено')} {latencyMs != null ? <>· <b>{latencyMs} {t('мс')}</b></> : latencyUnavailable ? t('· пинг недоступен') : t('· замеряем…')}</span>
           : <span className={`power-state ${runtime.status === 'error' ? 'is-error' : ''}`}>{powerState}</span>}
       </div>
+      <button
+        type="button"
+        className="quick-connect"
+        disabled={busy || Boolean(action) || runtime.status === 'connecting'}
+        onClick={() => void quickConnect()}
+        title={t('Замерить пинг и подключиться к самому быстрому серверу')}
+      >
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M13.2 2.6 5 13.4h5.2l-.8 8 8.4-11H12.4l.8-7.8Z" /></svg>
+        {action === 'ping' ? t('Замеряем пинг…') : t('Подключиться к лучшему')}
+      </button>
       <div className="mode-switch" aria-label={t('Режим подключения')}>
         <div className="mode-switch-options">
           <button

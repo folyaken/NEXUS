@@ -287,6 +287,12 @@ kbd { padding: 3px 5px; border: 1px solid rgba(255,255,255,.1); border-radius: 5
 .server-signal.weak i.on { background: #ff9a4a; }
 .power-meta { display: grid; justify-items: center; gap: 5px; margin-top: 14px; text-align: center; }
 .power-meta > strong { color: #edf3fb; font-family: var(--font-heading); font-size: 19px; font-weight: 650; letter-spacing: -.02em; }
+/* «Подключиться к лучшему»: главное действие для тех, кто не хочет выбирать
+   сервер руками. Стоит сразу под карточкой сервера, в панели справа. */
+.quick-connect { display: flex; width: 100%; align-items: center; justify-content: center; gap: 8px; margin-top: 14px; padding: 11px 14px; border: 1px solid rgba(124,242,213,.26); border-radius: 12px; background: linear-gradient(130deg, rgba(124,242,213,.13), rgba(168,149,255,.11)); color: #d9fff1; font-size: 12px; font-weight: 700; transition: border-color .18s ease, background .18s ease, transform .18s ease, color .18s ease; }
+.quick-connect:hover:not(:disabled) { border-color: rgba(124,242,213,.5); background: linear-gradient(130deg, rgba(124,242,213,.2), rgba(168,149,255,.16)); transform: translateY(-1px); }
+.quick-connect:disabled { cursor: wait; opacity: .55; }
+.quick-connect svg { width: 15px; height: 15px; fill: none; stroke: currentColor; stroke-linecap: round; stroke-linejoin: round; stroke-width: 1.7; }
 .power-meta small.power-location { max-width: 266px; color: #8d9bb0; font-size: 11px; line-height: 1.45; }
 .power-connected, .power-state { display: inline-flex; align-items: center; justify-content: center; gap: 6px; margin-top: 3px; color: #75d8b2; font-size: 11px; }
 .power-connected i { width: 6px; height: 6px; border-radius: 50%; background: #71f4b8; box-shadow: 0 0 8px rgba(113,244,184,.58); }

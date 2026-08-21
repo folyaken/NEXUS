@@ -218,6 +218,8 @@
 .appearance-graphite .server-signal.ok i.on { background: #e4bf80; }
 .appearance-graphite .server-signal.weak i.on { background: #dab36f; }
 .appearance-graphite .power-meta > strong { color: #f3f2f6; }
+.appearance-graphite .quick-connect { border: 1px solid rgba(163,146,220,.26); background: linear-gradient(130deg, rgba(163,146,220,.13), rgba(182,165,239,.11)); color: #e9e6f2; }
+.appearance-graphite .quick-connect:hover:not(:disabled) { border-color: rgba(163,146,220,.5); background: linear-gradient(130deg, rgba(163,146,220,.2), rgba(182,165,239,.16)); }
 .appearance-graphite .power-meta small.power-location { color: #aba8b4; }
 .appearance-graphite .power-connected,
 .appearance-graphite .power-state { color: #9382cb; }
