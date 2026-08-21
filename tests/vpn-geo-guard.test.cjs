@@ -30,11 +30,30 @@ assert.match(vpnManager, /const geoReady = useSingbox \|\| this\.ensureGeoFilesB
 assert.match(vpnManager, /failed && code === 23/);
 assert.match(vpnManager, /код 23/);
 assert.match(vpnManager, /dropBrokenGeoFiles\(\)/);
-assert.match(vpnManager, /«Модули» → «Проверить обновления»/);
+assert.match(vpnManager, /Проверить обновления/);
+// Настоящая причина падения (stderr ядра) не прячется за общим текстом:
+// общее сообщение показывается только когда причина неизвестна или касается
+// наборов адресов.
+assert.match(vpnManager, /const geoFailure = \/geosite\|geoip\|no such file\|not found\|cannot find\/i\.test\(lastErr\)/);
+assert.match(vpnManager, /reason = describeVpnFailure\(lastErr, mode\)/,
+  'если причина не про наборы адресов, показывается настоящая ошибка ядра');
+// Если групповые правила были в конфиге и ядро упало — следующая попытка
+// идёт без них, чтобы VPN точно включился.
+assert.match(vpnManager, /lastConfigIncludedGeo/);
+assert.match(vpnManager, /geoRulesForbidden = true/);
+assert.match(vpnManager, /geoRulesAllowed = geoReady && !this\.geoRulesForbidden/);
+// Копии наборов без расширения: старые ядра Xray (26.1.13–26.1.17) искали
+// файл `geosite` без `.dat` и падали с кодом 23 даже при наличном geosite.dat.
+assert.match(vpnManager, /placeGeoAlias/);
+assert.match(vpnManager, /datFile\.replace\(\/\\\.dat\$\/i, ''\)/);
+const ensureXray = fs.readFileSync(path.join(root, 'scripts', 'ensure-xray.cjs'), 'utf8');
+assert.match(ensureXray, /replace\(\/\\\.dat\$\/i, ''\)/, 'скрипт установки ядра тоже обязан класть копию без расширения');
+const updater = fs.readFileSync(path.join(root, 'src', 'main', 'github-updater.ts'), 'utf8');
+assert.match(updater, /replace\(\/\\\.dat\$\/i, ''\)/, 'обновление ядра тоже обязано класть копию без расширения');
 
 // Сообщение об ошибке переводится, как и остальные сообщения из main-процесса.
 assert.equal(
-  i18n.hasTranslation('en', 'VPN-ядро не загрузило файлы наборов адресов (код 23). Откройте «Модули» → «Проверить обновления», чтобы восстановить их.'),
+  i18n.hasTranslation('en', 'VPN-ядро не смогло загрузить наборы адресов (код 23). Программа подключит без групповых правил; после «Проверить обновления» и перезапуска они вернутся.'),
   true,
   'нужен английский перевод сообщения о коде 23',
 );

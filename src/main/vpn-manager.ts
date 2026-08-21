@@ -60,6 +60,13 @@ export class VpnManager extends EventEmitter {
   private refreshInFlight: Promise<number> | null = null;
   private latencyProbeInFlight: Promise<VpnLatencySample | null> | null = null;
   private lastLatencySample: VpnLatencySample | null = null;
+  /** Групповые правила попали в последний собранный конфиг. */
+  private lastConfigIncludedGeo = false;
+  /**
+   * Ядро упало на групповых правилах: следующие подключения идут без них,
+   * пока приложение не перезапустят (после обновления ядра).
+   */
+  private geoRulesForbidden = false;
 
   constructor(private readonly modulesDir: string) {
     super();
@@ -180,7 +187,10 @@ export class VpnManager extends EventEmitter {
     const engineDir = path.dirname(enginePath);
     return ['geoip.dat', 'geosite.dat'].every((name) => {
       const beside = path.join(engineDir, name);
-      if (this.validGeoFile(beside)) return true;
+      if (this.validGeoFile(beside)) {
+        this.placeGeoAlias(beside);
+        return true;
+      }
       for (const candidate of this.geoFileCandidates(name)) {
         if (candidate === beside) continue;
         if (!existsSync(candidate)) continue;
@@ -196,6 +206,7 @@ export class VpnManager extends EventEmitter {
         try {
           mkdirSync(engineDir, { recursive: true });
           copyFileSync(candidate, beside);
+          this.placeGeoAlias(beside);
           this.emitLog('info', `${name} перенесён к ядру VPN.`);
           return true;
         } catch {
@@ -204,6 +215,20 @@ export class VpnManager extends EventEmitter {
       }
       return false;
     });
+  }
+
+  /**
+   * Кладёт рядом с ядром копию набора без расширения.
+   *
+   * Старые ядра Xray (26.1.13–26.1.17) искали файл `geosite` без `.dat` и
+   * падали с кодом 23, даже когда geosite.dat лежал рядом — обновление ядра
+   * при этом ничего не меняло. Копия без расширения лечит такие ядра и не
+   * мешает новым: они её не ищут.
+   */
+  private placeGeoAlias(datFile: string): void {
+    const alias = datFile.replace(/\.dat$/i, '');
+    if (alias === datFile || existsSync(alias)) return;
+    try { copyFileSync(datFile, alias); } catch { /* не критично */ }
   }
 
   /** После падения с кодом 23 убираем битые копии наборов адресов. */
@@ -955,9 +980,20 @@ export class VpnManager extends EventEmitter {
     // не подключиться вовсе. Для sing-box проверка не нужна: групповые наборы
     // в его конфиг не попадают вовсе.
     const geoReady = useSingbox || this.ensureGeoFilesBesideEngine(engine);
-    const usableRules = geoReady
+    // Если прошлое подключение упало на групповых правилах, этот запуск идёт
+    // без них: ядро не сможет загрузить наборы и упадёт снова. Флаг живёт до
+    // перезапуска приложения — после обновления ядра правила вернутся сами.
+    const geoRulesAllowed = geoReady && !this.geoRulesForbidden;
+    const usableRules = geoRulesAllowed
       ? routingRules
       : routingRules.filter((rule) => !/^(geosite|geoip|ext):/i.test(rule.value));
+    // Запоминаем, попали ли групповые правила в этот конфиг: если ядро упадёт
+    // с кодом 23, именно они под подозрением, и следующая попытка пойдёт без них.
+    this.lastConfigIncludedGeo = !useSingbox && geoRulesAllowed
+      && routingRules.some((rule) => /^(geosite|geoip|ext):/i.test(rule.value));
+    if (this.geoRulesForbidden && !useSingbox) {
+      this.emitLog('warn', 'Групповые правила отключены: ядро VPN не смогло загрузить наборы адресов. После обновления ядра перезапустите NEXUS, и правила вернутся.');
+    }
     if (!geoReady && usableRules.length !== routingRules.length) {
       this.emitLog('warn', 'Файлы наборов адресов не найдены — групповые правила пропущены. Нажмите «Проверить обновления» в разделе модулей.');
     }
@@ -1025,12 +1061,20 @@ export class VpnManager extends EventEmitter {
         const failed = code !== 0 && code !== null;
         let reason: string | undefined;
         if (failed && code === 23) {
-          // Код 23 — ядро не смогло загрузить файлы наборов адресов: они
-          // отсутствуют рядом с ядром или повреждены. Показываем, что делать,
-          // а битые копии убираем — иначе падение повторится на следующем
-          // подключении к тем же правилам.
-          reason = 'VPN-ядро не загрузило файлы наборов адресов (код 23). Откройте «Модули» → «Проверить обновления», чтобы восстановить их.';
+          // Код 23 — ядро не смогло стартовать. Настоящая причина пишется в
+          // stderr (lastErr): показываем её, а не общий текст. Отдельно
+          // выделяем наборы адресов: их не может загрузить ни старое ядро
+          // (ищет файл без расширения), ни битые/отсутствующие файлы.
+          const geoFailure = /geosite|geoip|no such file|not found|cannot find/i.test(lastErr);
+          if (geoFailure || !lastErr) {
+            reason = 'VPN-ядро не смогло загрузить наборы адресов (код 23). Программа подключит без групповых правил; после «Проверить обновления» и перезапуска они вернутся.';
+          } else {
+            reason = describeVpnFailure(lastErr, mode);
+          }
           this.dropBrokenGeoFiles();
+          // Групповые правила были в конфиге — похоже, именно они уронили
+          // ядро. Следующая попытка пойдёт без них, чтобы VPN точно включился.
+          if (this.lastConfigIncludedGeo) this.geoRulesForbidden = true;
         } else {
           reason = failed ? (lastErr ? describeVpnFailure(lastErr, mode) : `VPN-ядро завершилось с кодом ${code}`) : undefined;
         }

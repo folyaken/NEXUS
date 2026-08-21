@@ -148,7 +148,8 @@ assert.ok(binResource.filter.includes('**/*'), 'фильтр не должен �
 // сохраняется: лучше без части правил, чем совсем без VPN.
 const vpnManager = fs.readFileSync(path.join(root, 'src', 'main', 'vpn-manager.ts'), 'utf8');
 assert.match(vpnManager, /hasGeoFiles\(\): boolean/);
-assert.match(vpnManager, /const usableRules = geoReady/);
+assert.match(vpnManager, /const geoRulesAllowed = geoReady && !this\.geoRulesForbidden/);
+assert.match(vpnManager, /const usableRules = geoRulesAllowed/);
 assert.match(vpnManager, /filter\(\(rule\) => !\/\^\(geosite\|geoip\|ext\):\/i\.test\(rule\.value\)\)/);
 assert.match(vpnManager, /Файлы наборов адресов не найдены/, 'пользователю нужно объяснение в журнале');
 

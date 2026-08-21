@@ -169,7 +169,14 @@ function copyGeoFiles(extractDir) {
       console.warn(`  ${name} не найден в архиве — групповые правила маршрутизации работать не будут`);
       continue;
     }
-    fs.copyFileSync(found, path.join(binDir, name));
+    const destination = path.join(binDir, name);
+    fs.copyFileSync(found, destination);
+    // Копия без расширения лечит старые ядра Xray (26.1.13–26.1.17): они
+    // искали файл `geosite` без `.dat` и падали с кодом 23. Новым ядрам
+    // лишняя копия не мешает.
+    try {
+      fs.copyFileSync(destination, destination.replace(/\.dat$/i, ''));
+    } catch { /* не критично */ }
   }
 }
 

@@ -527,8 +527,18 @@ export class GithubUpdater extends EventEmitter {
       await this.atomicReplaceFile(found, destination, process.platform === 'win32' ? undefined : 0o755);
       const geoip = await this.findFile(extractRoot, 'geoip.dat');
       const geosite = await this.findFile(extractRoot, 'geosite.dat');
-      if (geoip) await this.atomicReplaceFile(geoip, path.join(this.modulesDir, 'bin', 'geoip.dat'));
-      if (geosite) await this.atomicReplaceFile(geosite, path.join(this.modulesDir, 'bin', 'geosite.dat'));
+      if (geoip) {
+        const dest = path.join(this.modulesDir, 'bin', 'geoip.dat');
+        await this.atomicReplaceFile(geoip, dest);
+        // Копия без расширения: старые ядра Xray (26.1.13–26.1.17) искали
+        // `geoip` без `.dat` и падали с кодом 23. Новым ядрам не мешает.
+        await fs.copyFile(dest, dest.replace(/\.dat$/i, '')).catch(() => undefined);
+      }
+      if (geosite) {
+        const dest = path.join(this.modulesDir, 'bin', 'geosite.dat');
+        await this.atomicReplaceFile(geosite, dest);
+        await fs.copyFile(dest, dest.replace(/\.dat$/i, '')).catch(() => undefined);
+      }
       await this.updateManifest('jey2ray', {
         executable: `./bin/${binaryName}`,
         working_dir: './bin',
