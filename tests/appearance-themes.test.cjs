@@ -291,4 +291,27 @@ assert.doesNotMatch(app, /requestAnimationFrame[\s\S]{0,400}packet-web/, 'пак
 assert.match(styles, /\.app-frame\.motion-off \.packet-track \{ animation: none; \}/);
 assert.match(styles, /\.app-frame:not\(\.motion-force\) \.packet-track \{ animation: none; \}/);
 
+// --- Фоны реагируют на работу программы ---------------------------------------------
+// Пока ничего не запущено, фон тихо живёт своей жизнью; при запуске модуля
+// оживает (класс has-activity), при подключении VPN появляется свой элемент
+// темы (vpn-on), а при «Подключаем…» он виден заранее призраком (vpn-ghost).
+assert.match(app, /hasActivity \? 'has-activity' : ''/, 'класс активности должен выставляться по модулям');
+assert.match(app, /vpnStatus === 'connected' \? 'vpn-on' : ''/, 'класс vpn-on должен выставляться по статусу VPN');
+assert.match(app, /vpnStatus === 'connecting' \? 'vpn-ghost' : ''/, 'при подключении элемент виден заранее призраком');
+assert.match(app, /api\.onVpnChanged/, 'статус VPN должен браться из события main-процесса');
+// У каждой темы свой VPN-элемент, и все они скрыты по умолчанию.
+assert.match(styles, /\.vpn-beam, \.dust-chain, \.heat-stream \{ display: none; \}/);
+assert.match(styles, /\.appearance-indigo\.vpn-on \.vpn-beam/);
+assert.match(styles, /\.appearance-graphite\.vpn-on \.dust-chain/);
+assert.match(styles, /\.appearance-crimson\.vpn-on \.heat-stream/);
+// Модули оживляют каждый фон по-своему.
+assert.match(styles, /\.appearance-indigo\.has-activity \.packet-track-a/);
+assert.match(styles, /\.appearance-graphite\.has-activity \.node-mote/);
+assert.match(styles, /\.appearance-crimson\.has-activity \.ember-mote/);
+// Реакция подчиняется настройке анимаций, как всё остальное.
+assert.match(styles, /\.app-frame\.motion-off \.vpn-beam i/);
+assert.match(styles, /@keyframes vpn-beam-run/);
+assert.match(styles, /@keyframes dust-chain-wave/);
+assert.match(styles, /@keyframes heat-stream-rise/);
+
 console.log('Appearance theme checks passed.');

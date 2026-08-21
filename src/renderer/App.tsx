@@ -1,7 +1,7 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import type { CSSProperties } from 'react';
 import { animated, config, useSpring } from '@react-spring/web';
-import type { AboutSystemInfo, AppSettings, ModuleLog, ModuleManifest, ModuleStatus, NexusUpdateCheck, UpdateInfo, UserProfile } from '../main/types';
+import type { AboutSystemInfo, AppSettings, ModuleLog, ModuleManifest, ModuleStatus, NexusUpdateCheck, UpdateInfo, UserProfile, VpnStatus } from '../main/types';
 import { DEFAULT_SETTINGS } from '../main/types';
 import { createTranslator, dateLocale, setInterfaceLanguage, t as translate } from '../main/i18n';
 import { Jey2RayPage } from './Jey2RayPage';
@@ -314,6 +314,9 @@ function PacketWeb() {
       <i className="packet-node packet-node-a" />
       <i className="packet-node packet-node-b" />
     </span>
+    {/* VPN-элемент «Индиго»: луч туннеля, по которому после подключения
+        бежит пакет вниз. */}
+    <span className="vpn-beam"><i /></span>
   </div>;
 }
 
@@ -351,6 +354,9 @@ function EmberWeb() {
   return <div className="ember-web" aria-hidden="true">
     <span className="ember-glow" />
     <span className="ember-glow ember-glow-two" />
+    {/* VPN-элемент «Багрового»: струя жара — угольки поднимаются столбом
+        после подключения. */}
+    <span className="heat-stream"><i /><i /><i /><i /><i /><i /></span>
     {EMBERS.map((ember, index) => <i
       key={index}
       className={`ember-mote ${ember.cls}`.trim()}
@@ -358,8 +364,11 @@ function EmberWeb() {
         left: `${ember.x}%`,
         width: `${ember.size}px`,
         height: `${ember.size}px`,
-        animationDelay: `${ember.delay}s`,
-        animationDuration: `${ember.dur}s`,
+        // Темп через переменные, а не animation-* напрямую: тогда фон можно
+        // «оживлять» одним правилом CSS при запущенных модулях, не трогая
+        // разметку. Тот же приём у пыли «Графита».
+        '--ember-delay': `${ember.delay}s`,
+        '--ember-dur': `${ember.dur}s`,
         '--ember-drift': `${ember.drift}px`,
         '--ember-fl': String(ember.fl),
         '--ember-fl2': String(ember.fl2),
@@ -393,9 +402,14 @@ function NodeWeb() {
         top: `${mote.y}%`,
         width: `${mote.size}px`,
         height: `${mote.size}px`,
-        animationDelay: `${mote.d}s`,
+        // Задержка через переменную: длительность задаётся в стиле, и при
+        // запущенных модулях пыль ускоряется одним правилом CSS.
+        '--mote-delay': `${mote.d}s`,
       }}
     />)}
+    {/* VPN-элемент «Графита»: цепочка пылинок, вспыхивающая волной после
+        подключения. */}
+    <span className="dust-chain"><i /><i /><i /><i /><i /></span>
   </div>;
 }
 
@@ -838,6 +852,9 @@ function App() {
 
   const [maximized, setMaximized] = useState(false);
   const [lastScan, setLastScan] = useState<string | null>(null);
+  // Статус VPN для живых фонов: подключение показывается «призраком»
+  // элемента, после подключения элемент оживает.
+  const [vpnStatus, setVpnStatus] = useState<VpnStatus>('disconnected');
   const [profile, setProfile] = useState<UserProfile>({ displayName: '', deviceId: 'NX-LOCAL', deviceName: translate('Локальное устройство') });
   const [profileDraft, setProfileDraft] = useState('');
   const [profileOpen, setProfileOpen] = useState(false);
@@ -874,7 +891,12 @@ function App() {
     const offUpdates = api.onUpdatesChanged(setUpdates);
     const offMaximized = api.onMaximized(setMaximized);
     const offScan = api.onScan(setLastScan);
-    return () => { alive = false; offModules(); offLogs(); offUpdates(); offMaximized(); offScan(); };
+    // Статус VPN нужен живым фонам: при подключении они показывают свой
+    // элемент (луч, цепочку, струю). Состояние уже приходит из main-процесса
+    // готовым событием — поднимать его из страницы не пришлось.
+    void api.getVpn().then((snapshot) => { if (alive) setVpnStatus(snapshot.runtime.status); }).catch(() => undefined);
+    const offVpn = api.onVpnChanged((snapshot) => setVpnStatus(snapshot.runtime.status));
+    return () => { alive = false; offModules(); offLogs(); offUpdates(); offMaximized(); offScan(); offVpn(); };
   }, []);
 
   useEffect(() => { if (!toast) return; const timeout = window.setTimeout(() => setToast(''), 3600); return () => window.clearTimeout(timeout); }, [toast]);
@@ -910,6 +932,9 @@ function App() {
     return matchesFilter;
   }), [modules, moduleFilter]);
   const running = modules.filter((module) => module.status === 'running').length;
+  // «Оживший» фон: достаточно одного модуля, который уже работает или ещё
+  // поднимается. С этого момента фоны тем ускоряются и разгораются.
+  const hasActivity = modules.some((module) => module.status === 'running' || module.status === 'starting');
   const errors = modules.filter((module) => module.status === 'error').length;
   const healthy = modules.length - errors;
   const lastScanLabel = lastScan ? formatTime(lastScan) : t('только что');
@@ -1063,7 +1088,7 @@ function App() {
     }
   };
 
-  return <div className={`app-frame appearance-${settings.appearance} ${settings.motion === 'full' ? 'motion-force' : ''} ${settings.motion === 'reduced' ? 'motion-off' : ''}`}><WindowBar maximized={maximized} />{themeVeil > 0 && <span key={themeVeil} className="theme-fade-veil is-running" aria-hidden="true" />}<div className={`app-shell ${sidebarCollapsed ? 'is-sidebar-collapsed' : ''}`}><div className="ambient ambient-one" /><div className="ambient ambient-two" /><NodeWeb /><EmberWeb /><PacketWeb />
+  return <div className={`app-frame appearance-${settings.appearance} ${hasActivity ? 'has-activity' : ''} ${vpnStatus === 'connected' ? 'vpn-on' : ''} ${vpnStatus === 'connecting' ? 'vpn-ghost' : ''} ${settings.motion === 'full' ? 'motion-force' : ''} ${settings.motion === 'reduced' ? 'motion-off' : ''}`}><WindowBar maximized={maximized} />{themeVeil > 0 && <span key={themeVeil} className="theme-fade-veil is-running" aria-hidden="true" />}<div className={`app-shell ${sidebarCollapsed ? 'is-sidebar-collapsed' : ''}`}><div className="ambient ambient-one" /><div className="ambient ambient-two" /><NodeWeb /><EmberWeb /><PacketWeb />
     <aside className="sidebar" ref={asideRef}>
       <span className="nav-glider" aria-hidden="true" style={{ height: `${navGlider.height}px`, transform: `translateY(${navGlider.top}px)` }} />
       <button type="button" className="sidebar-collapse-button" aria-label={sidebarCollapsed ? t('Развернуть боковую панель') : t('Свернуть боковую панель')} title={sidebarCollapsed ? t('Развернуть панель') : t('Свернуть панель')} aria-pressed={sidebarCollapsed} onClick={() => setSidebarCollapsed((value) => !value)}><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m14.5 6-6 6 6 6" /></svg></button>

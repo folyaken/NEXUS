@@ -2398,7 +2398,7 @@ kbd { padding: 3px 5px; border: 1px solid rgba(255,255,255,.1); border-radius: 5
   /* Свечение отдельной тенью: так мелкая точка не выглядит жёстким пикселем. */
   box-shadow: 0 0 6px 1px rgba(198,182,251,.55);
   opacity: 0;
-  animation: node-mote-drift 22s ease-in-out infinite;
+  animation: node-mote-drift var(--mote-dur, 22s) ease-in-out var(--mote-delay, 0s) infinite;
 }
 
 /* Лавандовые пятна: очень медленно перетекают, добавляя фону глубину. */
@@ -2454,3 +2454,174 @@ kbd { padding: 3px 5px; border: 1px solid rgba(255,255,255,.1); border-radius: 5
 .app-frame.motion-off .node-mote,
 .app-frame.motion-off .node-web-glow { animation: none; }
 .app-frame.motion-off .node-mote { opacity: .5; }
+
+/* ============================================================================
+   Живые фоны реагируют на работу программы
+   ==========================================================================*/
+
+/*
+  Сюжет: пока ничего не запущено, фон тихо живёт своей жизнью; как только
+  поднимается хотя бы один модуль, фон оживает — частицы бегут бодрее и ярче.
+  Подключение VPN добавляет каждой теме свой элемент: «Индиго» — луч туннеля,
+  «Графиту» — цепочку пылинок, «Багровому» — струю жара. Во время «Подключаем…»
+  элемент виден заранее, но неподвижным призраком: туннель ещё строится.
+
+  Реакция держится на классах app-frame (has-activity, vpn-on, vpn-ghost),
+  которые выставляет разметка. Движение остаётся на CSS: меняются только
+  длительности анимаций и яркость свечения — всё считается видеокартой.
+*/
+
+/* --- Модули запущены: каждый фон оживает по-своему ---------------------- */
+
+/* Индиго: пакеты бегут чаще, линии связи вспыхивают быстрее, свечение ярче. */
+.appearance-indigo.has-activity .packet-track-a { animation-duration: 16s; }
+.appearance-indigo.has-activity .packet-track-b { animation-duration: 22s; }
+.appearance-indigo.has-activity .packet-track-a i { box-shadow: 0 0 8px 2px rgba(124,242,213,.85), 0 0 20px 6px rgba(124,242,213,.4); }
+.appearance-indigo.has-activity .packet-track-b i { box-shadow: 0 0 8px 2px rgba(168,149,255,.8), 0 0 20px 6px rgba(168,149,255,.38); }
+.appearance-indigo.has-activity .packet-link-a,
+.appearance-indigo.has-activity .packet-node-a { animation-duration: 4.5s; }
+.appearance-indigo.has-activity .packet-link-b,
+.appearance-indigo.has-activity .packet-node-b { animation-duration: 6s; }
+.appearance-indigo.has-activity .packet-node-hub { animation-duration: 3s; }
+
+/* Графит: пыль всплывает вдвое быстрее и светится ярче, пятна дышат чаще. */
+.appearance-graphite.has-activity .node-mote { animation-duration: calc(var(--mote-dur, 22s) * .5); box-shadow: 0 0 8px 2px rgba(198,182,251,.75); }
+.appearance-graphite.has-activity .node-web-glow.one { animation-duration: 13s; }
+.appearance-graphite.has-activity .node-web-glow.two { animation-duration: 15.5s; }
+
+/* Багровое: угли разгораются — всплывают быстрее и светят сильнее, свечение
+   внизу дышит чаще. */
+.appearance-crimson.has-activity .ember-mote { animation-duration: calc(var(--ember-dur, 18s) * .55); }
+.appearance-crimson.has-activity .ember-mote { box-shadow: 0 0 8px 2px rgba(255,125,90,.75); }
+.appearance-crimson.has-activity .ember-mote.deep { box-shadow: 0 0 9px 2px rgba(230,66,72,.8); }
+.appearance-crimson.has-activity .ember-mote.coal { box-shadow: 0 0 10px 3px rgba(255,154,92,.7); }
+.appearance-crimson.has-activity .ember-glow { animation-duration: 4s; background: radial-gradient(60% 100% at 50% 100%, rgba(214,60,74,.22), rgba(214,60,74,.08) 55%, transparent 78%); }
+.appearance-crimson.has-activity .ember-glow-two { animation-duration: 5.5s; background: radial-gradient(100% 100% at 100% 100%, rgba(227,114,66,.18), transparent 72%); }
+
+/* --- VPN-элементы: появляются заранее, оживают после подключения -------- */
+
+/* Элементы скрыты по умолчанию и показываются только в своей теме. */
+.vpn-beam, .dust-chain, .heat-stream { display: none; }
+
+/* Индиго — луч туннеля: тонкий столб света, по которому после подключения
+   бежит пакет вниз. */
+.appearance-indigo.vpn-ghost .vpn-beam,
+.appearance-indigo.vpn-on .vpn-beam {
+  display: block;
+  position: absolute;
+  top: -6%;
+  left: 87.5%;
+  width: 1.5px;
+  height: 112%;
+  background: linear-gradient(180deg, transparent, rgba(124,242,213,.16) 22%, rgba(124,242,213,.34) 50%, rgba(168,149,255,.34) 72%, transparent);
+  box-shadow: 0 0 12px rgba(124,242,213,.12);
+}
+.appearance-indigo .vpn-beam i {
+  position: absolute;
+  left: 50%;
+  top: 0;
+  width: 5px;
+  height: 5px;
+  margin-left: -2.5px;
+  border-radius: 50%;
+  background: #7cf2d5;
+  box-shadow: 0 0 8px 2px rgba(124,242,213,.75), 0 0 18px 5px rgba(124,242,213,.3);
+}
+.appearance-indigo.vpn-on .vpn-beam i { animation: vpn-beam-run 3.4s linear infinite; }
+.appearance-indigo.vpn-ghost .vpn-beam { opacity: .45; }
+.appearance-indigo.vpn-ghost .vpn-beam i { top: 16%; opacity: .5; }
+@keyframes vpn-beam-run { 0% { top: -2%; } 100% { top: 102%; } }
+
+/* Графит — цепочка пылинок: пять точек по короткой диагонали, после
+   подключения по ним пробегает волна. */
+.appearance-graphite.vpn-ghost .dust-chain,
+.appearance-graphite.vpn-on .dust-chain {
+  display: block;
+  position: absolute;
+  left: 68%;
+  top: 30%;
+  width: 90px;
+  height: 14px;
+  transform: rotate(-24deg);
+}
+.appearance-graphite .dust-chain i {
+  position: absolute;
+  top: 50%;
+  width: 3px;
+  height: 3px;
+  margin-top: -1.5px;
+  border-radius: 50%;
+  background: #c6b6fb;
+  box-shadow: 0 0 6px 1px rgba(198,182,251,.6);
+  opacity: .35;
+}
+.appearance-graphite .dust-chain i:nth-child(1) { left: 0; }
+.appearance-graphite .dust-chain i:nth-child(2) { left: 22px; }
+.appearance-graphite .dust-chain i:nth-child(3) { left: 44px; }
+.appearance-graphite .dust-chain i:nth-child(4) { left: 66px; }
+.appearance-graphite .dust-chain i:nth-child(5) { left: 88px; }
+.appearance-graphite.vpn-on .dust-chain i { animation: dust-chain-wave 2.4s ease-in-out infinite; }
+.appearance-graphite.vpn-on .dust-chain i:nth-child(2) { animation-delay: .24s; }
+.appearance-graphite.vpn-on .dust-chain i:nth-child(3) { animation-delay: .48s; }
+.appearance-graphite.vpn-on .dust-chain i:nth-child(4) { animation-delay: .72s; }
+.appearance-graphite.vpn-on .dust-chain i:nth-child(5) { animation-delay: .96s; }
+.appearance-graphite.vpn-ghost .dust-chain { opacity: .45; }
+@keyframes dust-chain-wave { 0%, 100% { opacity: .3; } 50% { opacity: 1; } }
+
+/* Багровое — струя жара: угольки поднимаются столбом снизу вверх. */
+.appearance-crimson.vpn-ghost .heat-stream,
+.appearance-crimson.vpn-on .heat-stream {
+  display: block;
+  position: absolute;
+  left: 26%;
+  bottom: 8%;
+  width: 4px;
+  height: 220px;
+}
+.appearance-crimson .heat-stream i {
+  position: absolute;
+  left: 50%;
+  width: 3px;
+  height: 3px;
+  margin-left: -1.5px;
+  border-radius: 50%;
+  background: #ff7d5a;
+  box-shadow: 0 0 8px 2px rgba(255,125,90,.55);
+  opacity: 0;
+}
+.appearance-crimson.vpn-on .heat-stream i { animation: heat-stream-rise 2.8s linear infinite; }
+.appearance-crimson.vpn-on .heat-stream i:nth-child(2) { animation-delay: .47s; }
+.appearance-crimson.vpn-on .heat-stream i:nth-child(3) { animation-delay: .93s; }
+.appearance-crimson.vpn-on .heat-stream i:nth-child(4) { animation-delay: 1.4s; }
+.appearance-crimson.vpn-on .heat-stream i:nth-child(5) { animation-delay: 1.87s; }
+.appearance-crimson.vpn-on .heat-stream i:nth-child(6) { animation-delay: 2.33s; }
+.appearance-crimson.vpn-ghost .heat-stream { opacity: .4; }
+.appearance-crimson.vpn-ghost .heat-stream i { animation: none; opacity: .5; }
+.appearance-crimson.vpn-ghost .heat-stream i:nth-child(1) { bottom: 8%; }
+.appearance-crimson.vpn-ghost .heat-stream i:nth-child(2) { bottom: 28%; }
+.appearance-crimson.vpn-ghost .heat-stream i:nth-child(3) { bottom: 48%; }
+.appearance-crimson.vpn-ghost .heat-stream i:nth-child(4) { bottom: 68%; }
+.appearance-crimson.vpn-ghost .heat-stream i:nth-child(5) { bottom: 88%; }
+.appearance-crimson.vpn-ghost .heat-stream i:nth-child(6) { bottom: 104%; }
+@keyframes heat-stream-rise {
+  0% { bottom: -4%; opacity: 0; }
+  15% { opacity: .9; }
+  85% { opacity: .9; }
+  100% { bottom: 100%; opacity: 0; }
+}
+
+/* Настройка анимаций старше системной: VPN-элементы видны, но неподвижны. */
+@media (prefers-reduced-motion: reduce) {
+  .app-frame:not(.motion-force) .vpn-beam i,
+  .app-frame:not(.motion-force) .dust-chain i,
+  .app-frame:not(.motion-force) .heat-stream i { animation: none; }
+  .app-frame:not(.motion-force) .vpn-beam i { top: 46%; opacity: .6; }
+  .app-frame:not(.motion-force) .dust-chain i { opacity: .6; }
+  .app-frame:not(.motion-force) .heat-stream i { opacity: .55; }
+}
+.app-frame.motion-off .vpn-beam i,
+.app-frame.motion-off .dust-chain i,
+.app-frame.motion-off .heat-stream i { animation: none; }
+.app-frame.motion-off .vpn-beam i { top: 46%; opacity: .6; }
+.app-frame.motion-off .dust-chain i { opacity: .6; }
+.app-frame.motion-off .heat-stream i { opacity: .55; }

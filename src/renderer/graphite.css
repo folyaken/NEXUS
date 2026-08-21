@@ -810,6 +810,11 @@
 .appearance-graphite .appearance-indigo .packet-node-hub { background: #a392dc; box-shadow: 0 0 7px 1px rgba(163,146,220,.5); }
 .appearance-graphite .appearance-indigo .packet-node-a { background: #a392dc; box-shadow: 0 0 6px 1px rgba(163,146,220,.45); }
 .appearance-graphite .appearance-indigo .packet-node-b { background: #b6a5ef; box-shadow: 0 0 6px 1px rgba(182,165,239,.42); }
+.appearance-graphite .appearance-indigo.has-activity .packet-track-a i { box-shadow: 0 0 8px 2px rgba(163,146,220,.85), 0 0 20px 6px rgba(163,146,220,.4); }
+.appearance-graphite .appearance-indigo.has-activity .packet-track-b i { box-shadow: 0 0 8px 2px rgba(182,165,239,.8), 0 0 20px 6px rgba(182,165,239,.38); }
+.appearance-graphite .appearance-indigo.vpn-ghost .vpn-beam,
+.appearance-graphite .appearance-indigo.vpn-on .vpn-beam { background: linear-gradient(180deg, transparent, rgba(163,146,220,.16) 22%, rgba(163,146,220,.34) 50%, rgba(182,165,239,.34) 72%, transparent); box-shadow: 0 0 12px rgba(163,146,220,.12); }
+.appearance-graphite .appearance-indigo .vpn-beam i { background: #a392dc; box-shadow: 0 0 8px 2px rgba(163,146,220,.75), 0 0 18px 5px rgba(163,146,220,.3); }
 
 /* Мерцание короны лучшего сервера: ключевые кадры нельзя приписать теме
    селектором, поэтому для неё заведён отдельный набор кадров. */
