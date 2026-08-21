@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { AppSettings, UpdateInfo, VpnAppRoutingMode, VpnProfile, VpnRuntime, VpnSplitApp, VpnSubscriptionInfo } from '../main/types';
 import { canConnect, displayName } from '../main/vpn-classify';
 import { Flag } from './Flag';
@@ -138,6 +138,47 @@ function localizedServerName(profile: VpnProfile): string {
   if (!shown) return shown;
   return shown.split(/(\s*[·•|]\s*)/).map((part) => (/^\s*[·•|]\s*$/.test(part) ? part : t(part.trim()))).join('');
 }
+
+/*
+  Строка сервера вынесена в отдельный компонент и обёрнута в memo.
+
+  На странице живёт секундный счётчик времени сессии. Он меняет состояние
+  страницы, а вместе с ним React заново собирал разметку каждой строки списка —
+  при полусотне серверов это полсотни флагов (SVG) и значков сигнала раз в
+  секунду, на пустом месте. Отсюда и бралось ощущение подвисания.
+
+  Теперь строка перерисовывается, только когда меняется что-то её собственное:
+  выделение, состояние подключения или пинг. Тиканье счётчика её больше не
+  трогает. Внешне не изменилось ничего.
+*/
+type ServerRowProps = {
+  profile: VpnProfile;
+  live: boolean;
+  picked: boolean;
+  blocked: string | null;
+  isBest: boolean;
+  onSelect: (id: string) => void;
+  onLaunch: (profile: VpnProfile, blocked: string | null) => void;
+};
+
+const ServerRow = memo(function ServerRow({ profile, live, picked, blocked, isBest, onSelect, onLaunch }: ServerRowProps) {
+  return <button
+    className={`server-row ${live ? 'is-live' : ''} ${picked ? 'is-active' : ''} ${blocked ? 'is-off' : ''} ${isBest ? 'is-best' : ''}`}
+    onClick={() => onSelect(profile.id)}
+    onDoubleClick={() => onLaunch(profile, blocked)}
+  >
+    {isBest && <span className="server-crown" title={t('Самый быстрый сервер')} aria-label={t('Самый быстрый сервер')}>
+      <svg viewBox="0 0 24 24" aria-hidden><path d="M4 17.5 3 6.8l5 3.6L12 4l4 6.4 5-3.6-1 10.7z" /><path d="M4.2 19.6h15.6" /></svg>
+    </span>}
+    <Flag code={profile.country} />
+    <span className="server-copy">
+      <strong>{localizedServerName(profile)}</strong>
+      <small>{blocked ? t(blocked) : stackOf(profile)}</small>
+    </span>
+    {live ? <em className="server-on">{t('ВКЛ')}</em> : <Signal ms={profile.pingMs} />}
+    <span className="server-go">›</span>
+  </button>;
+});
 
 function profileLocation(profile: VpnProfile | null): { country: string; detail: string } {
   if (!profile) return { country: t('Сервер не выбран'), detail: t('Выберите сервер слева') };
@@ -549,6 +590,24 @@ export function Jey2RayPage({
       setBusy(false);
     }
   };
+
+  /*
+    Обработчики строк держим неизменными между перерисовками.
+
+    memo сравнивает свойства по ссылке: если передавать стрелки, созданные
+    прямо в разметке, каждая перерисовка страницы давала бы новые функции, и
+    все строки обновлялись бы despite memo — смысл оптимизации пропал бы.
+    Ссылку на актуальный connect храним в ref, поэтому сами обработчики
+    создаются один раз, но всегда вызывают свежую версию.
+  */
+  const connectRef = useRef(connect);
+  connectRef.current = connect;
+
+  const selectServer = useCallback((id: string) => setSelectedId(id), []);
+  const launchServer = useCallback((profile: VpnProfile, blocked: string | null) => {
+    if (blocked) onToast(t(blocked));
+    else void connectRef.current(profile.id);
+  }, [onToast]);
 
   const disconnect = async () => {
     try {
@@ -1212,23 +1271,19 @@ export function Jey2RayPage({
       <div className="server-list">
         {listed.map((profile) => {
           const live = runtime.status === 'connected' && runtime.activeProfileId === profile.id;
-          const picked = selected?.id === profile.id;
           const blocked = canConnect(profile);
-          // Лучший сервер уже стоит первым, но глазом это не читается: строки
-          // одинаковые. Корона отвечает на вопрос «а какой выбрать» сразу.
-          const isBest = fastest?.id === profile.id && !blocked;
-          return <button key={profile.id} className={`server-row ${live ? 'is-live' : ''} ${picked ? 'is-active' : ''} ${blocked ? 'is-off' : ''} ${isBest ? 'is-best' : ''}`} onClick={() => setSelectedId(profile.id)} onDoubleClick={() => { if (blocked) onToast(t(blocked)); else void connect(profile.id); }}>
-            {isBest && <span className="server-crown" title={t('Самый быстрый сервер')} aria-label={t('Самый быстрый сервер')}>
-              <svg viewBox="0 0 24 24" aria-hidden><path d="M4 17.5 3 6.8l5 3.6L12 4l4 6.4 5-3.6-1 10.7z" /><path d="M4.2 19.6h15.6" /></svg>
-            </span>}
-            <Flag code={profile.country} />
-            <span className="server-copy">
-              <strong>{localizedServerName(profile)}</strong>
-              <small>{blocked ? t(blocked) : stackOf(profile)}</small>
-            </span>
-            {live ? <em className="server-on">{t('ВКЛ')}</em> : <Signal ms={profile.pingMs} />}
-            <span className="server-go">›</span>
-          </button>;
+          return <ServerRow
+            key={profile.id}
+            profile={profile}
+            live={live}
+            picked={selected?.id === profile.id}
+            blocked={blocked}
+            // Лучший сервер уже стоит первым, но глазом это не читается: строки
+            // одинаковые. Корона отвечает на вопрос «а какой выбрать» сразу.
+            isBest={fastest?.id === profile.id && !blocked}
+            onSelect={selectServer}
+            onLaunch={launchServer}
+          />;
         })}
       </div>
     </div>

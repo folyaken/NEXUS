@@ -90,6 +90,8 @@ assert.ok(pickerStyles.length > 0, 'стили окна обязаны прис�
 assert.doesNotMatch(pickerStyles, /backdrop-filter/, 'окно не должно использовать размытие');
 assert.match(pickerStyles, /\.app-picker \{[^}]*background: #141c2a/, 'фон окна обязан быть сплошным');
 
-// Graphite остаётся монохромным: цветных акцентов в нём быть не должно.
-assert.match(styles, /\.appearance-graphite \.app-picker-confirm \{ background: linear-gradient\(130deg, #d6d6d6, #ebebeb\)/);
+// «Графит» больше не чёрно-белый: у него графитовый корпус и лавандовый
+// акцент. Кнопка подтверждения — акцентная, значит она обязана быть лавандовой,
+// иначе окно выбора программ выпадет из оформления.
+assert.match(styles, /\.appearance-graphite \.app-picker-confirm \{ background: linear-gradient\(130deg, #c6b9f3, #cec2f5\)/);
 assert.match(styles, /\.appearance-graphite \.app-picker-row\.is-picked/);

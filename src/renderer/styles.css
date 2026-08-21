@@ -448,125 +448,138 @@ kbd { padding: 3px 5px; border: 1px solid rgba(255,255,255,.1); border-radius: 5
 .global-settings-note { margin-top: 17px; }
 .global-settings-note strong { font-size: 14px; }
 .global-settings-note p { max-width: 900px; font-size: 13px; }
+/*
+  Оформление «Графит»: графитовый корпус и лавандовый акцент.
+
+  Тема была строго чёрно-белой, и в ней не за что зацепиться глазу: активный
+  пункт меню, кнопка и обычная панель выглядели одинаково. Теперь по образцу
+  «Индиго» цвет живёт только в акцентах, а корпус остаётся нейтральным —
+  графит чуть теплее прежнего, чтобы лаванда рядом не отдавала синевой.
+
+  Состояния намеренно не сведены к одному тону: «работает», «внимание» и
+  «ошибка» обязаны различаться, иначе по цвету не понять, что случилось.
+  Они взяты приглушёнными, чтобы не спорить с лавандой.
+*/
 .appearance-graphite {
-  --bg: #090909;
-  --panel: rgba(22,22,22,.76);
-  --line: rgba(234,234,234,.1);
-  --text: #f3f3f3;
-  --muted: #a0a0a0;
-  --muted-2: #6c6c6c;
-  --cyan: #d9d9d9;
-  --violet: #a2a2a2;
-  --amber: #bebebe;
-  --red: #e3e3e3;
-  --mint: #d9d9d9;
-  --shadow: 0 24px 70px rgba(0,0,0,.38);
+  --bg: #0c0c0f;
+  --panel: rgba(26,26,31,.78);
+  --line: rgba(184,167,240,.12);
+  --text: #f1f0f5;
+  --muted: #a09eae;
+  --muted-2: #6b6879;
+  /* Лаванда из макета — основной акцент вместо бирюзового. */
+  --cyan: #b8a7f0;
+  --violet: #a892ea;
+  --amber: #d7bd86;
+  --red: #e08a9b;
+  --mint: #b8a7f0;
+  --shadow: 0 24px 70px rgba(0,0,0,.42);
 }
-.appearance-graphite .window-bar { border-color: rgba(255,255,255,.09); background: #131313; color: #9b9b9b; }
-.appearance-graphite .window-brand-mark { border-color: rgba(228,228,228,.22); background: rgba(230,230,230,.07); color: #dddddd; }
-.appearance-graphite .app-shell { background: radial-gradient(circle at 75% -18%, rgba(199,199,199,.075), transparent 31%), radial-gradient(circle at 43% 112%, rgba(121,121,121,.055), transparent 29%), #090909; }
-.appearance-graphite .ambient-one { background: #797979; opacity: .1; }
-.appearance-graphite .ambient-two { background: #4d4d4d; opacity: .09; }
-.appearance-graphite .sidebar { border-color: rgba(239,239,239,.09); background: linear-gradient(180deg, rgba(17,17,17,.96), rgba(10,10,10,.84)); }
-.appearance-graphite .brand-orb { border-color: rgba(230,230,230,.28); background: linear-gradient(145deg, rgba(225,225,225,.15), rgba(83,83,83,.16)); box-shadow: inset 0 1px rgba(255,255,255,.14), 0 0 24px rgba(217,217,217,.07); color: #e4e4e4; }
-.appearance-graphite .brand-orb svg { fill: rgba(228,228,228,.045); }
+.appearance-graphite .window-bar { border-color: rgba(255,255,255,.09); background: #111013; color: #9189ad; }
+.appearance-graphite .window-brand-mark { border-color: rgba(206,194,245,.22); background: rgba(206,194,245,.07); color: #cec2f5; }
+.appearance-graphite .app-shell { background: radial-gradient(circle at 75% -18%, rgba(178,159,239,.075), transparent 31%), radial-gradient(circle at 43% 112%, rgba(109,99,143,.055), transparent 29%), #080809; }
+.appearance-graphite .ambient-one { background: #6d638f; opacity: .1; }
+.appearance-graphite .ambient-two { background: #484456; opacity: .09; }
+.appearance-graphite .sidebar { border-color: rgba(206,194,245,.09); background: linear-gradient(180deg, rgba(15,15,17,.96), rgba(9,9,10,.84)); }
+.appearance-graphite .brand-orb { border-color: rgba(206,194,245,.28); background: linear-gradient(145deg, rgba(206,194,245,.15), rgba(78,73,93,.16)); box-shadow: inset 0 1px rgba(255,255,255,.14), 0 0 24px rgba(203,190,244,.07); color: #cec2f5; }
+.appearance-graphite .brand-orb svg { fill: rgba(206,194,245,.045); }
 .appearance-graphite .workspace-selector,
-.appearance-graphite .circle-button { border-color: rgba(235,235,235,.1); background: rgba(234,234,234,.035); }
+.appearance-graphite .circle-button { border-color: rgba(206,194,245,.1); background: rgba(206,194,245,.035); }
 .appearance-graphite .workspace-avatar,
-.appearance-graphite .user-avatar { background: linear-gradient(145deg, #dbdbdb, #7d7d7d); color: #131313; box-shadow: inset 0 1px rgba(255,255,255,.5); }
-.appearance-graphite .nav-item:hover { background: rgba(239,239,239,.045); }
-.appearance-graphite .nav-item.active { color: #f5f5f5; background: linear-gradient(100deg, rgba(234,234,234,.12), rgba(123,123,123,.055)); box-shadow: inset 0 0 0 1px rgba(232,232,232,.1), 0 10px 26px rgba(0,0,0,.23); }
-.appearance-graphite .nav-item.active:before { background: #e3e3e3; box-shadow: 0 0 12px rgba(226,226,226,.42); }
-.appearance-graphite .nav-item.active .nav-glyph { color: #e3e3e3; }
-.appearance-graphite .nav-item em { border-color: rgba(224,224,224,.15); background: rgba(224,224,224,.07); color: #d5d5d5; }
-.appearance-graphite .profile-popover { border-color: rgba(229,229,229,.13); background: rgba(19,19,19,.98); }
+.appearance-graphite .user-avatar { background: linear-gradient(145deg, #cdc1f5, #716793); color: #111013; box-shadow: inset 0 1px rgba(255,255,255,.5); }
+.appearance-graphite .nav-item:hover { background: rgba(206,194,245,.045); }
+.appearance-graphite .nav-item.active { color: #cec2f5; background: linear-gradient(100deg, rgba(206,194,245,.12), rgba(111,101,145,.055)); box-shadow: inset 0 0 0 1px rgba(206,194,245,.1), 0 10px 26px rgba(0,0,0,.23); }
+.appearance-graphite .nav-item.active:before { background: #cec2f5; box-shadow: 0 0 12px rgba(206,194,245,.42); }
+.appearance-graphite .nav-item.active .nav-glyph { color: #cec2f5; }
+.appearance-graphite .nav-item em { border-color: rgba(206,194,245,.15); background: rgba(206,194,245,.07); color: #c5b7f3; }
+.appearance-graphite .profile-popover { border-color: rgba(206,194,245,.13); background: rgba(17,16,19,.98); }
 .appearance-graphite .profile-popover > button,
-.appearance-graphite .primary-button { background: linear-gradient(135deg, #e5e5e5, #8b8b8b); color: #131313; box-shadow: inset 0 1px rgba(255,255,255,.68), 0 10px 26px rgba(0,0,0,.25); }
-.appearance-graphite .hero { border-color: rgba(225,225,225,.12); background: linear-gradient(112deg, rgba(46,46,46,.9), rgba(23,23,23,.78) 58%, rgba(53,53,53,.68)), radial-gradient(circle at 82% 30%, rgba(227,227,227,.08), transparent 25%); }
-.appearance-graphite .hero h1 span { background: linear-gradient(90deg, #f2f2f2, #a0a0a0 72%); -webkit-background-clip: text; background-clip: text; }
-.appearance-graphite .orbit { border-color: rgba(227,227,227,.14); }
-.appearance-graphite .orbit-b { border-color: rgba(155,155,155,.17); }
-.appearance-graphite .core-glow { border-color: rgba(228,228,228,.22); background: radial-gradient(circle, rgba(228,228,228,.2), rgba(141,141,141,.07) 44%, transparent 70%); box-shadow: 0 0 48px rgba(214,214,214,.09), inset 0 0 30px rgba(255,255,255,.06); color: #f2f2f2; }
+.appearance-graphite .primary-button { background: linear-gradient(135deg, #cec2f5, #8076a0); color: #111013; box-shadow: inset 0 1px rgba(255,255,255,.68), 0 10px 26px rgba(0,0,0,.25); }
+.appearance-graphite .hero { border-color: rgba(206,194,245,.12); background: linear-gradient(112deg, rgba(43,40,52,.9), rgba(21,20,23,.78) 58%, rgba(50,47,59,.68)), radial-gradient(circle at 82% 30%, rgba(206,194,245,.08), transparent 25%); }
+.appearance-graphite .hero h1 span { background: linear-gradient(90deg, #cec2f5, #978fb1 72%); -webkit-background-clip: text; background-clip: text; }
+.appearance-graphite .orbit { border-color: rgba(206,194,245,.14); }
+.appearance-graphite .orbit-b { border-color: rgba(145,137,173,.17); }
+.appearance-graphite .core-glow { border-color: rgba(206,194,245,.22); background: radial-gradient(circle, rgba(206,194,245,.2), rgba(130,120,162,.07) 44%, transparent 70%); box-shadow: 0 0 48px rgba(198,185,243,.09), inset 0 0 30px rgba(255,255,255,.06); color: #cec2f5; }
 .appearance-graphite .stat-card,
 .appearance-graphite .module-card-inner,
-.appearance-graphite .settings-card { border-color: rgba(235,235,235,.09); background: linear-gradient(150deg, rgba(34,34,34,.82), rgba(17,17,17,.8)); }
+.appearance-graphite .settings-card { border-color: rgba(206,194,245,.09); background: linear-gradient(150deg, rgba(31,29,35,.82), rgba(15,15,17,.8)); }
 .appearance-graphite .stat-icon.cyan,
 .appearance-graphite .stat-icon.violet,
 .appearance-graphite .module-icon.dpi,
 .appearance-graphite .module-icon.proxy,
 .appearance-graphite .module-icon.sdk,
-.appearance-graphite .module-icon.dns { background: linear-gradient(145deg, rgba(226,226,226,.11), rgba(96,96,96,.08)); color: #d3d3d3; }
-.appearance-graphite .category-chip { border-color: rgba(222,222,222,.12); color: #a2a2a2; }
-.appearance-graphite .strategy-row select { border-color: rgba(222,222,222,.13); background: rgba(222,222,222,.055); color: #d9d9d9; }
-.appearance-graphite .global-settings-hero { border-color: rgba(215,215,215,.15); background: linear-gradient(135deg, rgba(52,52,52,.82), rgba(17,17,17,.88)); }
-.appearance-graphite .global-settings-hero-icon { border-color: rgba(222,222,222,.18); background: rgba(221,221,221,.075); color: #dcdcdc; }
-.appearance-graphite .global-settings-hero > div:nth-child(2) > span { color: #b3b3b3; }
-.appearance-graphite .global-preference-value { border-color: rgba(222,222,222,.14); background: rgba(222,222,222,.06); color: #d5d5d5; }
-.appearance-graphite .global-preference-value i { background: #d3d3d3; box-shadow: 0 0 7px rgba(211,211,211,.28); }
-.appearance-graphite .appearance-options button.active { border-color: rgba(227,227,227,.22); background: rgba(212,212,212,.12); color: #f2f2f2; }
+.appearance-graphite .module-icon.dns { background: linear-gradient(145deg, rgba(206,194,245,.11), rgba(90,84,108,.08)); color: #c2b4f2; }
+.appearance-graphite .category-chip { border-color: rgba(206,194,245,.12); color: #9991b3; }
+.appearance-graphite .strategy-row select { border-color: rgba(206,194,245,.13); background: rgba(206,194,245,.055); color: #cbbef4; }
+.appearance-graphite .global-settings-hero { border-color: rgba(200,187,243,.15); background: linear-gradient(135deg, rgba(49,46,58,.82), rgba(15,15,17,.88)); }
+.appearance-graphite .global-settings-hero-icon { border-color: rgba(206,194,245,.18); background: rgba(206,194,245,.075); color: #cec2f5; }
+.appearance-graphite .global-settings-hero > div:nth-child(2) > span { color: #967de9; }
+.appearance-graphite .global-preference-value { border-color: rgba(206,194,245,.14); background: rgba(206,194,245,.06); color: #c5b7f3; }
+.appearance-graphite .global-preference-value i { background: #c2b4f2; box-shadow: 0 0 7px rgba(194,180,242,.28); }
+.appearance-graphite .appearance-options button.active { border-color: rgba(206,194,245,.22); background: rgba(196,181,243,.12); color: #cec2f5; }
 .appearance-graphite .settings-symbol,
-.appearance-graphite .settings-symbol.violet { background: rgba(222,222,222,.08); color: #d6d6d6; }
-.appearance-graphite .jey-hero { border-color: rgba(226,226,226,.13); background: radial-gradient(circle at 80% 30%, rgba(208,208,208,.1), transparent 28%), linear-gradient(120deg, rgba(42,42,42,.86), rgba(19,19,19,.85)); }
-.appearance-graphite .jey-orb { border-color: rgba(224,224,224,.2); background: radial-gradient(circle, rgba(222,222,222,.15), rgba(116,116,116,.055) 44%, transparent 70%); box-shadow: 0 0 50px rgba(211,211,211,.07), inset 0 0 28px rgba(255,255,255,.045); color: #f0f0f0; }
+.appearance-graphite .settings-symbol.violet { background: rgba(206,194,245,.08); color: #c6b9f3; }
+.appearance-graphite .jey-hero { border-color: rgba(206,194,245,.13); background: radial-gradient(circle at 80% 30%, rgba(190,175,241,.1), transparent 28%), linear-gradient(120deg, rgba(39,37,47,.86), rgba(17,16,19,.85)); }
+.appearance-graphite .jey-orb { border-color: rgba(206,194,245,.2); background: radial-gradient(circle, rgba(206,194,245,.15), rgba(105,95,137,.055) 44%, transparent 70%); box-shadow: 0 0 50px rgba(194,180,242,.07), inset 0 0 28px rgba(255,255,255,.045); color: #cec2f5; }
 .appearance-graphite .jey-ring,
-.appearance-graphite .jey-ring.ring-two { border-color: rgba(215,215,215,.17); }
-.appearance-graphite .ghost-action:hover { background: rgba(225,225,225,.09); color: #f2f2f2; }
+.appearance-graphite .jey-ring.ring-two { border-color: rgba(200,187,243,.17); }
+.appearance-graphite .ghost-action:hover { background: rgba(206,194,245,.09); color: #cec2f5; }
 .appearance-graphite .server-card,
 .appearance-graphite .app-settings-card,
 .appearance-graphite .subscription-add-card,
 .appearance-graphite .subscription-card,
 .appearance-graphite .diagnostics-checks-card,
-.appearance-graphite .diagnostics-report-card { border-color: rgba(229,229,229,.09); background: linear-gradient(145deg, rgba(31,31,31,.9), rgba(14,14,14,.9)); }
+.appearance-graphite .diagnostics-report-card { border-color: rgba(206,194,245,.09); background: linear-gradient(145deg, rgba(28,27,31,.9), rgba(13,12,14,.9)); }
 .appearance-graphite .server-card-symbol,
 .appearance-graphite .settings-step,
 .appearance-graphite .selected-app-icon,
 .appearance-graphite .subscription-source-icon,
 .appearance-graphite .diagnostics-entry-icon,
-.appearance-graphite .diagnostics-report-icon { border-color: rgba(222,222,222,.12); background: rgba(222,222,222,.075); color: #d1d1d1; }
-.appearance-graphite .server-row { background: rgba(19,19,19,.8); }
-.appearance-graphite .server-row:hover { background: rgba(38,38,38,.92); }
-.appearance-graphite .server-row.is-live { background: linear-gradient(90deg, #090909, #0d0d0d 42%, #171717); box-shadow: inset 3px 0 0 #d6d6d6; }
-.appearance-graphite .server-row.is-active { box-shadow: inset 0 0 0 1px rgba(224,224,224,.34); }
+.appearance-graphite .diagnostics-report-icon { border-color: rgba(206,194,245,.12); background: rgba(206,194,245,.075); color: #c0b0f2; }
+.appearance-graphite .server-row { background: rgba(17,16,19,.8); }
+.appearance-graphite .server-row:hover { background: rgba(34,33,39,.92); }
+.appearance-graphite .server-row.is-live { background: linear-gradient(90deg, #080809, #0c0b0d 42%, #151417); box-shadow: inset 3px 0 0 #c6b9f3; }
+.appearance-graphite .server-row.is-active { box-shadow: inset 0 0 0 1px rgba(206,194,245,.34); }
 .appearance-graphite .app-settings-toolbar,
 .appearance-graphite .diagnostics-toolbar,
-.appearance-graphite .subscriptions-toolbar { border-color: rgba(231,231,231,.09); background: rgba(15,15,15,.84); }
+.appearance-graphite .subscriptions-toolbar { border-color: rgba(206,194,245,.09); background: rgba(13,13,15,.84); }
 .appearance-graphite .app-settings-toolbar > div > span,
 .appearance-graphite .diagnostics-heading > span,
-.appearance-graphite .subscriptions-heading > span { color: #a2a2a2; }
-.appearance-graphite .app-settings-tabs { border-color: rgba(231,231,231,.09); background: rgba(4,4,4,.46); }
-.appearance-graphite .app-settings-tab.is-active { border-color: rgba(224,224,224,.2); background: linear-gradient(135deg, rgba(214,214,214,.12), rgba(86,86,86,.1)); color: #f3f3f3; }
-.appearance-graphite .app-settings-tab.is-active .app-settings-tab-icon { background: rgba(223,223,223,.1); color: #dddddd; }
-.appearance-graphite .app-settings-tab.is-active small { color: #adadad; }
-.appearance-graphite .routing-choice:hover:not(:disabled) { border-color: rgba(223,223,223,.17); background: rgba(223,223,223,.035); }
-.appearance-graphite .routing-choice.is-active { border-color: rgba(224,224,224,.28); background: linear-gradient(90deg, rgba(223,223,223,.09), rgba(100,100,100,.04)); box-shadow: inset 0 0 0 1px rgba(224,224,224,.035); }
+.appearance-graphite .subscriptions-heading > span { color: #9991b3; }
+.appearance-graphite .app-settings-tabs { border-color: rgba(206,194,245,.09); background: rgba(4,4,4,.46); }
+.appearance-graphite .app-settings-tab.is-active { border-color: rgba(206,194,245,.2); background: linear-gradient(135deg, rgba(198,185,243,.12), rgba(80,76,96,.1)); color: #cec2f5; }
+.appearance-graphite .app-settings-tab.is-active .app-settings-tab-icon { background: rgba(206,194,245,.1); color: #cec2f5; }
+.appearance-graphite .app-settings-tab.is-active small { color: #a59ebc; }
+.appearance-graphite .routing-choice:hover:not(:disabled) { border-color: rgba(206,194,245,.17); background: rgba(206,194,245,.035); }
+.appearance-graphite .routing-choice.is-active { border-color: rgba(206,194,245,.28); background: linear-gradient(90deg, rgba(206,194,245,.09), rgba(94,88,112,.04)); box-shadow: inset 0 0 0 1px rgba(206,194,245,.035); }
 .appearance-graphite .routing-choice em,
 .appearance-graphite .selected-app-route.is-vpn,
 .appearance-graphite .subscription-manager-button > span,
-.appearance-graphite .subscription-node-count { background: rgba(222,222,222,.075); color: #cfcfcf; }
+.appearance-graphite .subscription-node-count { background: rgba(206,194,245,.075); color: #bdadf1; }
 .appearance-graphite .app-add-button,
 .appearance-graphite .subscription-toolbar-button.refresh,
 .appearance-graphite .subscription-add-form button,
 .appearance-graphite .subscriptions-empty button,
 .appearance-graphite .diagnostics-refresh,
-.appearance-graphite .diagnostics-report-card > button { background: linear-gradient(145deg, #7a7a7a, #525252); color: #f9f9f9; box-shadow: 0 7px 17px rgba(0,0,0,.26); }
-.appearance-graphite .subscription-quota i { background: linear-gradient(90deg, #8b8b8b, #d5d5d5); box-shadow: 0 0 8px rgba(214,214,214,.16); }
+.appearance-graphite .diagnostics-report-card > button { background: linear-gradient(145deg, #6e6490, #4d485c); color: #cec2f5; box-shadow: 0 7px 17px rgba(0,0,0,.26); }
+.appearance-graphite .subscription-quota i { background: linear-gradient(90deg, #8076a0, #c5b7f3); box-shadow: 0 0 8px rgba(198,185,243,.16); }
 .appearance-graphite .server-subhead,
-.appearance-graphite .subscriptions-summary { border-color: rgba(231,231,231,.085); background: rgba(22,22,22,.9); }
-.appearance-graphite .server-announce { background: rgba(222,222,222,.045); color: #b3b3b3; }
-.appearance-graphite .server-right { border-color: rgba(233,233,233,.1); background: radial-gradient(circle at 50% 17%, rgba(227,227,227,.055), transparent 35%), linear-gradient(180deg, rgba(22,22,22,.9), rgba(11,11,11,.86)); }
-.appearance-graphite .tunnel-route { color: #d7d7d7; }
-.appearance-graphite .tunnel-route-server { border-color: rgba(211,211,211,.27); background: rgba(89,89,89,.32); }
-.appearance-graphite .power-orb { background: radial-gradient(circle at 50% 38%, #3a3a3a, #121212 68%); color: #a2a2a2; }
-.appearance-graphite .mode-switch { border-color: rgba(235,235,235,.08); background: #0c0c0c; }
-.appearance-graphite .diagnostics-entry { border-color: rgba(229,229,229,.1); background: rgba(224,224,224,.04); }
-.appearance-graphite .selected-app-empty { border-color: rgba(222,222,222,.16); background: rgba(222,222,222,.025); }
-.appearance-graphite .selected-app-empty > span { background: rgba(222,222,222,.075); color: #bdbdbd; }
-.appearance-graphite .subscription-add-form input { border-color: rgba(224,224,224,.15); background: rgba(3,3,3,.42); }
-.appearance-graphite .subscription-add-form input:focus { border-color: rgba(224,224,224,.42); box-shadow: 0 0 0 3px rgba(224,224,224,.045); }
+.appearance-graphite .subscriptions-summary { border-color: rgba(206,194,245,.085); background: rgba(20,19,22,.9); }
+.appearance-graphite .server-announce { background: rgba(206,194,245,.045); color: #967de9; }
+.appearance-graphite .server-right { border-color: rgba(206,194,245,.1); background: radial-gradient(circle at 50% 17%, rgba(206,194,245,.055), transparent 35%), linear-gradient(180deg, rgba(20,19,22,.9), rgba(10,10,11,.86)); }
+.appearance-graphite .tunnel-route { color: #c8bbf3; }
+.appearance-graphite .tunnel-route-server { border-color: rgba(194,180,242,.27); background: rgba(83,78,100,.32); }
+.appearance-graphite .power-orb { background: radial-gradient(circle at 50% 38%, #363341, #101012 68%); color: #9991b3; }
+.appearance-graphite .mode-switch { border-color: rgba(206,194,245,.08); background: #0b0a0c; }
+.appearance-graphite .diagnostics-entry { border-color: rgba(206,194,245,.1); background: rgba(206,194,245,.04); }
+.appearance-graphite .selected-app-empty { border-color: rgba(206,194,245,.16); background: rgba(206,194,245,.025); }
+.appearance-graphite .selected-app-empty > span { background: rgba(206,194,245,.075); color: #a48eec; }
+.appearance-graphite .subscription-add-form input { border-color: rgba(206,194,245,.15); background: rgba(3,3,3,.42); }
+.appearance-graphite .subscription-add-form input:focus { border-color: rgba(206,194,245,.42); box-shadow: 0 0 0 3px rgba(206,194,245,.045); }
 .appearance-graphite .subscription-toolbar-button:not(.refresh),
-.appearance-graphite .diagnostics-copy { background: rgba(222,222,222,.07); color: #cfcfcf; }
-.appearance-graphite *::-webkit-scrollbar-thumb { background: linear-gradient(180deg, rgba(217,217,217,.72), rgba(105,105,105,.78)); box-shadow: 0 0 10px rgba(209,209,209,.12); }
-.appearance-graphite *::-webkit-scrollbar-thumb:hover { background: linear-gradient(180deg, #e5e5e5, #919191); }
+.appearance-graphite .diagnostics-copy { background: rgba(206,194,245,.07); color: #bdadf1; }
+.appearance-graphite *::-webkit-scrollbar-thumb { background: linear-gradient(180deg, rgba(203,190,244,.72), rgba(98,92,118,.78)); box-shadow: 0 0 10px rgba(192,176,242,.12); }
+.appearance-graphite *::-webkit-scrollbar-thumb:hover { background: linear-gradient(180deg, #cec2f5, #867da5); }
 .power-connected.is-unavailable { color: #98a4b6; }
 
 /* Shared Jey2Ray controls */
@@ -888,22 +901,22 @@ kbd { padding: 3px 5px; border: 1px solid rgba(255,255,255,.1); border-radius: 5
 
 /* Graphite state refinements live after component rules so hover states stay neutral. */
 .appearance-graphite .diagnostics-entry:hover,
-.appearance-graphite .diagnostics-back:hover { border-color: rgba(224,224,224,.17); background: rgba(224,224,224,.075); color: #e4e4e4; }
-.appearance-graphite .diagnostics-overview:not(.ok):not(.warning):not(.error) { border-color: rgba(229,229,229,.1); background: radial-gradient(circle at 8% 10%, rgba(222,222,222,.07), transparent 30%), linear-gradient(145deg, rgba(32,32,32,.9), rgba(14,14,14,.9)); }
-.appearance-graphite .diagnostics-overview:not(.ok):not(.warning):not(.error) .diagnostics-overview-icon { background: rgba(222,222,222,.09); color: #d6d6d6; }
+.appearance-graphite .diagnostics-back:hover { border-color: rgba(206,194,245,.17); background: rgba(206,194,245,.075); color: #cec2f5; }
+.appearance-graphite .diagnostics-overview:not(.ok):not(.warning):not(.error) { border-color: rgba(206,194,245,.1); background: radial-gradient(circle at 8% 10%, rgba(206,194,245,.07), transparent 30%), linear-gradient(145deg, rgba(29,28,32,.9), rgba(13,12,14,.9)); }
+.appearance-graphite .diagnostics-overview:not(.ok):not(.warning):not(.error) .diagnostics-overview-icon { background: rgba(206,194,245,.09); color: #c6b9f3; }
 .appearance-graphite .diagnostics-facts > div,
 .appearance-graphite .diagnostics-check,
-.appearance-graphite .diagnostics-report-card details { border-color: rgba(229,229,229,.07); background: rgba(222,222,222,.035); }
-.appearance-graphite .subscription-refresh { background: rgba(222,222,222,.075); color: #cfcfcf; }
+.appearance-graphite .diagnostics-report-card details { border-color: rgba(206,194,245,.07); background: rgba(206,194,245,.035); }
+.appearance-graphite .subscription-refresh { background: rgba(206,194,245,.075); color: #bdadf1; }
 .appearance-graphite .app-add-button:hover:not(:disabled),
 .appearance-graphite .subscription-toolbar-button.refresh:hover:not(:disabled),
 .appearance-graphite .subscription-add-form button:hover:not(:disabled),
 .appearance-graphite .subscriptions-empty button:hover,
 .appearance-graphite .diagnostics-refresh:hover:not(:disabled),
-.appearance-graphite .diagnostics-report-card > button:hover { background: linear-gradient(145deg, #909090, #616161); color: #fff; }
-.appearance-graphite .subscription-refresh:hover:not(:disabled) { background: rgba(222,222,222,.13); color: #f0f0f0; }
-.appearance-graphite .server-new { background: #7d7d7d; color: #fff; }
-.appearance-graphite .server-support { color: #bebebe; }
+.appearance-graphite .diagnostics-report-card > button:hover { background: linear-gradient(145deg, #857ca4, #5b556d); color: #fff; }
+.appearance-graphite .subscription-refresh:hover:not(:disabled) { background: rgba(206,194,245,.13); color: #cec2f5; }
+.appearance-graphite .server-new { background: #716793; color: #fff; }
+.appearance-graphite .server-support { color: #a590ec; }
 
 @media (prefers-reduced-motion: reduce) {
   .app-frame:not(.motion-force) .tunnel-route-track i,
@@ -1089,28 +1102,29 @@ kbd { padding: 3px 5px; border: 1px solid rgba(255,255,255,.1); border-radius: 5
 .about-footer-card div:first-child strong { margin: 0 0 4px; color: #e4ebf5; font-family: var(--font-heading); font-size: 14px; letter-spacing: .12em; }
 .about-footer-card div:first-child span { letter-spacing: 0; text-transform: none; }
 
-/* Graphite is strictly achromatic. Server flags are the only colour exception. */
+/* «Графит»: графитовый корпус, лавандовый акцент. Флаги стран сохраняют свои
+   цвета — страну узнают именно по ним. */
 .appearance-graphite .window-bar,
 .appearance-graphite .app-shell { filter: none; }
 .appearance-graphite .server-flag-svg { filter: none; }
-.appearance-graphite .mode-switch button.active { background: linear-gradient(145deg, #767676, #4e4e4e); box-shadow: inset 3px 3px 7px rgba(26,26,26,.46), inset -2px -2px 5px rgba(199,199,199,.14), 4px 4px 9px rgba(0,0,0,.42), 0 0 13px rgba(160,160,160,.15); color: #f3f3f3; }
-.appearance-graphite .power-orb.is-on { color: #c9c9c9; box-shadow: inset 0 0 0 12px rgba(185,185,185,.075), inset 0 0 38px rgba(185,185,185,.035), 0 0 25px rgba(185,185,185,.12), 0 15px 30px rgba(0,0,0,.28); }
-.appearance-graphite .power-orb.is-on .orb-halo { border-color: rgba(194,194,194,.3); }
+.appearance-graphite .mode-switch button.active { background: linear-gradient(145deg, #6b618b, #494557); box-shadow: inset 3px 3px 7px rgba(23,22,26,.46), inset -2px -2px 5px rgba(178,159,239,.14), 4px 4px 9px rgba(0,0,0,.42), 0 0 13px rgba(151,143,177,.15); color: #cec2f5; }
+.appearance-graphite .power-orb.is-on { color: #b5a3ef; box-shadow: inset 0 0 0 12px rgba(158,135,235,.075), inset 0 0 38px rgba(158,135,235,.035), 0 0 25px rgba(158,135,235,.12), 0 15px 30px rgba(0,0,0,.28); }
+.appearance-graphite .power-orb.is-on .orb-halo { border-color: rgba(171,151,237,.3); }
 .appearance-graphite .sidebar-collapse-button,
 .appearance-graphite .logs-shortcut,
-.appearance-graphite .logs-report-button { border-color: rgba(230,230,230,.11); background: rgba(222,222,222,.05); color: #c9c9c9; }
+.appearance-graphite .logs-report-button { border-color: rgba(206,194,245,.11); background: rgba(206,194,245,.05); color: #b5a3ef; }
 .appearance-graphite .log-console-shell,
 .appearance-graphite .log-console,
-.appearance-graphite .log-console-toolbar { background-color: #070707; }
+.appearance-graphite .log-console-toolbar { background-color: #060607; }
 .appearance-graphite .about-hero-card,
 .appearance-graphite .about-card,
 .appearance-graphite .about-system-card,
 .appearance-graphite .about-update-card,
-.appearance-graphite .about-footer-card { border-color: rgba(233,233,233,.09); background: linear-gradient(145deg, rgba(34,34,34,.88), rgba(13,13,13,.9)); }
-.appearance-graphite .about-panel-icon { border-color: rgba(209,209,209,.13); background: rgba(209,209,209,.07); }
-.appearance-graphite .about-update-card:before { background: rgba(160,160,160,.08); }
-.appearance-graphite .about-update-visual { color: #a8a8a8; }
-.appearance-graphite .about-update-visual .about-update-arrow { stroke: #bcbcbc; }
+.appearance-graphite .about-footer-card { border-color: rgba(206,194,245,.09); background: linear-gradient(145deg, rgba(31,29,35,.88), rgba(12,11,13,.9)); }
+.appearance-graphite .about-panel-icon { border-color: rgba(192,176,242,.13); background: rgba(192,176,242,.07); }
+.appearance-graphite .about-update-card:before { background: rgba(151,143,177,.08); }
+.appearance-graphite .about-update-visual { color: #a098b8; }
+.appearance-graphite .about-update-visual .about-update-arrow { stroke: #a38cec; }
 
 @media (max-width: 1260px) {
   .log-source-tabs button { padding-right: 4px; padding-left: 4px; font-size: 9px; }
@@ -1126,19 +1140,18 @@ kbd { padding: 3px 5px; border: 1px solid rgba(255,255,255,.1); border-radius: 5
   .app-frame:not(.motion-force) .logs-live-state i, .app-frame:not(.motion-force) .nexus-showcase-mark { animation: none; }
 }
 
-/* Grayscale complete branches, but stop at every branch that leads to a server
-   flag. Sibling branches are filtered once, so flags keep their original colour. */
-.appearance-graphite:not(:has(.server-flag-svg)) > .window-bar,
-.appearance-graphite:not(:has(.server-flag-svg)) > .app-shell,
-.appearance-graphite:has(.server-flag-svg) > *:not(:has(.server-flag-svg)),
-.appearance-graphite *:has(.server-flag-svg) > *:not(:has(.server-flag-svg)) {
-  filter: grayscale(1) saturate(0);
-}
-.appearance-graphite *:has(.server-flag-svg) > .ambient:not(:has(.server-flag-svg)) {
-  filter: grayscale(1) saturate(0) blur(70px);
-}
-.appearance-graphite .server-flag-svg,
-.appearance-graphite .server-flag-svg * { filter: none; }
+/*
+  Обесцвечивание убрано вместе с переходом к «Графиту с лавандой».
+
+  Раньше здесь стоял filter: grayscale(1) на всё дерево, кроме веток с флагами
+  стран: тема задумывалась строго чёрно-белой. Фильтр действует поверх любых
+  цветов, поэтому лавандовый акцент он бы просто стёр в серый — покрасить
+  что-либо, пока он есть, невозможно в принципе.
+
+  Теперь цвет задаётся правилами ниже поимённо: корпус остаётся графитовым,
+  акценты лавандовые. Флагам стран отдельное правило больше не нужно — их
+  никто не обесцвечивает.
+*/
 
 /*
  * Устойчивость интерфейса к захвату экрана.
@@ -1167,12 +1180,12 @@ kbd { padding: 3px 5px; border: 1px solid rgba(255,255,255,.1); border-radius: 5
 .profile-popover { background: #141d2b; }
 .toast { background: #172530; }
 
-.appearance-graphite .sidebar { background: #111; }
+.appearance-graphite .sidebar { background: #0f0f11; }
 .appearance-graphite .stat-card,
-.appearance-graphite .profile-popover { background: #161616; }
+.appearance-graphite .profile-popover { background: #141316; }
 .appearance-graphite .module-card-inner,
-.appearance-graphite .pulse-panel { background: linear-gradient(150deg, #1b1b1b, #131313); }
-.appearance-graphite .toast { background: #1a1a1a; }
+.appearance-graphite .pulse-panel { background: linear-gradient(150deg, #18171b, #111013); }
+.appearance-graphite .toast { background: #17161a; }
 
 /* Настройки отдельного модуля: шестерёнка на карточке и панель параметров */
 .card-foot-actions { display: flex; align-items: center; gap: 10px; }
@@ -1221,13 +1234,13 @@ kbd { padding: 3px 5px; border: 1px solid rgba(255,255,255,.1); border-radius: 5
 .module-strategy-option.is-active { border-color: rgba(124,242,213,.38); background: rgba(124,242,213,.07); color: #d9fff1; }
 .module-strategy-option:disabled { cursor: not-allowed; opacity: .55; }
 
-.appearance-graphite .module-settings-card { background: #161616; }
-.appearance-graphite .module-settings-count { background: rgba(214,214,214,.1); color: #d6d6d6; }
-.appearance-graphite .dpi-host-dot { background: #d6d6d6; box-shadow: none; }
+.appearance-graphite .module-settings-card { background: #141316; }
+.appearance-graphite .module-settings-count { background: rgba(198,185,243,.1); color: #c6b9f3; }
+.appearance-graphite .dpi-host-dot { background: #c6b9f3; box-shadow: none; }
 .appearance-graphite .dpi-host-hint b,
-.appearance-graphite .module-strategy-option.is-active { color: #ebebeb; }
-.appearance-graphite .module-strategy-option.is-active { border-color: rgba(214,214,214,.3); background: rgba(214,214,214,.07); }
-.appearance-graphite .module-settings-button:hover { border-color: rgba(214,214,214,.28); background: rgba(214,214,214,.09); color: #ebebeb; }
+.appearance-graphite .module-strategy-option.is-active { color: #cec2f5; }
+.appearance-graphite .module-strategy-option.is-active { border-color: rgba(198,185,243,.3); background: rgba(198,185,243,.07); }
+.appearance-graphite .module-settings-button:hover { border-color: rgba(198,185,243,.28); background: rgba(198,185,243,.09); color: #cec2f5; }
 
 /* Шестерёнка рядом с тумблером и профиль запуска на карточке модуля */
 .card-head-controls { display: flex; flex: 0 0 auto; align-items: center; gap: 9px; }
@@ -1282,10 +1295,10 @@ kbd { padding: 3px 5px; border: 1px solid rgba(255,255,255,.1); border-radius: 5
 .expert-restart-note { color: #6f7d91; font-size: 10px; }
 
 .appearance-graphite .strategy-summary b,
-.appearance-graphite .strategy-summary-link:hover { color: #d6d6d6; }
-.appearance-graphite .expert-toggle:hover .expert-toggle-copy strong { color: #ebebeb; }
-.appearance-graphite .expert-active-badge { background: rgba(214,214,214,.12); color: #d6d6d6; }
-.appearance-graphite .expert-check input[type="checkbox"] { accent-color: #9a9a9a; }
+.appearance-graphite .strategy-summary-link:hover { color: #c6b9f3; }
+.appearance-graphite .expert-toggle:hover .expert-toggle-copy strong { color: #cec2f5; }
+.appearance-graphite .expert-active-badge { background: rgba(198,185,243,.12); color: #c6b9f3; }
+.appearance-graphite .expert-check input[type="checkbox"] { accent-color: #9088ac; }
 
 /* Основные параметры TG WS Proxy */
 .tg-option-row { display: flex; align-items: center; justify-content: space-between; gap: 16px; margin-top: 16px; padding: 12px 14px; border-radius: 11px; background: rgba(255,255,255,.025); box-shadow: inset 0 0 0 1px rgba(255,255,255,.05); }
@@ -1310,9 +1323,9 @@ kbd { padding: 3px 5px; border: 1px solid rgba(255,255,255,.1); border-radius: 5
 .tg-status-report li b { color: #dfe8f7; font-family: var(--font-data); font-size: 11px; font-weight: 600; }
 
 .appearance-graphite .tg-status-report.is-ok,
-.appearance-graphite .tg-status-report.is-warning { border-color: rgba(214,214,214,.2); background: rgba(214,214,214,.06); }
+.appearance-graphite .tg-status-report.is-warning { border-color: rgba(198,185,243,.2); background: rgba(198,185,243,.06); }
 .appearance-graphite .tg-status-report.is-ok > strong,
-.appearance-graphite .tg-status-report.is-warning > strong { color: #d6d6d6; }
+.appearance-graphite .tg-status-report.is-warning > strong { color: #c6b9f3; }
 
 /* ============================================================
    Выпадающий список профилей (замена нативного <select>)
@@ -1353,17 +1366,17 @@ kbd { padding: 3px 5px; border: 1px solid rgba(255,255,255,.1); border-radius: 5
 .nx-select-list::-webkit-scrollbar-thumb:hover { background: rgba(124,242,213,.45); background-clip: padding-box; }
 
 /* Монохромная тема: акценты становятся серыми, зелёный уходит */
-.appearance-graphite .nx-select-trigger { background: linear-gradient(150deg, #1b1b1b, #141414); }
+.appearance-graphite .nx-select-trigger { background: linear-gradient(150deg, #18171b, #121114); }
 .appearance-graphite .nx-select-trigger:hover:not(:disabled),
-.appearance-graphite .nx-select.is-open .nx-select-trigger { border-color: rgba(214,214,214,.26); box-shadow: 6px 8px 20px rgba(0,0,0,.3), 0 0 0 1px rgba(214,214,214,.14), inset 0 1px rgba(255,255,255,.05); }
-.appearance-graphite .nx-select.is-open .nx-select-caret { color: #ebebeb; }
-.appearance-graphite .nx-select-list { border-color: rgba(214,214,214,.14); background: #151515; }
-.appearance-graphite .nx-select-option.is-selected { background: rgba(214,214,214,.1); color: #ebebeb; }
-.appearance-graphite .nx-select-option.is-selected.is-active { background: rgba(214,214,214,.16); }
-.appearance-graphite .nx-select-option.is-selected .nx-select-mark { background: #d6d6d6; box-shadow: 0 0 9px rgba(214,214,214,.45); }
-.appearance-graphite .nx-select-current { background: rgba(214,214,214,.14); color: #d6d6d6; }
-.appearance-graphite .nx-select-list::-webkit-scrollbar-thumb { background: rgba(214,214,214,.26); background-clip: padding-box; }
-.appearance-graphite .nx-select-list::-webkit-scrollbar-thumb:hover { background: rgba(214,214,214,.4); background-clip: padding-box; }
+.appearance-graphite .nx-select.is-open .nx-select-trigger { border-color: rgba(198,185,243,.26); box-shadow: 6px 8px 20px rgba(0,0,0,.3), 0 0 0 1px rgba(198,185,243,.14), inset 0 1px rgba(255,255,255,.05); }
+.appearance-graphite .nx-select.is-open .nx-select-caret { color: #cec2f5; }
+.appearance-graphite .nx-select-list { border-color: rgba(198,185,243,.14); background: #131215; }
+.appearance-graphite .nx-select-option.is-selected { background: rgba(198,185,243,.1); color: #cec2f5; }
+.appearance-graphite .nx-select-option.is-selected.is-active { background: rgba(198,185,243,.16); }
+.appearance-graphite .nx-select-option.is-selected .nx-select-mark { background: #c6b9f3; box-shadow: 0 0 9px rgba(198,185,243,.45); }
+.appearance-graphite .nx-select-current { background: rgba(198,185,243,.14); color: #c6b9f3; }
+.appearance-graphite .nx-select-list::-webkit-scrollbar-thumb { background: rgba(198,185,243,.26); background-clip: padding-box; }
+.appearance-graphite .nx-select-list::-webkit-scrollbar-thumb:hover { background: rgba(198,185,243,.4); background-clip: padding-box; }
 
 /* ============================================================
    Производительность: анимации отданы композитору
@@ -1381,7 +1394,7 @@ kbd { padding: 3px 5px; border: 1px solid rgba(255,255,255,.1); border-radius: 5
 /* Наведение на карточку: transform вместо покадровой перерисовки box-shadow. */
 .module-card-inner { transition: transform .22s cubic-bezier(.22,.8,.25,1), box-shadow .22s ease; }
 .module-card:hover .module-card-inner { transform: translateY(-4px); box-shadow: 0 26px 56px rgba(0,0,0,.32), 0 0 0 1px rgba(124,242,213,.18), inset 0 1px rgba(255,255,255,.07); }
-.appearance-graphite .module-card:hover .module-card-inner { box-shadow: 0 26px 56px rgba(0,0,0,.34), 0 0 0 1px rgba(214,214,214,.16), inset 0 1px rgba(255,255,255,.05); }
+.appearance-graphite .module-card:hover .module-card-inner { box-shadow: 0 26px 56px rgba(0,0,0,.34), 0 0 0 1px rgba(198,185,243,.16), inset 0 1px rgba(255,255,255,.05); }
 
 /* Орбиты на главной вращаются композитором, а не пружинами в JS. */
 .orbit-a { animation: nx-orbit-a 22s linear infinite; }
@@ -1401,10 +1414,10 @@ kbd { padding: 3px 5px; border: 1px solid rgba(255,255,255,.1); border-radius: 5
 .module-settings-notice.is-elevation > span { background: rgba(255,113,143,.18); color: var(--red); font-weight: 700; }
 .module-settings-notice.is-elevation strong { color: #f3c2cc; }
 .module-settings-notice.is-elevation p { color: #c8a2ab; }
-.appearance-graphite .module-settings-notice.is-elevation { border-color: rgba(214,214,214,.2); background: rgba(214,214,214,.06); }
-.appearance-graphite .module-settings-notice.is-elevation > span { background: rgba(214,214,214,.16); color: #d6d6d6; }
-.appearance-graphite .module-settings-notice.is-elevation strong { color: #ebebeb; }
-.appearance-graphite .module-settings-notice.is-elevation p { color: #a8a8a8; }
+.appearance-graphite .module-settings-notice.is-elevation { border-color: rgba(198,185,243,.2); background: rgba(198,185,243,.06); }
+.appearance-graphite .module-settings-notice.is-elevation > span { background: rgba(198,185,243,.16); color: #c6b9f3; }
+.appearance-graphite .module-settings-notice.is-elevation strong { color: #cec2f5; }
+.appearance-graphite .module-settings-notice.is-elevation p { color: #a098b8; }
 
 /* Скелет карточек модулей на время загрузки данных */
 .module-card-skeleton .module-card-inner { display: flex; flex-direction: column; gap: 13px; }
@@ -1436,12 +1449,12 @@ kbd { padding: 3px 5px; border: 1px solid rgba(255,255,255,.1); border-radius: 5
 .about-community-button strong { color: #e4ebf5; font-size: 12px; }
 .about-community-button span { color: #8c9ab0; font-size: 11px; line-height: 1.5; }
 .about-community-button:hover .about-community-button-icon { border-color: rgba(255,255,255,.16); background: rgba(255,255,255,.09); }
-.appearance-graphite .about-community-button-icon { border-color: rgba(226,226,226,.14); }
-.appearance-graphite .about-community-button:hover .about-community-button-icon { border-color: rgba(226,226,226,.24); background: rgba(226,226,226,.08); }
+.appearance-graphite .about-community-button-icon { border-color: rgba(206,194,245,.14); }
+.appearance-graphite .about-community-button:hover .about-community-button-icon { border-color: rgba(206,194,245,.24); background: rgba(206,194,245,.08); }
 .community-glyph { fill: none; stroke: currentColor; stroke-width: 1.6; stroke-linejoin: round; }
-.appearance-graphite .about-community-card { background: #161616; }
-.appearance-graphite .about-community-button:hover { border-color: rgba(214,214,214,.24); background: rgba(214,214,214,.06); }
-.appearance-graphite .about-community-button em { color: #d6d6d6; }
+.appearance-graphite .about-community-card { background: #141316; }
+.appearance-graphite .about-community-button:hover { border-color: rgba(198,185,243,.24); background: rgba(198,185,243,.06); }
+.appearance-graphite .about-community-button em { color: #c6b9f3; }
 /* Анимации подчиняются настройке движения: Windows умеет гасить их глобально,
    и без защиты карточка выглядела бы застывшей. */
 @media (prefers-reduced-motion: reduce) { .app-frame:not(.motion-force) .about-community-button { transition: none; } }
@@ -1454,8 +1467,8 @@ kbd { padding: 3px 5px; border: 1px solid rgba(255,255,255,.1); border-radius: 5
 .about-license-row span { min-width: 0; overflow: hidden; color: #8c9ab0; font-size: 11px; text-overflow: ellipsis; white-space: nowrap; }
 .about-license-row strong { flex: 0 0 auto; color: var(--cyan); font-family: var(--font-data); font-size: 10px; font-weight: 600; }
 .about-license-note { margin-top: 14px; color: #6f7d91; font-size: 11px; line-height: 1.6; }
-.appearance-graphite .about-license-card { background: #161616; }
-.appearance-graphite .about-license-row strong { color: #d6d6d6; }
+.appearance-graphite .about-license-card { background: #141316; }
+.appearance-graphite .about-license-row strong { color: #c6b9f3; }
 @media (max-width: 1240px) { .about-license-list { grid-template-columns: 1fr; } }
 
 /* Состояния канала обновления NEXUS */
@@ -1479,9 +1492,9 @@ kbd { padding: 3px 5px; border: 1px solid rgba(255,255,255,.1); border-radius: 5
 .appearance-graphite .about-update-badge.status-downloaded,
 .appearance-graphite .about-update-badge.status-downloading,
 .appearance-graphite .about-update-badge.status-checking,
-.appearance-graphite .about-update-badge.status-error { border-color: rgba(214,214,214,.24); background: rgba(214,214,214,.08); color: #d6d6d6; }
-.appearance-graphite .about-update-progress-bar { background: linear-gradient(90deg, #bdbdbd, #ebebeb); }
-.appearance-graphite .about-install-button.is-ready { background: linear-gradient(130deg, #d6d6d6, #ebebeb); color: #121212; }
+.appearance-graphite .about-update-badge.status-error { border-color: rgba(198,185,243,.24); background: rgba(198,185,243,.08); color: #c6b9f3; }
+.appearance-graphite .about-update-progress-bar { background: linear-gradient(90deg, #a48eec, #cec2f5); }
+.appearance-graphite .about-install-button.is-ready { background: linear-gradient(130deg, #c6b9f3, #cec2f5); color: #101012; }
 
 /* --- Выбор приложений для правил маршрутизации ----------------------------
  *
@@ -1552,14 +1565,14 @@ kbd { padding: 3px 5px; border: 1px solid rgba(255,255,255,.1); border-radius: 5
 .app-picker-confirm:disabled { opacity: .4; cursor: not-allowed; }
 
 /* Graphite остаётся строго монохромным: цвет допускается только у флагов. */
-.appearance-graphite .app-picker { border-color: rgba(214,214,214,.16); }
-.appearance-graphite .app-picker-search:focus-within { border-color: rgba(214,214,214,.4); }
-.appearance-graphite .app-picker-row.is-picked { border-color: rgba(214,214,214,.36); background: rgba(214,214,214,.09); }
-.appearance-graphite .app-picker-row.is-picked .app-picker-check { background: #d6d6d6; color: #121212; }
-.appearance-graphite .app-picker-body::-webkit-scrollbar-thumb:hover { background: rgba(214,214,214,.3); }
-.appearance-graphite .app-picker-secondary:hover { border-color: rgba(214,214,214,.32); background: rgba(214,214,214,.09); color: #ebebeb; }
-.appearance-graphite .app-picker-refresh:hover { color: #ebebeb; }
-.appearance-graphite .app-picker-confirm { background: linear-gradient(130deg, #d6d6d6, #ebebeb); color: #121212; }
+.appearance-graphite .app-picker { border-color: rgba(198,185,243,.16); }
+.appearance-graphite .app-picker-search:focus-within { border-color: rgba(198,185,243,.4); }
+.appearance-graphite .app-picker-row.is-picked { border-color: rgba(198,185,243,.36); background: rgba(198,185,243,.09); }
+.appearance-graphite .app-picker-row.is-picked .app-picker-check { background: #c6b9f3; color: #101012; }
+.appearance-graphite .app-picker-body::-webkit-scrollbar-thumb:hover { background: rgba(198,185,243,.3); }
+.appearance-graphite .app-picker-secondary:hover { border-color: rgba(198,185,243,.32); background: rgba(198,185,243,.09); color: #cec2f5; }
+.appearance-graphite .app-picker-refresh:hover { color: #cec2f5; }
+.appearance-graphite .app-picker-confirm { background: linear-gradient(130deg, #c6b9f3, #cec2f5); color: #101012; }
 
 /* Отключение анимаций по выбору пользователя.
    Работает независимо от настроек Windows: правила повторяют блоки
@@ -1642,7 +1655,7 @@ kbd { padding: 3px 5px; border: 1px solid rgba(255,255,255,.1); border-radius: 5
 .dpi-host-pager-dots { display: flex; align-items: center; justify-content: center; gap: 5px; }
 .dpi-host-pager-dots i { width: 5px; height: 5px; border-radius: 50%; background: rgba(255,255,255,.18); transition: background .18s ease, width .18s ease; }
 .dpi-host-pager-dots i.is-current { width: 16px; border-radius: 3px; background: var(--cyan); }
-.appearance-graphite .dpi-host-pager-dots i.is-current { background: #c9c9c9; }
+.appearance-graphite .dpi-host-pager-dots i.is-current { background: #b5a3ef; }
 
 /* Единая линия низа у карточек модулей.
    У модуля обхода DPI есть дополнительная строка с профилем, поэтому его
@@ -1699,9 +1712,9 @@ kbd { padding: 3px 5px; border: 1px solid rgba(255,255,255,.1); border-radius: 5
    одной точки мало — её легко не заметить в углу окна. */
 .nav-item.has-update { color: #e9fff9; background: rgba(113,244,184,.06); box-shadow: inset 0 0 0 1px rgba(113,244,184,.14); }
 .nav-item.has-update .nav-glyph { color: var(--mint); }
-.appearance-graphite .nav-update-dot { background: linear-gradient(145deg, #e6e6e6, #b4b4b4); box-shadow: 0 0 0 3px rgba(214,214,214,.13), 0 4px 12px rgba(0,0,0,.4); color: #161616; }
-.appearance-graphite .nav-update-dot:after { border-color: rgba(226,226,226,.5); }
-.appearance-graphite .nav-item.has-update { background: rgba(226,226,226,.05); box-shadow: inset 0 0 0 1px rgba(226,226,226,.12); }
+.appearance-graphite .nav-update-dot { background: linear-gradient(145deg, #cec2f5, #987fe9); box-shadow: 0 0 0 3px rgba(198,185,243,.13), 0 4px 12px rgba(0,0,0,.4); color: #141316; }
+.appearance-graphite .nav-update-dot:after { border-color: rgba(206,194,245,.5); }
+.appearance-graphite .nav-item.has-update { background: rgba(206,194,245,.05); box-shadow: inset 0 0 0 1px rgba(206,194,245,.12); }
 /* В свёрнутой панели подписи скрыты, и `.nav-item em` прячется целиком.
    Метка обновления — не подпись, а единственный признак новой версии, поэтому
    она остаётся видимой, но переезжает в угол значка. */
@@ -1793,16 +1806,16 @@ kbd { padding: 3px 5px; border: 1px solid rgba(255,255,255,.1); border-radius: 5
 .appearance-graphite .stat-icon.cyan,
 .appearance-graphite .stat-icon.violet,
 .appearance-graphite .stat-icon.mint,
-.appearance-graphite .stat-icon.amber { border-color: rgba(226,226,226,.14); background: linear-gradient(150deg, rgba(226,226,226,.16), rgba(226,226,226,.04)); color: #d8d8d8; box-shadow: inset 0 1px rgba(255,255,255,.07), 0 6px 16px rgba(0,0,0,.3); }
+.appearance-graphite .stat-icon.amber { border-color: rgba(206,194,245,.14); background: linear-gradient(150deg, rgba(206,194,245,.16), rgba(206,194,245,.04)); color: #c9bcf4; box-shadow: inset 0 1px rgba(255,255,255,.07), 0 6px 16px rgba(0,0,0,.3); }
 .appearance-graphite .stat-meter i,
-.appearance-graphite .stat-card.tone-violet .stat-meter i { background: linear-gradient(90deg, #d0d0d0, #8f8f8f); box-shadow: 0 0 10px rgba(200,200,200,.3); }
-.appearance-graphite .stat-card:hover { border-color: rgba(233,233,233,.14); }
-.appearance-graphite .stat-card:before { background: linear-gradient(90deg, transparent, rgba(226,226,226,.4), transparent); }
-.appearance-graphite .text-button:hover { border-color: rgba(226,226,226,.2); background: rgba(226,226,226,.06); color: #f0f0f0; }
-.appearance-graphite .text-button-count { background: rgba(226,226,226,.1); color: #d6d6d6; }
+.appearance-graphite .stat-card.tone-violet .stat-meter i { background: linear-gradient(90deg, #beaff1, #847ba3); box-shadow: 0 0 10px rgba(179,161,239,.3); }
+.appearance-graphite .stat-card:hover { border-color: rgba(206,194,245,.14); }
+.appearance-graphite .stat-card:before { background: linear-gradient(90deg, transparent, rgba(206,194,245,.4), transparent); }
+.appearance-graphite .text-button:hover { border-color: rgba(206,194,245,.2); background: rgba(206,194,245,.06); color: #cec2f5; }
+.appearance-graphite .text-button-count { background: rgba(206,194,245,.1); color: #c6b9f3; }
 .appearance-graphite .text-button-arrow,
-.appearance-graphite .quiet-button-icon { color: #d6d6d6; }
-.appearance-graphite .quiet-button:hover { border-color: rgba(226,226,226,.16); background: rgba(226,226,226,.05); }
+.appearance-graphite .quiet-button-icon { color: #c6b9f3; }
+.appearance-graphite .quiet-button:hover { border-color: rgba(206,194,245,.16); background: rgba(206,194,245,.05); }
 
 /* Движение подчиняется настройке анимаций: Windows умеет гасить их глобально,
    и без защиты интерфейс выглядел бы застывшим. */
@@ -1845,7 +1858,7 @@ kbd { padding: 3px 5px; border: 1px solid rgba(255,255,255,.1); border-radius: 5
 .primary-button.small .spin-ico { transition: transform .3s cubic-bezier(.22,.61,.36,1); }
 .quiet-button:hover:not(:disabled) .spin-ico,
 .primary-button.small:hover:not(:disabled) .spin-ico { transform: rotate(-38deg); }
-.appearance-graphite .quiet-button.is-spin { color: #d6d6d6; }
+.appearance-graphite .quiet-button.is-spin { color: #c6b9f3; }
 
 @media (prefers-reduced-motion: reduce) {
   .app-frame:not(.motion-force) .quiet-button.is-spin .spin-ico,
@@ -1872,8 +1885,8 @@ kbd { padding: 3px 5px; border: 1px solid rgba(255,255,255,.1); border-radius: 5
 .github-button:hover:not(:disabled) .github-button-icon .spin-ico { transform: rotate(-38deg); }
 .github-button.is-busy .github-button-icon .spin-ico { animation: refresh-turn 1.1s cubic-bezier(.4,.05,.15,1) infinite; }
 .github-button-progress { position: absolute; bottom: 0; left: 0; height: 2px; border-radius: 2px; background: var(--cyan); box-shadow: 0 0 8px rgba(124,242,213,.6); transition: width .3s ease; }
-.appearance-graphite .github-button:hover:not(:disabled) { border-color: rgba(226,226,226,.22); background: rgba(226,226,226,.08); }
-.appearance-graphite .github-button-progress { background: #d6d6d6; box-shadow: 0 0 8px rgba(214,214,214,.4); }
+.appearance-graphite .github-button:hover:not(:disabled) { border-color: rgba(206,194,245,.22); background: rgba(206,194,245,.08); }
+.appearance-graphite .github-button-progress { background: #c6b9f3; box-shadow: 0 0 8px rgba(198,185,243,.4); }
 
 @media (prefers-reduced-motion: reduce) {
   .app-frame:not(.motion-force) .github-button,
@@ -1906,7 +1919,7 @@ kbd { padding: 3px 5px; border: 1px solid rgba(255,255,255,.1); border-radius: 5
 .about-update-progress-bar:after { position: absolute; inset: 0; background: linear-gradient(100deg, transparent, rgba(255,255,255,.45), transparent); content: ''; transform: translateX(-100%); animation: update-sheen 1.5s ease-in-out infinite; }
 @keyframes update-sheen { to { transform: translateX(100%); } }
 
-.appearance-graphite .about-update-progress-meta strong { color: #d6d6d6; }
+.appearance-graphite .about-update-progress-meta strong { color: #c6b9f3; }
 
 @media (prefers-reduced-motion: reduce) {
   .app-frame:not(.motion-force) .about-update-progress-bar:after { animation: none; opacity: 0; }
@@ -1952,9 +1965,9 @@ kbd { padding: 3px 5px; border: 1px solid rgba(255,255,255,.1); border-radius: 5
 @keyframes update-tick-draw { to { stroke-dashoffset: 0; } }
 
 
-.appearance-graphite .about-update-progress-bar { background: linear-gradient(90deg, #8f8f8f, #d6d6d6, #ebebeb, #b4b4b4, #d6d6d6); background-size: 300% 100%; box-shadow: 0 0 12px rgba(214,214,214,.35); }
-.appearance-graphite .about-update-comet { background: radial-gradient(circle, rgba(255,255,255,.95) 0%, rgba(230,230,230,.5) 35%, transparent 70%); }
-.appearance-graphite .about-update-comet:after { box-shadow: 0 0 10px 2px rgba(255,255,255,.85), 0 0 18px 5px rgba(214,214,214,.5); }
+.appearance-graphite .about-update-progress-bar { background: linear-gradient(90deg, #847ba3, #c6b9f3, #cec2f5, #987fe9, #c6b9f3); background-size: 300% 100%; box-shadow: 0 0 12px rgba(198,185,243,.35); }
+.appearance-graphite .about-update-comet { background: radial-gradient(circle, rgba(255,255,255,.95) 0%, rgba(206,194,245,.5) 35%, transparent 70%); }
+.appearance-graphite .about-update-comet:after { box-shadow: 0 0 10px 2px rgba(255,255,255,.85), 0 0 18px 5px rgba(198,185,243,.5); }
 
 /* Движение подчиняется настройке анимаций. */
 @media (prefers-reduced-motion: reduce) {
@@ -1992,10 +2005,10 @@ kbd { padding: 3px 5px; border: 1px solid rgba(255,255,255,.1); border-radius: 5
 .dns-custom-row .ghost-action { flex: 0 0 auto; }
 
 .appearance-graphite .dns-provider-option:hover,
-.appearance-graphite .dns-provider-option.is-active { border-color: rgba(226,226,226,.2); background: rgba(226,226,226,.06); }
-.appearance-graphite .dns-provider-option.is-active .dns-provider-mark { border-color: #d6d6d6; }
-.appearance-graphite .dns-provider-option.is-active .dns-provider-mark i { background: #d6d6d6; box-shadow: 0 0 9px rgba(214,214,214,.5); }
-.appearance-graphite .dns-custom-row input:focus { border-color: rgba(226,226,226,.3); }
+.appearance-graphite .dns-provider-option.is-active { border-color: rgba(206,194,245,.2); background: rgba(206,194,245,.06); }
+.appearance-graphite .dns-provider-option.is-active .dns-provider-mark { border-color: #c6b9f3; }
+.appearance-graphite .dns-provider-option.is-active .dns-provider-mark i { background: #c6b9f3; box-shadow: 0 0 9px rgba(198,185,243,.5); }
+.appearance-graphite .dns-custom-row input:focus { border-color: rgba(206,194,245,.3); }
 
 @media (prefers-reduced-motion: reduce) {
   .app-frame:not(.motion-force) .dns-provider-option,
@@ -2065,12 +2078,12 @@ kbd { padding: 3px 5px; border: 1px solid rgba(255,255,255,.1); border-radius: 5
   100% { transform: scale(1); opacity: 1; }
 }
 
-.appearance-graphite .about-update-plane { color: #d6d6d6; }
-.appearance-graphite .about-update-plane svg { filter: drop-shadow(0 0 6px rgba(214,214,214,.5)); }
-.appearance-graphite .about-update-flight:before { background: linear-gradient(90deg, transparent, rgba(214,214,214,.15) 30%, rgba(214,214,214,.5)); }
-.appearance-graphite .about-update-landed { color: #d6d6d6; }
-.appearance-graphite .about-update-landed-mark { border-color: rgba(214,214,214,.4); background: rgba(214,214,214,.1); }
-.appearance-graphite .about-update-landed-mark svg { stroke: #d6d6d6; }
+.appearance-graphite .about-update-plane { color: #c6b9f3; }
+.appearance-graphite .about-update-plane svg { filter: drop-shadow(0 0 6px rgba(198,185,243,.5)); }
+.appearance-graphite .about-update-flight:before { background: linear-gradient(90deg, transparent, rgba(198,185,243,.15) 30%, rgba(198,185,243,.5)); }
+.appearance-graphite .about-update-landed { color: #c6b9f3; }
+.appearance-graphite .about-update-landed-mark { border-color: rgba(198,185,243,.4); background: rgba(198,185,243,.1); }
+.appearance-graphite .about-update-landed-mark svg { stroke: #c6b9f3; }
 
 @media (prefers-reduced-motion: reduce) {
   .app-frame:not(.motion-force) .about-update-plane { animation: none; transition: none; }
@@ -2140,11 +2153,11 @@ kbd { padding: 3px 5px; border: 1px solid rgba(255,255,255,.1); border-radius: 5
 .routing-empty-state p { max-width: 380px; color: #7f8b9f; font-size: 11px; line-height: 1.55; }
 
 .appearance-graphite .routing-outbound-chip.is-active.is-proxy,
-.appearance-graphite .routing-outbound-chip.is-active.is-direct { border-color: rgba(226,226,226,.3); background: rgba(226,226,226,.1); color: #e2e2e2; }
+.appearance-graphite .routing-outbound-chip.is-active.is-direct { border-color: rgba(206,194,245,.3); background: rgba(206,194,245,.1); color: #cec2f5; }
 .appearance-graphite .routing-rule-outbound.is-proxy,
-.appearance-graphite .routing-rule-outbound.is-direct { background: rgba(226,226,226,.1); color: #d6d6d6; }
-.appearance-graphite .routing-preset-chip:hover:not(:disabled) { border-color: rgba(226,226,226,.3); background: rgba(226,226,226,.07); color: #ececec; }
-.appearance-graphite .routing-empty-icon { background: rgba(226,226,226,.08); color: #d6d6d6; }
+.appearance-graphite .routing-rule-outbound.is-direct { background: rgba(206,194,245,.1); color: #c6b9f3; }
+.appearance-graphite .routing-preset-chip:hover:not(:disabled) { border-color: rgba(206,194,245,.3); background: rgba(206,194,245,.07); color: #cec2f5; }
+.appearance-graphite .routing-empty-icon { background: rgba(206,194,245,.08); color: #c6b9f3; }
 
 @media (prefers-reduced-motion: reduce) {
   .app-frame:not(.motion-force) .routing-outbound-chip,
@@ -2188,10 +2201,10 @@ kbd { padding: 3px 5px; border: 1px solid rgba(255,255,255,.1); border-radius: 5
 .routing-transfer .ico { width: 15px; height: 15px; flex: 0 0 15px; }
 .routing-transfer-hint { color: #6f7d91; font-size: 10.5px; }
 
-.appearance-graphite .dns-check-result.is-ok { background: rgba(226,226,226,.1); color: #d6d6d6; }
-.appearance-graphite .dns-check-result.is-ok i { background: #d6d6d6; box-shadow: 0 0 8px rgba(214,214,214,.5); }
-.appearance-graphite .dns-ranking li:first-child:not(.is-bad) .dns-ranking-place { background: rgba(226,226,226,.14); color: #e2e2e2; }
-.appearance-graphite .dns-ranking-apply { border-color: rgba(226,226,226,.24); background: rgba(226,226,226,.08); color: #e2e2e2; }
+.appearance-graphite .dns-check-result.is-ok { background: rgba(206,194,245,.1); color: #c6b9f3; }
+.appearance-graphite .dns-check-result.is-ok i { background: #c6b9f3; box-shadow: 0 0 8px rgba(198,185,243,.5); }
+.appearance-graphite .dns-ranking li:first-child:not(.is-bad) .dns-ranking-place { background: rgba(206,194,245,.14); color: #cec2f5; }
+.appearance-graphite .dns-ranking-apply { border-color: rgba(206,194,245,.24); background: rgba(206,194,245,.08); color: #cec2f5; }
 
 @media (prefers-reduced-motion: reduce) {
   .app-frame:not(.motion-force) .dns-ranking-apply { transition: none; }
@@ -2238,8 +2251,8 @@ kbd { padding: 3px 5px; border: 1px solid rgba(255,255,255,.1); border-radius: 5
   50% { box-shadow: 0 3px 10px rgba(0,0,0,.4), 0 0 18px rgba(248,199,108,.45); }
 }
 
-.appearance-graphite .server-row.is-best { border-color: rgba(226,226,226,.3); background: linear-gradient(120deg, rgba(226,226,226,.07), transparent 55%); box-shadow: inset 0 0 0 1px rgba(226,226,226,.1); }
-.appearance-graphite .server-crown { border-color: rgba(226,226,226,.32); background: linear-gradient(145deg, #232323, #141414); color: #e2e2e2; }
+.appearance-graphite .server-row.is-best { border-color: rgba(206,194,245,.3); background: linear-gradient(120deg, rgba(206,194,245,.07), transparent 55%); box-shadow: inset 0 0 0 1px rgba(206,194,245,.1); }
+.appearance-graphite .server-crown { border-color: rgba(206,194,245,.32); background: linear-gradient(145deg, #1f1e24, #121114); color: #cec2f5; }
 .appearance-graphite .server-row.is-best .server-crown { animation: none; }
 
 @media (prefers-reduced-motion: reduce) {
@@ -2322,3 +2335,97 @@ kbd { padding: 3px 5px; border: 1px solid rgba(255,255,255,.1); border-radius: 5
 .app-frame.motion-off .theme-dot,
 .app-frame.motion-off .theme-dot i,
 .app-frame.motion-off .theme-dot-label { transition: none; }
+
+/* ============================================================================
+   Живой фон оформления «Графит»: сеть узлов и лавандовые пятна
+   ==========================================================================*/
+
+/*
+  Узор виден только в «Графите» — это его отличительная черта. В остальных
+  оформлениях он не скрыт правилом-исключением, а просто не появляется:
+  показывается лишь тем, кто выбрал эту тему.
+
+  Слой лежит под интерфейсом и не перехватывает нажатия. Движение целиком на
+  CSS: анимируются opacity и transform, которые считает видеокарта, поэтому на
+  отзывчивость программы узор не влияет.
+*/
+.node-web { display: none; }
+
+.appearance-graphite .node-web {
+  position: absolute;
+  z-index: 0;
+  inset: 0;
+  display: block;
+  overflow: hidden;
+  pointer-events: none;
+}
+.appearance-graphite .node-web svg {
+  width: 100%;
+  height: 100%;
+  /* Растягиваем по окну: сеть — фон, а не схема, пропорции не важны.
+     Прозрачность слоя перемножается с прозрачностью линий и точек, поэтому
+     держим её высокой, а приглушаем уже сами элементы — так тоньше настройка. */
+  opacity: .9;
+}
+
+/* Связи еле видны и медленно «дышат»: сеть выглядит живой, но читать её
+   не нужно, поэтому яркость намеренно на пределе различимости. */
+.appearance-graphite .node-web-links line {
+  stroke: #b8a7f0;
+  stroke-width: .12;
+  opacity: .16;
+  animation: node-link-breathe 13s ease-in-out infinite;
+}
+/* Узлы мерцают вразнобой — иначе сеть пульсирует целиком и это отвлекает. */
+.appearance-graphite .node-web-dots circle {
+  fill: #c6b9f3;
+  opacity: .5;
+  animation: node-dot-breathe 9s ease-in-out infinite;
+}
+
+/* Лавандовые пятна: очень медленно перетекают, добавляя фону глубину. */
+.appearance-graphite .node-web-glow {
+  position: absolute;
+  border-radius: 50%;
+  filter: blur(90px);
+  pointer-events: none;
+}
+.appearance-graphite .node-web-glow.one {
+  width: 520px; height: 520px;
+  top: -190px; left: 6%;
+  background: rgba(184,167,240,.16);
+  animation: node-glow-a 26s ease-in-out infinite;
+}
+.appearance-graphite .node-web-glow.two {
+  width: 460px; height: 460px;
+  right: 4%; bottom: -180px;
+  background: rgba(140,120,210,.14);
+  animation: node-glow-b 31s ease-in-out infinite;
+}
+
+@keyframes node-link-breathe {
+  0%, 100% { opacity: .08; }
+  50% { opacity: .26; }
+}
+@keyframes node-dot-breathe {
+  0%, 100% { opacity: .3; }
+  50% { opacity: .85; }
+}
+@keyframes node-glow-a {
+  0%, 100% { transform: translate(0, 0); }
+  50% { transform: translate(60px, 40px); }
+}
+@keyframes node-glow-b {
+  0%, 100% { transform: translate(0, 0); }
+  50% { transform: translate(-52px, -34px); }
+}
+
+/* Настройка анимаций старше системной: как и во всём остальном интерфейсе. */
+@media (prefers-reduced-motion: reduce) {
+  .app-frame:not(.motion-force) .node-web-links line,
+  .app-frame:not(.motion-force) .node-web-dots circle,
+  .app-frame:not(.motion-force) .node-web-glow { animation: none; }
+}
+.app-frame.motion-off .node-web-links line,
+.app-frame.motion-off .node-web-dots circle,
+.app-frame.motion-off .node-web-glow { animation: none; }

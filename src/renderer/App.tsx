@@ -272,6 +272,54 @@ function PulsePanel({ running, total, errors }: { running: number; total: number
 
 // Орбиты вращаются средствами CSS. Две бесконечные пружины держали JavaScript
 // занятым всё время, пока открыта главная, и конкурировали с отрисовкой hover.
+/**
+ * Живой фон оформления «Графит»: сеть узлов и лавандовые пятна света.
+ *
+ * Разметка статична, всё движение — на CSS. Так его считает видеокарта, а
+ * главный поток остаётся свободен: интерфейс и без того жаловались на
+ * подвисания, добавлять к ним расчёт частиц в JavaScript было бы странно.
+ *
+ * Координаты заданы вручную, а не случайными числами: случайная россыпь при
+ * каждом запуске выглядит по-разному, и половина раскладок получается
+ * некрасивой — узлы сбиваются в кучу или выстраиваются в линию.
+ *
+ * В других оформлениях узор скрыт: это отличительная черта «Графита».
+ */
+function NodeWeb() {
+  // Пары индексов — какие узлы соединять линиями.
+  const nodes = [
+    [12, 22], [28, 12], [44, 26], [62, 16], [78, 30], [90, 20],
+    [8, 48], [24, 62], [40, 50], [58, 68], [74, 54], [92, 66],
+    [16, 84], [34, 92], [52, 82], [70, 94], [86, 86],
+  ];
+  const links = [
+    [0, 1], [1, 2], [2, 3], [3, 4], [4, 5],
+    [0, 6], [6, 7], [7, 8], [2, 8], [8, 9], [9, 10], [10, 4], [10, 11], [5, 11],
+    [6, 12], [12, 13], [13, 14], [9, 14], [14, 15], [15, 16], [11, 16],
+  ];
+  return <div className="node-web" aria-hidden="true">
+    <svg viewBox="0 0 100 100" preserveAspectRatio="none">
+      <g className="node-web-links">
+        {links.map(([from, to], index) => <line
+          key={`l${index}`}
+          x1={nodes[from][0]} y1={nodes[from][1]}
+          x2={nodes[to][0]} y2={nodes[to][1]}
+          style={{ animationDelay: `${(index % 7) * -1.9}s` }}
+        />)}
+      </g>
+      <g className="node-web-dots">
+        {nodes.map(([x, y], index) => <circle
+          key={`n${index}`}
+          cx={x} cy={y} r=".55"
+          style={{ animationDelay: `${(index % 5) * -1.4}s` }}
+        />)}
+      </g>
+    </svg>
+    <span className="node-web-glow one" />
+    <span className="node-web-glow two" />
+  </div>;
+}
+
 function HeroVisual() {
   return <div className="hero-visual" aria-hidden="true">
     <div className="visual-grid" />
@@ -899,7 +947,7 @@ function App() {
     }
   };
 
-  return <div className={`app-frame appearance-${settings.appearance} ${settings.motion === 'full' ? 'motion-force' : ''} ${settings.motion === 'reduced' ? 'motion-off' : ''}`}><WindowBar maximized={maximized} /><div className={`app-shell ${sidebarCollapsed ? 'is-sidebar-collapsed' : ''}`}><div className="ambient ambient-one" /><div className="ambient ambient-two" />
+  return <div className={`app-frame appearance-${settings.appearance} ${settings.motion === 'full' ? 'motion-force' : ''} ${settings.motion === 'reduced' ? 'motion-off' : ''}`}><WindowBar maximized={maximized} /><div className={`app-shell ${sidebarCollapsed ? 'is-sidebar-collapsed' : ''}`}><div className="ambient ambient-one" /><div className="ambient ambient-two" /><NodeWeb />
     <aside className="sidebar">
       <button type="button" className="sidebar-collapse-button" aria-label={sidebarCollapsed ? t('Развернуть боковую панель') : t('Свернуть боковую панель')} title={sidebarCollapsed ? t('Развернуть панель') : t('Свернуть панель')} aria-pressed={sidebarCollapsed} onClick={() => setSidebarCollapsed((value) => !value)}><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m14.5 6-6 6 6 6" /></svg></button>
       <div className="brand"><div className="brand-orb"><NexusMark /></div><div className="sidebar-copy"><strong>NEXUS</strong><span>NETWORK CONTROL</span></div></div>

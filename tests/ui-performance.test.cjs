@@ -109,8 +109,9 @@ assert.match(styles, /\.nx-select-option\.is-selected \.nx-select-mark \{[^}]*ba
 // Ползунок оформлен под интерфейс, а не системным стилем.
 assert.match(styles, /\.nx-select-list::-webkit-scrollbar-thumb/);
 
-// --- Монохромная тема -------------------------------------------------------
-// Graphite обязан оставаться чёрно-бело-серым: зелёные акценты в нём недопустимы.
+// --- Тема «Графит» ----------------------------------------------------------
+// Тема перестала быть чёрно-белой: у неё графитовый корпус и лавандовый акцент.
+// Проверяем, что она по-прежнему переопределяет все свои места.
 for (const selector of [
   '.appearance-graphite .nx-select-trigger',
   '.appearance-graphite .nx-select-list',
@@ -124,7 +125,39 @@ for (const selector of [
 
 const graphiteSelect = styles.slice(styles.indexOf('.appearance-graphite .nx-select-trigger'));
 const graphiteBlock = graphiteSelect.slice(0, graphiteSelect.indexOf('/* ==='));
-assert.doesNotMatch(graphiteBlock, /113,244,184|124,242,213|--mint|--cyan/, 'в монохромной теме не должно быть цветных акцентов');
+// Бирюза «Индиго» здесь всё так же неуместна — у темы свой акцент.
+assert.doesNotMatch(graphiteBlock, /113,244,184|124,242,213/, 'в теме не должно остаться бирюзовых акцентов «Индиго»');
+
+// --- Живой фон «Графита» ------------------------------------------------------
+// Сеть узлов и лавандовые пятна — отличительная черта этой темы. Движение
+// обязано быть на CSS: считать частицы в JavaScript на фоне жалоб на
+// подвисания было бы прямым вредом.
+const app2 = fs.readFileSync(path.join(root, 'src', 'renderer', 'App.tsx'), 'utf8');
+assert.match(app2, /function NodeWeb/, 'нужен фоновый узор темы');
+assert.match(app2, /<NodeWeb \/>/, 'узор обязан быть подключён');
+assert.doesNotMatch(app2, /requestAnimationFrame[\s\S]{0,400}node-web/, 'узор не должен считаться в JavaScript');
+// Узор виден только в «Графите»: в других темах он скрыт.
+assert.match(styles, /\.node-web \{ display: none; \}/, 'в других оформлениях узор показывать не нужно');
+assert.match(styles, /\.appearance-graphite \.node-web \{/);
+// Слой не должен перехватывать нажатия — он лежит под интерфейсом.
+const webRule = styles.slice(styles.indexOf('.appearance-graphite .node-web {'));
+assert.match(webRule.slice(0, webRule.indexOf('}')), /pointer-events: none/,
+  'фон обязан пропускать нажатия к интерфейсу');
+// И подчиняться настройке анимаций, как всё остальное движение.
+assert.match(styles, /\.app-frame\.motion-off \.node-web-links line/);
+assert.match(styles, /\.app-frame:not\(\.motion-force\) \.node-web-links line/);
+
+// --- Список серверов не перерисовывается по таймеру ---------------------------
+// На странице тикает счётчик времени сессии. Без memo он раз в секунду
+// пересобирал все строки списка — с флагами и значками сигнала. Именно это
+// ощущалось как подвисание интерфейса.
+const page = fs.readFileSync(path.join(root, 'src', 'renderer', 'Jey2RayPage.tsx'), 'utf8');
+assert.match(page, /const ServerRow = memo\(/, 'строка сервера обязана быть мемоизирована');
+assert.match(page, /const selectServer = useCallback/, 'обработчик выбора обязан быть стабильным');
+assert.match(page, /const launchServer = useCallback/, 'обработчик запуска обязан быть стабильным');
+// Ссылка на connect живёт в ref: иначе useCallback пересоздавался бы на каждой
+// перерисовке и memo потерял бы смысл.
+assert.match(page, /const connectRef = useRef\(connect\)/);
 
 // --- Настройки из «Быстрого доступа» ----------------------------------------
 // Иначе за настройками пришлось бы каждый раз заходить в раздел модулей.

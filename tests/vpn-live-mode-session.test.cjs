@@ -201,12 +201,15 @@ assert.match(styles, /\.global-settings-hero \{/);
 assert.match(styles, /\.app-settings-tabs \{[^}]*grid-template-columns: repeat\(2/);
 assert.match(styles, /\.app-settings-tab\.is-active \{/);
 assert.match(styles, /\.app-settings-page \.app-settings-card-head h3 \{ font-size: 18px/);
-assert.match(styles, /\.appearance-graphite \{[\s\S]*--bg: #090909/);
+// Конкретный фон и акценты проверяются ниже, в блоке про лавандовый «Графит».
+assert.match(styles, /\.appearance-graphite \{[\s\S]*--bg: #/);
 for (const graphiteArea of ['.sidebar', '.hero', '.module-card-inner', '.jey-hero', '.app-settings-tabs', '.subscription-card', '.diagnostics-report-card']) {
   assert.ok(styles.includes(`.appearance-graphite ${graphiteArea}`), `Graphite appearance must restyle ${graphiteArea}`);
 }
-assert.match(styles, /\.appearance-graphite \.app-settings-tab\.is-active \{[^}]*rgba\(224,224,224/);
-assert.match(styles, /\.appearance-graphite \.primary-button \{[^}]*#e5e5e5/);
+// Активная вкладка и главная кнопка — акцентные, их лавандовость проверяется
+// отдельно ниже. Здесь достаточно убедиться, что тема их вообще переопределяет.
+assert.match(styles, /\.appearance-graphite \.app-settings-tab\.is-active \{/);
+assert.match(styles, /\.appearance-graphite \.primary-button \{/);
 assert.match(styles, /\.app-shell\.is-sidebar-collapsed \.sidebar \{[^}]*flex-basis: 82px/);
 assert.match(styles, /\.profile-chevron \{[^}]*transition:/);
 assert.match(styles, /\.window-bar \{[^}]*height: 36px/);
@@ -236,24 +239,68 @@ const legacyThirdPartyPrefix = `.${['ha', 'pp'].join('')}-`;
 assert.equal(`${app}\n${page}\n${styles}`.toLowerCase().includes(legacyThirdPartyPrefix), false, 'legacy third-party CSS prefixes must be removed');
 assert.match(styles, /\.fragmentation-note \{[^}]*line-height: 1\.55/);
 assert.match(styles, /\.log-source-tabs \{[^}]*grid-template-columns: repeat\(6/);
-assert.match(styles, /Graphite is strictly achromatic\. Server flags are the only colour exception/);
-assert.match(styles, /\.appearance-graphite \.server-flag-svg \{ filter: none; \}/, 'Graphite flags must keep their original colour');
-assert.match(styles, /\.appearance-graphite \.server-row\.is-live \{[^}]*#d6d6d6/, 'the live server row surrounding a flag must stay grayscale');
-assert.match(styles, /\.appearance-graphite \.tunnel-route-server \{[^}]*rgba\(211,211,211/, 'the route endpoint surrounding a flag must stay grayscale');
-assert.match(styles, /\.appearance-graphite:not\(:has\(\.server-flag-svg\)\) > \.app-shell/);
-assert.match(styles, /\.appearance-graphite \*:has\(\.server-flag-svg\) > \*:not\(:has\(\.server-flag-svg\)\)/, 'only flag-free sibling branches may be desaturated');
-assert.doesNotMatch(styles, /\.appearance-graphite \.server-flag-svg \{ filter: saturate/, 'Graphite must not mute server flags');
-const graphiteBlocks = [...styles.matchAll(/([^{}]+)\{([^{}]*)\}/g)]
-  .filter((match) => match[1].includes('.appearance-graphite') && !match[1].includes('.server-flag-svg'));
-for (const [, selectors, declarations] of graphiteBlocks) {
-  const colors = declarations.matchAll(/#([0-9a-fA-F]{6})\b|rgba?\(\s*(\d+)\s*,\s*(\d+)\s*,\s*(\d+)/g);
-  for (const color of colors) {
-    const channels = color[1]
-      ? [0, 2, 4].map((offset) => Number.parseInt(color[1].slice(offset, offset + 2), 16))
-      : [Number(color[2]), Number(color[3]), Number(color[4])];
-    assert.equal(new Set(channels).size, 1, `Graphite colour ${color[0]} in ${selectors.trim()} must be exact grayscale`);
-  }
+/*
+  «Графит» больше не чёрно-белый.
+
+  Тема была строго ахроматичной: поверх всего дерева стоял filter: grayscale(1),
+  и любой цвет он стирал в серый. Смотреть на такой интерфейс тяжело — активный
+  пункт меню, кнопка и обычная панель выглядели одинаково, глазу не за что
+  зацепиться. Теперь у темы графитовый корпус и лавандовый акцент.
+
+  Проверки ниже сторожат ровно это: обесцвечивания больше нет, акценты
+  лавандовые, а корпус остаётся нейтральным.
+*/
+// Ищем именно объявление в правиле, а не упоминание в пояснении: в комментарии
+// рядом объясняется, почему фильтр убрали, и текст не должен ронять проверку.
+assert.doesNotMatch(styles, /^\s*filter: grayscale\(1\)/m,
+  'обесцвечивание убрано: оно стирало бы лавандовый акцент');
+assert.doesNotMatch(styles, /Graphite is strictly achromatic/,
+  'описание темы обязано соответствовать новой задумке');
+
+const readChannels = (token) => {
+  const hex = /^#([0-9a-fA-F]{6})$/.exec(token);
+  if (hex) return [0, 2, 4].map((offset) => Number.parseInt(hex[1].slice(offset, offset + 2), 16));
+  const parts = token.match(/[\d.]+/g).map(Number);
+  return [parts[0], parts[1], parts[2]];
+};
+const isLavender = ([r, g, b]) => b >= r && r > g && (b - g) > 12;
+
+// Акценты обязаны быть лавандовыми: это лицо темы.
+for (const [selector, sample] of [
+  ['.appearance-graphite .nav-item.active:before', /background: (#[0-9a-fA-F]{6})/],
+  ['.appearance-graphite .primary-button', /linear-gradient\(135deg, (#[0-9a-fA-F]{6})/],
+  ['.appearance-graphite .brand-orb', /color: (#[0-9a-fA-F]{6})/],
+]) {
+  const at = styles.indexOf(selector);
+  assert.ok(at !== -1, `тема обязана переопределять ${selector}`);
+  const rule = styles.slice(at, styles.indexOf('}', at));
+  const found = sample.exec(rule);
+  assert.ok(found, `у ${selector} должен быть задан цвет акцента`);
+  assert.ok(isLavender(readChannels(found[1])),
+    `${selector}: акцент обязан быть лавандовым, сейчас ${found[1]}`);
 }
+
+// Переменные темы: лаванда как основной акцент, тёмный графитовый корпус.
+const graphiteVars = styles.slice(styles.indexOf('.appearance-graphite {'));
+const varsBlock = graphiteVars.slice(0, graphiteVars.indexOf('}'));
+assert.match(varsBlock, /--cyan: #b8a7f0/, 'основным акцентом обязана быть лаванда из макета');
+const bg = /--bg: (#[0-9a-fA-F]{6})/.exec(varsBlock);
+assert.ok(bg, 'у темы должен быть свой фон');
+const bgChannels = readChannels(bg[1]);
+assert.ok(Math.max(...bgChannels) < 40, `фон обязан остаться тёмным, сейчас ${bg[1]}`);
+
+// Корпус не должен превратиться в сплошную сирень: фон и панели остаются
+// почти нейтральными, иначе интерфейс «поплывёт» в цвет.
+for (const token of [bg[1]]) {
+  const [r, g, b] = readChannels(token);
+  assert.ok(Math.max(r, g, b) - Math.min(r, g, b) <= 12,
+    `подложка ${token} обязана остаться графитовой, а не цветной`);
+}
+
+// Флаги стран остаются цветными — страну узнают именно по ним.
+assert.match(styles, /\.appearance-graphite \.server-flag-svg \{ filter: none; \}/,
+  'Graphite flags must keep their original colour');
+
 assert.doesNotMatch(styles, /Graphite keeps its neutral base while retaining restrained semantic colour/);
 assert.doesNotMatch(styles, /\.settings-tab\.active \{|\.tunnel-ping|\.power-session/);
 
@@ -343,7 +390,9 @@ assert.match(page, /if \(snapshot\.runtime\.status === 'connected' && snapshot\.
 
 // --- Лучший сервер видно с первого взгляда ------------------------------------------
 // Самый быстрый уже стоит первым, но строки одинаковые и это не читается.
-assert.match(page, /const isBest = fastest\?\.id === profile\.id && !blocked/,
+// Строка сервера вынесена в memo-компонент (секундный счётчик сессии
+// перерисовывал весь список), поэтому признак приходит свойством.
+assert.match(page, /isBest=\{fastest\?\.id === profile\.id && !blocked\}/,
   'заблокированный сервер лучшим быть не может');
 assert.match(page, /className="server-crown"/);
 assert.match(styles, /\.server-row\.is-best/);

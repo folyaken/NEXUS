@@ -74,6 +74,23 @@ export class ModuleManager extends EventEmitter {
    */
   private discoverPids: (imageName: string) => Promise<number[]> = listPidsByImage;
 
+  /*
+    Общий кэш опроса процессов на один тик слежения.
+
+    Каждый запущенный модуль проверяется своим таймером раз в две секунды, и
+    каждая проверка порождала отдельный процесс `tasklist` — на Windows это
+    полный обход таблицы процессов, десятки миллисекунд. При двух работающих
+    модулях выходило под шестьдесят запусков в минуту, и интерфейс на них
+    заметно подрагивал.
+
+    Теперь результат по имени образа живёт короткое время: проверки, попавшие
+    в одно окно, переиспользуют один вызов вместо того, чтобы спрашивать
+    систему об одном и том же несколько раз подряд. Интервал слежения не
+    меняется — на падение модуля реагируем так же быстро, как раньше.
+  */
+  private readonly pidCache = new Map<string, { at: number; pids: Promise<number[]> }>();
+  private static readonly PID_CACHE_MS = 1500;
+
   constructor(private readonly modulesDir: string) { super(); }
 
   /** Только для тестов: подменяет сканер процессов операционной системы. */
@@ -366,6 +383,10 @@ export class ModuleManager extends EventEmitter {
     }
     if (this.isRunning(id)) return module;
 
+    // Перед запуском смотрим на систему свежим взглядом: решение «подключиться
+    // к уже работающему процессу или поднять свой» нельзя принимать по
+    // устаревшему на секунду ответу.
+    this.pidCache.clear();
     const existingWorker = await this.discoverWorker(module);
     if (existingWorker) {
       if (module.healthcheck) {
@@ -663,6 +684,10 @@ export class ModuleManager extends EventEmitter {
     this.clearWatch(id);
     const targets = [...new Set([workerPid, child?.pid].filter((pid): pid is number => Boolean(pid)))];
     for (const pid of targets) await this.killTree(pid);
+    // Кэш опроса сбрасываем сразу: иначе только что убитый процесс ещё
+    // полторы секунды числился бы работающим, и остановка выглядела бы
+    // незавершённой.
+    this.pidCache.clear();
     if (child) await waitForExit(child, 8000);
     this.processes.delete(id);
     this.workerPids.delete(id);
@@ -763,11 +788,34 @@ export class ModuleManager extends EventEmitter {
     return [...new Set(images.filter((image): image is string => Boolean(image)))];
   }
 
+  /**
+   * Опрос системы с коротким кэшем.
+   *
+   * Слежение за модулями идёт по таймеру, и без кэша один и тот же образ
+   * спрашивали у системы несколько раз подряд — каждый раз запуском отдельного
+   * процесса. Ответ живёт полторы секунды: этого хватает, чтобы проверки одного
+   * тика обошлись одним вызовом, и мало, чтобы состояние успело устареть.
+   */
+  private cachedPids(image: string): Promise<number[]> {
+    const now = Date.now();
+    const cached = this.pidCache.get(image);
+    if (cached && now - cached.at < ModuleManager.PID_CACHE_MS) return cached.pids;
+
+    // Неудачный опрос не кэшируем: иначе одна осечка системы держалась бы
+    // полторы секунды и модуль на это время выглядел бы упавшим.
+    const pids = this.discoverPids(image).catch((error: unknown) => {
+      this.pidCache.delete(image);
+      throw error;
+    });
+    this.pidCache.set(image, { at: now, pids });
+    return pids;
+  }
+
   private async discoverWorker(module: ModuleManifest): Promise<number | null> {
     const images = this.workerImages(module);
     if (!images.length) return this.workerPids.get(module.id) ?? null;
     for (const image of images) {
-      const pids = await this.discoverPids(image);
+      const pids = await this.cachedPids(image);
       if (pids[0]) return pids[0];
     }
     return null;
