@@ -150,6 +150,14 @@ for (const token of ['#7cf2d5', '#a895ff', '#71f4b8']) {
 // Состояния остаются различимы: предупреждение теплее ошибки, иначе «внимание»
 // и «сбой» сольются в один цвет и смысл подсветки пропадёт.
 assert.notEqual(repaint('#f8c76c'), repaint('#ff718f'));
+// «Всё хорошо» обязано быть заметно темнее «ошибки»: раньше успех пересчитывался
+// в тот же алый, что и сбой, и индикатор «Активен» читался как тревога.
+{
+  const successTone = toHsl(readRgb(repaint('#71f4b8')));
+  const errorTone = toHsl(readRgb(repaint('#ff718f')));
+  assert.ok(successTone.light < errorTone.light - 0.08,
+    `успех обязан быть темнее ошибки (${successTone.light.toFixed(2)} против ${errorTone.light.toFixed(2)})`);
+}
 
 // --- Градиентные буквы, а не залитый прямоугольник -------------------------------------
 // В «Обзоре» заголовок залился сплошной плашкой: сокращённая запись background
@@ -230,5 +238,16 @@ assert.ok(styles.includes('.app-frame:not(.motion-force) .theme-dot-label'));
 assert.ok(styles.includes('.app-frame.motion-off .theme-dot-label'));
 
 assert.equal(hasTranslation('en', 'Багровое'), true, 'название темы обязано переводиться');
+
+// --- Плавная смена оформления ---------------------------------------------------------
+// Темы переключались мгновенным рывком: пелена цвета фона на доли секунды
+// накрывает интерфейс, и новая гамма проявляется мягко.
+assert.match(styles, /\.theme-fade-veil \{/, 'нужна пелена смены темы');
+assert.match(styles, /\.theme-fade-veil\.is-running \{ animation: theme-veil-fade/);
+assert.match(styles, /@keyframes theme-veil-fade/);
+assert.match(app, /className="theme-fade-veil is-running"/, 'пелена должна рендериться при смене темы');
+// Пелена подчиняется настройке движения, как и всё остальное.
+assert.match(styles, /\.app-frame\.motion-off \.theme-fade-veil\.is-running \{ animation: none; \}/);
+assert.match(styles, /@media \(prefers-reduced-motion: reduce\)[\s\S]*?\.app-frame:not\(\.motion-force\) \.theme-fade-veil\.is-running \{ animation: none; \}/);
 
 console.log('Appearance theme checks passed.');

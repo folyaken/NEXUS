@@ -2091,6 +2091,24 @@ kbd { padding: 3px 5px; border: 1px solid rgba(255,255,255,.1); border-radius: 5
 .app-frame.motion-off .theme-dot-label { transition: none; }
 
 /* ============================================================================
+   Плавная смена оформления
+   ==========================================================================*/
+
+/* Пелена цвета фона на доли секунды накрывает интерфейс при выборе темы:
+   старая гамма гаснет, новая проявляется. Без неё сотни цветов переключались
+   мгновенным рывком. Пелена — чистый CSS: key в разметке меняется при каждой
+   смене темы, и анимация проигрывается заново. */
+.theme-fade-veil { position: fixed; z-index: 70; inset: 0; background: var(--bg); opacity: 0; pointer-events: none; }
+.theme-fade-veil.is-running { animation: theme-veil-fade .34s ease forwards; }
+@keyframes theme-veil-fade { 0% { opacity: 0; } 45% { opacity: 1; } 100% { opacity: 0; } }
+
+/* Анимация подчиняется настройке движения, как и всё остальное. */
+@media (prefers-reduced-motion: reduce) {
+  .app-frame:not(.motion-force) .theme-fade-veil.is-running { animation: none; }
+}
+.app-frame.motion-off .theme-fade-veil.is-running { animation: none; }
+
+/* ============================================================================
    Живой фон оформления «Графит»: светящаяся пыль и лавандовые пятна
    ==========================================================================*/
 

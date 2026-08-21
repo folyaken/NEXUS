@@ -726,6 +726,17 @@ function App() {
   });
   const [toast, setToast] = useState('');
   const [settings, setSettings] = useState<AppSettings>(DEFAULT_SETTINGS);
+  // Плавная смена оформления: при каждой смене темы счётчик растёт, и пелена
+  // в разметке пересоздаётся с новым key — анимация проигрывается заново.
+  // Первую загрузку настроек пропускаем: иначе окно мигало бы при старте.
+  const [themeVeil, setThemeVeil] = useState(0);
+  const prevAppearance = useRef<string | null>(null);
+  useEffect(() => {
+    if (prevAppearance.current !== null && prevAppearance.current !== settings.appearance) {
+      setThemeVeil((value) => value + 1);
+    }
+    prevAppearance.current = settings.appearance;
+  }, [settings.appearance]);
   // Перевод интерфейса: словарь выбирается по языку из настроек.
   const t = useMemo(() => {
     // Язык задаётся глобально: вложенные экраны берут перевод функцией t из
@@ -974,7 +985,7 @@ function App() {
     }
   };
 
-  return <div className={`app-frame appearance-${settings.appearance} ${settings.motion === 'full' ? 'motion-force' : ''} ${settings.motion === 'reduced' ? 'motion-off' : ''}`}><WindowBar maximized={maximized} /><div className={`app-shell ${sidebarCollapsed ? 'is-sidebar-collapsed' : ''}`}><div className="ambient ambient-one" /><div className="ambient ambient-two" /><NodeWeb />
+  return <div className={`app-frame appearance-${settings.appearance} ${settings.motion === 'full' ? 'motion-force' : ''} ${settings.motion === 'reduced' ? 'motion-off' : ''}`}><WindowBar maximized={maximized} />{themeVeil > 0 && <span key={themeVeil} className="theme-fade-veil is-running" aria-hidden="true" />}<div className={`app-shell ${sidebarCollapsed ? 'is-sidebar-collapsed' : ''}`}><div className="ambient ambient-one" /><div className="ambient ambient-two" /><NodeWeb />
     <aside className="sidebar" ref={asideRef}>
       <span className="nav-glider" aria-hidden="true" style={{ height: `${navGlider.height}px`, transform: `translateY(${navGlider.top}px)` }} />
       <button type="button" className="sidebar-collapse-button" aria-label={sidebarCollapsed ? t('Развернуть боковую панель') : t('Свернуть боковую панель')} title={sidebarCollapsed ? t('Развернуть панель') : t('Свернуть панель')} aria-pressed={sidebarCollapsed} onClick={() => setSidebarCollapsed((value) => !value)}><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m14.5 6-6 6 6 6" /></svg></button>
