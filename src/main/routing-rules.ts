@@ -33,7 +33,6 @@ export interface RoutingRule {
 export const ROUTING_PRESETS: { value: string; title: string; description: string }[] = [
   { value: 'geosite:category-ads-all', title: 'Реклама и слежка', description: 'Рекламные и следящие домены. Обычно их блокируют.' },
   { value: 'geosite:category-ru', title: 'Российские сайты', description: 'Госуслуги, банки, локальные сервисы. Обычно — напрямую.' },
-  { value: 'geoip:ru', title: 'Российские адреса', description: 'Серверы, расположенные в России.' },
   { value: 'geosite:private', title: 'Домашняя сеть', description: 'Роутер, принтер, сетевой диск. Всегда напрямую.' },
   { value: 'geoip:private', title: 'Локальные адреса', description: 'Адреса вида 192.168.x.x и подобные.' },
   { value: 'geosite:category-social-media-!cn', title: 'Соцсети', description: 'Социальные сети и мессенджеры (кроме китайских).' },
@@ -117,8 +116,9 @@ const SOCIAL_DOMAINS = [
  * соцсети — списком известных доменов: от наборов адресов это не зависит вовсе.
  */
 const GEO_TAG_EXPANSIONS: Record<string, string[]> = {
-  'geosite:ru': ['regexp:(^|\\.)(ru|su|xn--p1ai)$'],
-  'geosite:category-ru': ['regexp:(^|\\.)(ru|su|xn--p1ai)$'],
+  'geosite:ru': ['domain:ru', 'domain:su', 'domain:xn--p1ai'],
+  'geosite:category-ru': ['domain:ru', 'domain:su', 'domain:xn--p1ai'],
+  'geoip:ru': ['domain:ru', 'domain:su', 'domain:xn--p1ai'],
   'geosite:category-social-media': SOCIAL_DOMAINS.map((domain) => `domain:${domain}`),
   'geosite:category-social-media-!cn': SOCIAL_DOMAINS.map((domain) => `domain:${domain}`),
 };
@@ -206,17 +206,23 @@ export function xrayRoutingRules(rules: RoutingRule[]): Record<string, unknown>[
     const value = migrateLegacyRoutingTag(rule.value.trim());
     const outboundTag = rule.outbound === 'block' ? 'block' : rule.outbound === 'direct' ? 'direct' : 'proxy';
 
+    // Чужие теги, которых может не быть в файле наборов, заменяются
+    // собственными правилами — они работают с любым geosite.dat и ядром.
+    // Проверка идёт до разбора «адрес или домен»: geoip:ru раскрывается в
+    // доменные суффиксы и не должен попадать в ip-массив.
+    const expansion = GEO_TAG_EXPANSIONS[value.toLowerCase()];
+    if (expansion) {
+      result.push({ type: 'field', domain: expansion, outboundTag });
+      continue;
+    }
+
     // IP-адреса, подсети и наборы geoip описываются полем ip, домены — domain.
     const isAddress = /^geoip:/i.test(value)
       || /^\d{1,3}(\.\d{1,3}){3}(\/\d{1,2})?$/.test(value);
 
-    // Чужие теги, которых может не быть в файле наборов, заменяются
-    // собственными правилами — они работают с любым geosite.dat и ядром.
-    const matchers = GEO_TAG_EXPANSIONS[value.toLowerCase()] ?? [value];
-
     result.push(isAddress
-      ? { type: 'field', ip: matchers, outboundTag }
-      : { type: 'field', domain: matchers, outboundTag });
+      ? { type: 'field', ip: [value], outboundTag }
+      : { type: 'field', domain: [value], outboundTag });
   }
   return result;
 }

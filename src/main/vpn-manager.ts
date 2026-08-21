@@ -987,6 +987,9 @@ export class VpnManager extends EventEmitter {
     const usableRules = geoRulesAllowed
       ? routingRules
       : routingRules.filter((rule) => !/^(geosite|geoip|ext):/i.test(rule.value));
+    // Какие правила в итоге попадут в конфиг: предполётная проверка может
+    // заменить или отбросить часть из них, и журнал должен отражать итог.
+    let rulesInConfig = usableRules;
     // Запоминаем, попали ли групповые правила в этот конфиг: если ядро упадёт
     // с кодом 23, именно они под подозрением, и следующая попытка пойдёт без них.
     this.lastConfigIncludedGeo = !useSingbox && geoRulesAllowed
@@ -1106,12 +1109,22 @@ export class VpnManager extends EventEmitter {
           const liveConfig = buildXrayConfig(profile.params, port, mode, activeSplitApps, activeAppRouting, fragmentation, allowLan, dnsServers, liveRules);
           await fs.writeFile(configFile, `${JSON.stringify(liveConfig, null, 2)}\n`, 'utf8');
           this.lastConfigIncludedGeo = liveRules.some((rule) => /^(geosite|geoip|ext):/i.test(rule.value));
+          rulesInConfig = liveRules;
         } else {
           // Ни один тег не виноват — возвращаем исходный конфиг: настоящую
           // причину покажет сам запуск.
           await fs.writeFile(configFile, `${JSON.stringify(config, null, 2)}\n`, 'utf8');
         }
       }
+    }
+
+    // Прозрачность маршрутизации: в журнал пишется, какие правила и с каким
+    // направлением ушли в конфиг ядра. Раньше молча не сработавшие правила
+    // искать приходилось вслепую — по поведению браузера.
+    const summary = rulesInConfig.map((rule) => `${rule.value} → ${rule.outbound}`).join('; ');
+    this.emitLog('info', `Маршрутизация в конфиге: ${summary || 'правил нет'}`);
+    if (rulesInConfig.some((rule) => /^geoip:ru$/i.test(rule.value.trim()))) {
+      this.emitLog('info', 'Правило geoip:ru работает по доменам .ru/.su/.рф');
     }
 
     const args = useSingbox ? ['run', '-c', configFile] : ['-config', configFile];

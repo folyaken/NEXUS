@@ -58,7 +58,7 @@ assert.equal(xray.length, 3, 'выключенное правило в конф�
 // Домены и адреса описываются разными полями — перепутать нельзя.
 // Российская зона больше не полагается на чужой тег (его в наборах не было
 // никогда): она разворачивается в собственное правило по окончанию домена.
-assert.deepEqual(xray[0], { type: 'field', domain: ['regexp:(^|\\.)(ru|su|xn--p1ai)$'], outboundTag: 'direct' });
+assert.deepEqual(xray[0], { type: 'field', domain: ['domain:ru', 'domain:su', 'domain:xn--p1ai'], outboundTag: 'direct' });
 assert.deepEqual(xray[1], { type: 'field', ip: ['10.0.0.0/8'], outboundTag: 'direct' });
 assert.equal(xray[2].outboundTag, 'block');
 
@@ -78,7 +78,7 @@ const config = buildXrayConfig(
 );
 const configRules = config.routing.rules;
 assert.ok(configRules.length > 3);
-assert.equal(configRules[0].domain[0], 'regexp:(^|\\.)(ru|su|xn--p1ai)$', 'правила пользователя идут первыми');
+assert.equal(configRules[0].domain[0], 'domain:ru', 'правила пользователя идут первыми');
 // Для правил по адресам нужен разбор имени в IP, иначе geoip не срабатывает.
 assert.equal(config.routing.domainStrategy, 'IPIfNonMatch');
 
@@ -107,12 +107,17 @@ assert.ok(singboxSocial.some((rule) => Array.isArray(rule.domain_suffix) && rule
 // Российская зона и соцсети описываются собственными правилами NEXUS и
 // работают с любым geosite.dat и любым ядром.
 const russian = xrayRoutingRules([{ id: 'r', value: 'geosite:category-ru', outbound: 'direct', enabled: true }]);
-assert.deepEqual(russian, [{ type: 'field', domain: ['regexp:(^|\\.)(ru|su|xn--p1ai)$'], outboundTag: 'direct' }]);
+assert.deepEqual(russian, [{ type: 'field', domain: ['domain:ru', 'domain:su', 'domain:xn--p1ai'], outboundTag: 'direct' }]);
 const social = xrayRoutingRules([{ id: 's', value: 'geosite:category-social-media-!cn', outbound: 'direct', enabled: true }]);
 assert.equal(social.length, 1);
 assert.ok(social[0].domain.includes('domain:vk.com'), 'соцсети обязаны включать vk.com');
 assert.ok(social[0].domain.includes('domain:t.me'), 'соцсети обязаны включать t.me');
 assert.ok(social[0].domain.includes('domain:youtube.com'), 'соцсети обязаны включать youtube.com');
+
+// «Российские адреса» (geoip:ru) тоже раскрываются в доменные суффиксы:
+// такого тега нет ни в одной версии наборов, и правило молча не работало.
+const russianIp = xrayRoutingRules([{ id: 'r2', value: 'geoip:ru', outbound: 'direct', enabled: true }]);
+assert.deepEqual(russianIp, [{ type: 'field', domain: ['domain:ru', 'domain:su', 'domain:xn--p1ai'], outboundTag: 'direct' }]);
 
 // --- Настройки ---------------------------------------------------------------------------
 assert.deepEqual(DEFAULT_SETTINGS.vpnRoutingRules, [], 'по умолчанию правил нет');
@@ -156,6 +161,8 @@ assert.ok(presetValues.includes('geosite:category-ru'), 'российские с
 assert.ok(!presetValues.includes('geosite:ru'), 'тег ru больше не существует в наборах');
 assert.ok(presetValues.includes('geosite:category-social-media-!cn'), 'соцсети обязаны идти через живой тег');
 assert.ok(!presetValues.includes('geosite:category-social-media'), 'тег category-social-media больше не существует');
+// Пресет «Российские адреса» убран: он предлагал несуществующий тег geoip:ru.
+assert.ok(!presetValues.includes('geoip:ru'), 'пресет с несуществующим тегом geoip:ru не нужен');
 const { migrateLegacyRoutingTag, geoTagAlternatives } = require(path.join(root, 'dist-electron', 'routing-rules.js'));
 assert.equal(migrateLegacyRoutingTag('geosite:ru'), 'geosite:category-ru');
 assert.equal(migrateLegacyRoutingTag('geosite:RU'), 'geosite:category-ru', 'регистр не должен мешать миграции');

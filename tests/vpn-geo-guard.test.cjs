@@ -62,6 +62,10 @@ assert.match(vpnManager, /const liveRules = usableRules\s*\n\s*\.map\(/);
 assert.match(vpnManager, /geoTagAlternatives\(dead\)/);
 assert.match(vpnManager, /tagSubstitutions = new Map/);
 assert.match(vpnManager, /Правило \$\{dead\} заменено на \$\{candidate\}/);
+assert.match(vpnManager, /Маршрутизация в конфиге/,
+  'журнал обязан показывать, какие правила ушли в конфиг — иначе молча не сработавшее правило не найти');
+assert.match(vpnManager, /rulesInConfig\.some\(\(rule\) => \/\^geoip:ru\$\//,
+  'правило geoip:ru обязано объясняться в журнале');
 assert.match(vpnManager, /replacement \? \{ \.\.\.rule, value: replacement \} : null/);
 const ensureXray = fs.readFileSync(path.join(root, 'scripts', 'ensure-xray.cjs'), 'utf8');
 assert.match(ensureXray, /replace\(\/\\\.dat\$\/i, ''\)/, 'скрипт установки ядра тоже обязан класть копию без расширения');
