@@ -122,7 +122,9 @@ bg_frame() {
   local th="$1" S="$2" t="$3" n="$4"
   local bg ac ac2
   bg=$(palette "$th" bg); ac=$(palette "$th" accent); ac2=$(palette "$th" accent2)
-  local draw="fill '$bg' rectangle 0,0 $((640*S)),$((360*S))"
+  local wh
+  wh=$(awk -v S="$S" 'BEGIN { printf "%d,%d", 640*S, 360*S }')
+  local draw="fill '$bg' rectangle 0,0 $wh"
 
   case "$th" in
     indigo)
@@ -215,6 +217,10 @@ bg_frame() {
 }
 
 # --- Сборка превью -----------------------------------------------------------
+# В режиме библиотеки функции только определяются, ничего не собирается:
+# их переиспользует скрипт анимированной карточки (make-animated-themes-card.sh).
+if [ "${THEME_LIB_ONLY:-0}" = "1" ]; then return 0; fi
+
 mkdir -p "$OUT_DIR"
 N=50
 
