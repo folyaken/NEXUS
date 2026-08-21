@@ -270,4 +270,25 @@ assert.doesNotMatch(app, /requestAnimationFrame[\s\S]{0,400}ember-web/, 'угл�
 assert.match(styles, /\.app-frame\.motion-off \.ember-mote/);
 assert.match(styles, /\.app-frame:not\(\.motion-force\) \.ember-mote/);
 
+// --- Живой фон «Индиго»: пакеты в туннеле ------------------------------------------------
+// У главного оформления свой фон: по дугам изредка пробегает светящийся пакет,
+// созвездие узлов перемигивается линиями связи. Требования те же, что у фонов
+// «Графита» и «Багрового»: виден только в своей теме, не перехватывает нажатия,
+// движение — чистый CSS.
+assert.match(styles, /\.packet-web \{ display: none; \}/, 'в других оформлениях пакеты показывать не нужно');
+assert.match(styles, /\.appearance-indigo \.packet-web \{/);
+const packetRule = styles.slice(styles.indexOf('.appearance-indigo .packet-web {'));
+assert.match(packetRule.slice(0, packetRule.indexOf('}')), /pointer-events: none/,
+  'фон обязан пропускать нажатия к интерфейсу');
+assert.match(styles, /\.appearance-indigo \.packet-track \{/);
+assert.match(styles, /@keyframes packet-orbit-a/);
+assert.match(styles, /@keyframes packet-link-pulse/);
+assert.match(styles, /@keyframes packet-node-flash/);
+assert.match(app, /function PacketWeb/, 'нужен компонент фона «Индиго»');
+assert.match(app, /<PacketWeb \/>/, 'фон обязан быть подключён');
+assert.doesNotMatch(app, /requestAnimationFrame[\s\S]{0,400}packet-web/, 'пакеты не должны считаться в JavaScript');
+// Движение подчиняется настройке анимаций, как всё остальное.
+assert.match(styles, /\.app-frame\.motion-off \.packet-track \{ animation: none; \}/);
+assert.match(styles, /\.app-frame:not\(\.motion-force\) \.packet-track \{ animation: none; \}/);
+
 console.log('Appearance theme checks passed.');

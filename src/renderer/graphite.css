@@ -801,6 +801,15 @@
 .appearance-graphite .server-row.is-best:hover { border-color: rgba(228,191,128,.6); }
 .appearance-graphite .server-row.is-best.is-active { border-color: rgba(228,191,128,.75); box-shadow: inset 0 0 0 1px rgba(228,191,128,.22), 0 8px 22px rgba(150,119,64,.2); }
 .appearance-graphite .server-crown { border: 1px solid rgba(228,191,128,.45); background: linear-gradient(145deg, #14131a, #0b0a10); box-shadow: 0 3px 10px rgba(0,0,0,.4), 0 0 12px rgba(228,191,128,.25); }
+.appearance-graphite .appearance-indigo .packet-track { border: 1px solid rgba(163,146,220,.06); }
+.appearance-graphite .appearance-indigo .packet-track-b { border-color: rgba(182,165,239,.055); }
+.appearance-graphite .appearance-indigo .packet-track-a i { background: #a392dc; box-shadow: 0 0 6px 1px rgba(163,146,220,.65), 0 0 14px 3px rgba(163,146,220,.28); }
+.appearance-graphite .appearance-indigo .packet-track-b i { background: #b6a5ef; box-shadow: 0 0 6px 1px rgba(182,165,239,.6), 0 0 14px 3px rgba(182,165,239,.26); }
+.appearance-graphite .appearance-indigo .packet-link { background: rgba(163,146,220,.32); }
+.appearance-graphite .appearance-indigo .packet-link-b { background: rgba(182,165,239,.3); }
+.appearance-graphite .appearance-indigo .packet-node-hub { background: #a392dc; box-shadow: 0 0 7px 1px rgba(163,146,220,.5); }
+.appearance-graphite .appearance-indigo .packet-node-a { background: #a392dc; box-shadow: 0 0 6px 1px rgba(163,146,220,.45); }
+.appearance-graphite .appearance-indigo .packet-node-b { background: #b6a5ef; box-shadow: 0 0 6px 1px rgba(182,165,239,.42); }
 
 /* Мерцание короны лучшего сервера: ключевые кадры нельзя приписать теме
    селектором, поэтому для неё заведён отдельный набор кадров. */

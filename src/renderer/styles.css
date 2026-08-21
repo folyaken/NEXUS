@@ -2201,6 +2201,167 @@ kbd { padding: 3px 5px; border: 1px solid rgba(255,255,255,.1); border-radius: 5
 .app-frame.motion-off .ember-mote { opacity: .45; transform: translate3d(0, -40vh, 0) scale(1); }
 
 /* ============================================================================
+   Живой фон основного оформления «Индиго»: пакеты в туннеле
+   ==========================================================================*/
+
+/*
+  Сюжет фона — сеть, по которой бегут данные. По двум тонким дугам изредка
+  проходит светящийся пакет и скрывается за краем окна, а созвездие из трёх
+  узлов перемигивается короткими линиями связи. Фон виден только в «Индиго»:
+  это его отличительная черта, как пыль у «Графита» и угли у «Багрового».
+
+  Слой лежит под интерфейсом и не перехватывает нажатия. Движение целиком на
+  CSS: дуга вращается вокруг своего центра, а пакет закреплён на её ободе —
+  та же механика, что у орбит на «Обзоре», поэтому считается всё видеокартой.
+*/
+.packet-web { display: none; }
+
+.appearance-indigo .packet-web {
+  position: absolute;
+  z-index: 0;
+  inset: 0;
+  display: block;
+  overflow: hidden;
+  pointer-events: none;
+}
+
+/* Дуга-трек: большой эллипс, вращающийся вокруг своего центра. Вращение
+   эллипса с однотонной рамкой незаметно глазу, а точка на ободе честно
+   бежит по эллиптической траектории — пакет проходит по видимой дуге и
+   уходит за край. Наклон задан прямо в ключевых кадрах, чтобы вращение
+   не сбрасывало его. */
+.appearance-indigo .packet-track {
+  position: absolute;
+  display: block;
+  border: 1px solid rgba(124,242,213,.06);
+  border-radius: 50%;
+  transform-origin: 50% 50%;
+  will-change: transform;
+}
+.appearance-indigo .packet-track-a {
+  width: 1500px;
+  height: 950px;
+  left: 66%;
+  top: 56%;
+  margin-left: -750px;
+  margin-top: -475px;
+  animation: packet-orbit-a 38s linear infinite;
+}
+.appearance-indigo .packet-track-b {
+  width: 1200px;
+  height: 760px;
+  left: 28%;
+  top: 60%;
+  margin-left: -600px;
+  margin-top: -380px;
+  border-color: rgba(168,149,255,.055);
+  /* Обратный ход задан самими ключевыми кадрами (от -14° к -374°), а не
+     animation-direction: reverse — так анимация не реверсирует скачком. */
+  animation: packet-orbit-b 52s linear infinite;
+}
+@keyframes packet-orbit-a {
+  from { transform: rotate(9deg); }
+  to { transform: rotate(369deg); }
+}
+@keyframes packet-orbit-b {
+  from { transform: rotate(-14deg); }
+  to { transform: rotate(-374deg); }
+}
+
+/* Пакет: светящаяся точка на ободе дуги, двойное свечение даёт короткий
+   шлейф без дополнительных слоёв. */
+.appearance-indigo .packet-track i {
+  position: absolute;
+  top: -2.5px;
+  left: 50%;
+  display: block;
+  width: 5px;
+  height: 5px;
+  margin-left: -2.5px;
+  border-radius: 50%;
+}
+.appearance-indigo .packet-track-a i {
+  background: #7cf2d5;
+  box-shadow: 0 0 6px 1px rgba(124,242,213,.65), 0 0 14px 3px rgba(124,242,213,.28);
+}
+.appearance-indigo .packet-track-b i {
+  background: #a895ff;
+  box-shadow: 0 0 6px 1px rgba(168,149,255,.6), 0 0 14px 3px rgba(168,149,255,.26);
+}
+
+/* Созвездие: хаб и два узла на фиксированных смещениях от него, поэтому
+   кластер не расползается при изменении размера окна. */
+.appearance-indigo .packet-hub { position: absolute; left: 76%; top: 34%; width: 0; height: 0; }
+
+/* Линия связи: отрезок из хаба к узлу. Большую часть времени невидима и
+   вспыхивает на миг — как пакет, переданный между узлами. Наклон и длина
+   заданы раз и навсегда: узлы стоят на фиксированных смещениях. */
+.appearance-indigo .packet-link {
+  position: absolute;
+  top: 0;
+  left: 0;
+  display: block;
+  height: 1px;
+  transform-origin: 0 50%;
+  opacity: 0;
+  background: rgba(124,242,213,.32);
+  will-change: opacity;
+}
+.appearance-indigo .packet-link-a { width: 97px; transform: rotate(36.6deg); animation: packet-link-pulse 9s linear -3s infinite; }
+.appearance-indigo .packet-link-b { width: 115px; transform: rotate(123.7deg); background: rgba(168,149,255,.3); animation: packet-link-pulse 13s linear -8s infinite; }
+@keyframes packet-link-pulse {
+  0%, 7%, 100% { opacity: 0; }
+  3.5% { opacity: 1; }
+}
+
+/* Узлы: хаб мягко мерцает, спутники вспыхивают ровно тогда, когда к ним
+   тянется линия — у пары «линия + узел» общие длительность и задержка. */
+.appearance-indigo .packet-node { position: absolute; display: block; width: 3px; height: 3px; border-radius: 50%; }
+.appearance-indigo .packet-node-hub {
+  top: -1.5px;
+  left: -1.5px;
+  background: #7cf2d5;
+  box-shadow: 0 0 7px 1px rgba(124,242,213,.5);
+  animation: packet-node-idle 6s ease-in-out -1s infinite;
+}
+.appearance-indigo .packet-node-a {
+  top: 58px;
+  left: 78px;
+  background: #7cf2d5;
+  box-shadow: 0 0 6px 1px rgba(124,242,213,.45);
+  animation: packet-node-flash 9s linear -3s infinite;
+}
+.appearance-indigo .packet-node-b {
+  top: 96px;
+  left: -64px;
+  background: #a895ff;
+  box-shadow: 0 0 6px 1px rgba(168,149,255,.42);
+  animation: packet-node-flash 13s linear -8s infinite;
+}
+@keyframes packet-node-idle {
+  0%, 100% { opacity: .5; }
+  50% { opacity: 1; }
+}
+@keyframes packet-node-flash {
+  0%, 7%, 100% { opacity: .35; }
+  3.5% { opacity: 1; }
+}
+
+/* Настройка анимаций старше системной, как во всём интерфейсе. Пакеты при
+   этом прячутся (без движения они зависли бы в случайной точке), а созвездие
+   остаётся видимым статично. */
+@media (prefers-reduced-motion: reduce) {
+  .app-frame:not(.motion-force) .packet-track { animation: none; }
+  .app-frame:not(.motion-force) .packet-track i,
+  .app-frame:not(.motion-force) .packet-link { display: none; }
+  .app-frame:not(.motion-force) .packet-node { animation: none; opacity: .55; }
+}
+.app-frame.motion-off .packet-track { animation: none; }
+.app-frame.motion-off .packet-track i,
+.app-frame.motion-off .packet-link { display: none; }
+.app-frame.motion-off .packet-node { animation: none; opacity: .55; }
+
+/* ============================================================================
    Живой фон оформления «Графит»: светящаяся пыль и лавандовые пятна
    ==========================================================================*/
 

@@ -292,6 +292,32 @@ function PulsePanel({ running, total, errors }: { running: number; total: number
  * В других оформлениях узор скрыт: это отличительная черта «Графита».
  */
 /**
+ * Живой фон основного оформления «Индиго»: пакеты в туннеле.
+ *
+ * Сюжет фона — данные, бегущие по сети: по двум тонким дугам изредка
+ * пробегает светящийся пакет и уходит за край экрана, а рядом с хабом
+ * на секунду вспыхивает линия связи. Всё на CSS (transform и opacity считает
+ * видеокарта), поэтому на отзывчивость программы фон не влияет.
+ *
+ * Движущиеся частицы не считаются в JavaScript: дуги вращаются целиком,
+ * а точка на ободе движется вместе с дугой — та же механика, что у орбит
+ * на «Обзоре».
+ */
+function PacketWeb() {
+  return <div className="packet-web" aria-hidden="true">
+    <span className="packet-track packet-track-a"><i /></span>
+    <span className="packet-track packet-track-b"><i /></span>
+    <span className="packet-hub">
+      <b className="packet-link packet-link-a" />
+      <b className="packet-link packet-link-b" />
+      <i className="packet-node packet-node-hub" />
+      <i className="packet-node packet-node-a" />
+      <i className="packet-node packet-node-b" />
+    </span>
+  </div>;
+}
+
+/**
  * Живой фон оформления «Багровое»: тлеющие угли.
  *
  * Виден только в этой теме, как пыль у «Графита». Уголёк всплывает снизу,
@@ -1037,7 +1063,7 @@ function App() {
     }
   };
 
-  return <div className={`app-frame appearance-${settings.appearance} ${settings.motion === 'full' ? 'motion-force' : ''} ${settings.motion === 'reduced' ? 'motion-off' : ''}`}><WindowBar maximized={maximized} />{themeVeil > 0 && <span key={themeVeil} className="theme-fade-veil is-running" aria-hidden="true" />}<div className={`app-shell ${sidebarCollapsed ? 'is-sidebar-collapsed' : ''}`}><div className="ambient ambient-one" /><div className="ambient ambient-two" /><NodeWeb /><EmberWeb />
+  return <div className={`app-frame appearance-${settings.appearance} ${settings.motion === 'full' ? 'motion-force' : ''} ${settings.motion === 'reduced' ? 'motion-off' : ''}`}><WindowBar maximized={maximized} />{themeVeil > 0 && <span key={themeVeil} className="theme-fade-veil is-running" aria-hidden="true" />}<div className={`app-shell ${sidebarCollapsed ? 'is-sidebar-collapsed' : ''}`}><div className="ambient ambient-one" /><div className="ambient ambient-two" /><NodeWeb /><EmberWeb /><PacketWeb />
     <aside className="sidebar" ref={asideRef}>
       <span className="nav-glider" aria-hidden="true" style={{ height: `${navGlider.height}px`, transform: `translateY(${navGlider.top}px)` }} />
       <button type="button" className="sidebar-collapse-button" aria-label={sidebarCollapsed ? t('Развернуть боковую панель') : t('Свернуть боковую панель')} title={sidebarCollapsed ? t('Развернуть панель') : t('Свернуть панель')} aria-pressed={sidebarCollapsed} onClick={() => setSidebarCollapsed((value) => !value)}><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m14.5 6-6 6 6 6" /></svg></button>
