@@ -162,6 +162,9 @@ convert g-tile5.png -gravity Center -font "$F_MONO" -pointsize 10 -kerning 3 \
 # ── Шапка слева ────────────────────────────────────────────────────────────
 # Плашка версии стоит на визуальном центре слова NEXUS и обведена заметной
 # рамкой, чтобы версия читалась как часть шапки, а не плавала рядом.
+# Внимание: -kerning из надписи NEXUS «прилипает» к следующим надписям в том
+# же convert, поэтому перед плашкой и подзаголовком он сбрасывается в 0 —
+# иначе версия растягивалась и вылезала за правый край рамки.
 convert -size 86x28 xc:none \
   -fill 'rgba(198,182,251,0.14)' -stroke 'rgba(198,182,251,0.75)' -strokewidth 1 \
   -draw 'roundrectangle 0,0 85,27 9,9' g-vbadge.png
@@ -169,8 +172,8 @@ convert -size 86x28 xc:none \
 convert g-bg5.png g-tile.png -geometry +830+100 -composite \
   -font "$F_GROT" -pointsize 30 -kerning 4 -fill "$INK" -annotate +88+116 'NEXUS' \
   g-vbadge.png -geometry +224+92 -composite \
-  -font "$F_MONO" -pointsize 13 -fill "$LAV" -annotate +242+110 'v1.6.0' \
-  -font "$F_REG" -pointsize 15 -fill "$DIM" -annotate +88+146 'сетевые инструменты для Windows' \
+  -font "$F_MONO" -pointsize 13 -kerning 0 -fill "$LAV" -annotate +246+110 'v1.6.0' \
+  -font "$F_REG" -pointsize 15 -kerning 0 -fill "$DIM" -annotate +88+146 'сетевые инструменты для Windows' \
   g-head.png
 
 # Акцентная полоска: светлая лаванда перетекает в глубокую.
@@ -266,7 +269,10 @@ convert -size 96x34 xc:none \
   -fill 'rgba(198,182,251,0.07)' -stroke 'rgba(198,182,251,0.35)' -strokewidth 1 \
   -draw 'roundrectangle 0.5,0.5 95.5,33.5 10,10' g-pill2.png
 convert -size 84x34 gradient:"$LAV"-"$DEEP" g-pill3.png
-convert -size 84x34 xc:black -fill white -draw 'roundrectangle 0,0 83,33 10,10' g-pill3mask.png
+# Маска рисуется на прозрачном холсте: DstIn берёт альфу источника, а на
+# непрозрачном чёрном фоне альфа везде равна единице и обрезка не срабатывала —
+# кнопка выходила с прямыми углами вместо скруглений.
+convert -size 84x34 xc:none -fill white -draw 'roundrectangle 0,0 83,33 10,10' g-pill3mask.png
 convert g-pill3.png g-pill3mask.png -compose DstIn -composite g-pill3.png
 
 convert g-body.png \
