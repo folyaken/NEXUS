@@ -69,6 +69,29 @@ export function migrateLegacyRoutingTag(value: string): string {
 }
 
 /**
+ * Имена-синонимы одного и того же раздела наборов адресов.
+ *
+ * Наборы разного возраста знают разные имена: свежий geosite.dat содержит
+ * `category-ru`, старый — `ru`. Пресеты идут на свежие имена, но если файл
+ * наборов у пользователя старый, при подключении подбирается то имя, которое
+ * в нём действительно есть — иначе правило молча не срабатывало бы, и
+ * «российские сайты напрямую» переставали работать при исправной программе.
+ */
+export function geoTagAlternatives(tag: string): string[] {
+  const key = tag.trim().toLowerCase();
+  switch (key) {
+    case 'geosite:ru':
+    case 'geosite:category-ru':
+      return ['geosite:ru', 'geosite:category-ru'];
+    case 'geosite:category-social-media':
+    case 'geosite:category-social-media-!cn':
+      return ['geosite:category-social-media', 'geosite:category-social-media-!cn'];
+    default:
+      return [key];
+  }
+}
+
+/**
  * Проверка того, что ввёл пользователь.
  *
  * Ошибка здесь стоит дорого: неверная строка в конфигурации не даёт ядру

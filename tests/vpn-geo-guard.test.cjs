@@ -56,7 +56,13 @@ assert.match(vpnManager, /spawnSync\(engine, \['-test', '-config', configFile\]/
 assert.match(vpnManager, /probeConfigPath = path\.join\(this\.configsDir\(\), 'probe_config\.json'\)/);
 assert.match(vpnManager, /deadTags = new Set/);
 assert.match(vpnManager, /Тег \$\{tag\} отсутствует в наборах адресов/);
-assert.match(vpnManager, /const liveRules = usableRules\.filter/);
+assert.match(vpnManager, /const liveRules = usableRules\s*\n\s*\.map\(/);
+// Мёртвый тег не просто отключается: подбирается синоним, который есть в
+// наборах адресов (старый geosite.dat не знает новых имён разделов).
+assert.match(vpnManager, /geoTagAlternatives\(dead\)/);
+assert.match(vpnManager, /tagSubstitutions = new Map/);
+assert.match(vpnManager, /Правило \$\{dead\} заменено на \$\{candidate\}/);
+assert.match(vpnManager, /replacement \? \{ \.\.\.rule, value: replacement \} : null/);
 const ensureXray = fs.readFileSync(path.join(root, 'scripts', 'ensure-xray.cjs'), 'utf8');
 assert.match(ensureXray, /replace\(\/\\\.dat\$\/i, ''\)/, 'скрипт установки ядра тоже обязан класть копию без расширения');
 const updater = fs.readFileSync(path.join(root, 'src', 'main', 'github-updater.ts'), 'utf8');

@@ -13,7 +13,7 @@ import { profileConnectionKey, profileIdentityKey, profileSourceKey, stableProfi
 import { applyGeo } from './vpn-geo';
 import { buildXrayConfig } from './xray-config';
 import { buildSingboxConfig } from './singbox-config';
-import { migrateLegacyRoutingTag, type RoutingRule } from './routing-rules';
+import { geoTagAlternatives, migrateLegacyRoutingTag, type RoutingRule } from './routing-rules';
 import { inboundListenAddress, lanEndpoints } from './lan-share';
 import { clearSystemProxy, setSystemProxy } from './system-proxy';
 import { createVpnDiagnostics } from './vpn-diagnostics';
@@ -1064,11 +1064,45 @@ export class VpnManager extends EventEmitter {
             this.emitLog('warn', `Тег ${tag} отсутствует в наборах адресов — правило отключено.`);
           }
         }
+        // Подбор имён под возраст наборов адресов: старый geosite.dat не знает
+        // новых имён разделов (и наоборот). Для каждого мёртвого тега пробуем
+        // его синонимы и подставляем первое работающее имя в правило.
+        const tagSubstitutions = new Map<string, string>();
+        for (const dead of deadTags) {
+          for (const candidate of geoTagAlternatives(dead)) {
+            if (candidate === dead) continue;
+            const altConfig = buildXrayConfig(profile.params, port, 'proxy', [], 'system', false, false, [], [{
+              id: 'probe',
+              value: candidate,
+              outbound: 'direct',
+              enabled: true,
+            }]);
+            await fs.writeFile(probeConfigPath, `${JSON.stringify(altConfig, null, 2)}\n`, 'utf8');
+            const altProbe = spawnSync(engine, ['-test', '-config', probeConfigPath], {
+              encoding: 'utf8',
+              timeout: 10_000,
+              windowsHide: true,
+              shell: false,
+            });
+            if (altProbe.status === 0) {
+              tagSubstitutions.set(dead, candidate);
+              this.emitLog('info', `Правило ${dead} заменено на ${candidate}: это имя есть в наборах адресов.`);
+              break;
+            }
+          }
+        }
         await fs.rm(probeConfigPath, { force: true });
         if (deadTags.size) {
-          // Пересобираем конфиг без мёртвых тегов и запускаемся сразу —
-          // остальные правила при этом работают.
-          const liveRules = usableRules.filter((rule) => !deadTags.has(migrateLegacyRoutingTag(rule.value.trim()).toLowerCase()));
+          // Пересобираем конфиг: мёртвые теги заменяются синонимами, если
+          // таковые нашлись, иначе правило отключается — остальные работают.
+          const liveRules = usableRules
+            .map((rule) => {
+              const key = migrateLegacyRoutingTag(rule.value.trim()).toLowerCase();
+              if (!deadTags.has(key)) return rule;
+              const replacement = tagSubstitutions.get(key);
+              return replacement ? { ...rule, value: replacement } : null;
+            })
+            .filter((rule): rule is RoutingRule => rule !== null);
           const liveConfig = buildXrayConfig(profile.params, port, mode, activeSplitApps, activeAppRouting, fragmentation, allowLan, dnsServers, liveRules);
           await fs.writeFile(configFile, `${JSON.stringify(liveConfig, null, 2)}\n`, 'utf8');
           this.lastConfigIncludedGeo = liveRules.some((rule) => /^(geosite|geoip|ext):/i.test(rule.value));

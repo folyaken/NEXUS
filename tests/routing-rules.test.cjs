@@ -137,12 +137,19 @@ assert.ok(presetValues.includes('geosite:category-ru'), 'российские с
 assert.ok(!presetValues.includes('geosite:ru'), 'тег ru больше не существует в наборах');
 assert.ok(presetValues.includes('geosite:category-social-media-!cn'), 'соцсети обязаны идти через живой тег');
 assert.ok(!presetValues.includes('geosite:category-social-media'), 'тег category-social-media больше не существует');
-const { migrateLegacyRoutingTag } = require(path.join(root, 'dist-electron', 'routing-rules.js'));
+const { migrateLegacyRoutingTag, geoTagAlternatives } = require(path.join(root, 'dist-electron', 'routing-rules.js'));
 assert.equal(migrateLegacyRoutingTag('geosite:ru'), 'geosite:category-ru');
 assert.equal(migrateLegacyRoutingTag('geosite:RU'), 'geosite:category-ru', 'регистр не должен мешать миграции');
 assert.equal(migrateLegacyRoutingTag('geosite:category-social-media'), 'geosite:category-social-media-!cn');
 assert.equal(migrateLegacyRoutingTag('geosite:category-ads-all'), 'geosite:category-ads-all', 'живые теги не трогаются');
 assert.equal(migrateLegacyRoutingTag('example.com'), 'example.com', 'обычные домены не трогаются');
+
+// Синонимы разделов: наборы разного возраста знают разные имена. При
+// подключении программа подбирает то имя, которое есть в файле наборов.
+assert.deepEqual(geoTagAlternatives('geosite:category-ru'), ['geosite:ru', 'geosite:category-ru']);
+assert.deepEqual(geoTagAlternatives('geosite:ru'), ['geosite:ru', 'geosite:category-ru']);
+assert.deepEqual(geoTagAlternatives('geosite:category-social-media-!cn'), ['geosite:category-social-media', 'geosite:category-social-media-!cn']);
+assert.deepEqual(geoTagAlternatives('geosite:category-ads-all'), ['geosite:category-ads-all'], 'без синонимов возвращается сам тег');
 
 // --- Файлы наборов адресов --------------------------------------------------------
 // Правило вида `geosite:ru` работает только когда рядом с ядром лежат
