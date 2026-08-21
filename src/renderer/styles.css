@@ -2109,6 +2109,98 @@ kbd { padding: 3px 5px; border: 1px solid rgba(255,255,255,.1); border-radius: 5
 .app-frame.motion-off .theme-fade-veil.is-running { animation: none; }
 
 /* ============================================================================
+   Живой фон оформления «Багровое»: тлеющие угли
+   ==========================================================================*/
+
+/*
+  Узор виден только в «Багровом» — это его отличительная черта, как пыль
+  у «Графита». Сюжет: догорающий костёр за кадром. Уголёк всплывает снизу,
+  мерцает по пути (яркость дергается парой значений) и гаснет у потолка,
+  а внизу медленно дышит тёплое свечение — свет самих углей.
+
+  Слой лежит под интерфейсом и не перехватывает нажатия. Движение целиком на
+  CSS: анимируются opacity и transform, которые считает видеокарта, поэтому
+  на отзывчивость программы фон не влияет.
+*/
+.ember-web { display: none; }
+
+.appearance-crimson .ember-web {
+  position: absolute;
+  z-index: 0;
+  inset: 0;
+  display: block;
+  overflow: hidden;
+  pointer-events: none;
+}
+
+/* Тёплое свечение внизу: два слоя дышат вразнобой, чтобы свет не казался
+   застывшей подложкой. */
+.appearance-crimson .ember-glow {
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  left: 0;
+  height: 300px;
+  background: radial-gradient(60% 100% at 50% 100%, rgba(214,60,74,.15), rgba(214,60,74,.05) 55%, transparent 78%);
+  animation: ember-breathe 7s ease-in-out infinite;
+}
+.appearance-crimson .ember-glow-two {
+  right: -8%;
+  left: auto;
+  width: 46%;
+  height: 260px;
+  background: radial-gradient(100% 100% at 100% 100%, rgba(227,114,66,.12), transparent 72%);
+  animation-duration: 9.5s;
+  animation-delay: -3.5s;
+}
+@keyframes ember-breathe {
+  0%, 100% { opacity: .7; }
+  50% { opacity: 1; }
+}
+
+/* Уголёк: мягкая точка со свечением. Три оттенка — обычный, глубокий красный
+   и тёплый «уголь» — чтобы подъём не выглядел монотонной колонной. */
+.appearance-crimson .ember-mote {
+  position: absolute;
+  bottom: -12px;
+  width: var(--ember-size, 3px);
+  height: var(--ember-size, 3px);
+  border-radius: 50%;
+  background: #ff7d5a;
+  box-shadow: 0 0 6px 1px rgba(255,125,90,.5);
+  opacity: 0;
+  will-change: transform, opacity;
+  animation: ember-rise var(--ember-dur, 18s) linear var(--ember-delay, 0s) infinite;
+}
+.appearance-crimson .ember-mote.deep { background: #e64248; box-shadow: 0 0 7px 1px rgba(230,66,72,.55); }
+.appearance-crimson .ember-mote.coal { background: #ff9a5c; box-shadow: 0 0 8px 2px rgba(255,154,92,.45); }
+
+/*
+  Уголёк всплывает на 95% высоты и гаснет у потолка. Мерцание построено на
+  двух значениях прозрачности, которые приходят переменными от разметки:
+  у каждой частицы свой ритм, и фон не пульсирует разом. Снос вбок тоже
+  индивидуальный — частицы расходятся веером, а не летят строем.
+*/
+@keyframes ember-rise {
+  0% { opacity: 0; transform: translate3d(0, 0, 0) scale(.6); }
+  7% { opacity: var(--ember-fl, .8); }
+  50% { opacity: var(--ember-fl2, .4); transform: translate3d(calc(var(--ember-drift, 16px) * .55), -48vh, 0) scale(1); }
+  93% { opacity: 0; }
+  100% { opacity: 0; transform: translate3d(var(--ember-drift, 16px), -95vh, 0) scale(1.2); }
+}
+
+/* Настройка анимаций старше системной, как во всём интерфейсе. Угольки при
+   этом остаются видимыми — просто замирают на полпути. */
+@media (prefers-reduced-motion: reduce) {
+  .app-frame:not(.motion-force) .ember-mote,
+  .app-frame:not(.motion-force) .ember-glow { animation: none; }
+  .app-frame:not(.motion-force) .ember-mote { opacity: .45; transform: translate3d(0, -40vh, 0) scale(1); }
+}
+.app-frame.motion-off .ember-mote,
+.app-frame.motion-off .ember-glow { animation: none; }
+.app-frame.motion-off .ember-mote { opacity: .45; transform: translate3d(0, -40vh, 0) scale(1); }
+
+/* ============================================================================
    Живой фон оформления «Графит»: светящаяся пыль и лавандовые пятна
    ==========================================================================*/
 

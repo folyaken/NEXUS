@@ -250,4 +250,24 @@ assert.match(app, /className="theme-fade-veil is-running"/, 'пелена дол
 assert.match(styles, /\.app-frame\.motion-off \.theme-fade-veil\.is-running \{ animation: none; \}/);
 assert.match(styles, /@media \(prefers-reduced-motion: reduce\)[\s\S]*?\.app-frame:not\(\.motion-force\) \.theme-fade-veil\.is-running \{ animation: none; \}/);
 
+// --- Живой фон «Багрового»: тлеющие угли ---------------------------------------------
+// Как у «Графита» пыль, у «Багрового» угли: снизу всплывают и гаснут искры,
+// внизу дышит тёплое свечение. Слой виден только в своей теме, не перехватывает
+// нажатия, а движение обязано оставаться на CSS — считать частицы в JavaScript
+// на фоне жалоб на подвисания было бы прямым вредом.
+assert.match(styles, /\.ember-web \{ display: none; \}/, 'в других оформлениях угли показывать не нужно');
+assert.match(styles, /\.appearance-crimson \.ember-web \{/);
+const emberRule = styles.slice(styles.indexOf('.appearance-crimson .ember-web {'));
+assert.match(emberRule.slice(0, emberRule.indexOf('}')), /pointer-events: none/,
+  'фон обязан пропускать нажатия к интерфейсу');
+assert.match(styles, /\.appearance-crimson \.ember-mote \{/);
+assert.match(styles, /@keyframes ember-rise/);
+assert.match(styles, /@keyframes ember-breathe/);
+assert.match(app, /function EmberWeb/, 'нужен компонент фона «Багрового»');
+assert.match(app, /<EmberWeb \/>/, 'фон обязан быть подключён');
+assert.doesNotMatch(app, /requestAnimationFrame[\s\S]{0,400}ember-web/, 'угли не должны считаться в JavaScript');
+// И подчиняться настройке анимаций, как всё остальное движение.
+assert.match(styles, /\.app-frame\.motion-off \.ember-mote/);
+assert.match(styles, /\.app-frame:not\(\.motion-force\) \.ember-mote/);
+
 console.log('Appearance theme checks passed.');

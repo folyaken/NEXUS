@@ -1,4 +1,5 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import type { CSSProperties } from 'react';
 import { animated, config, useSpring } from '@react-spring/web';
 import type { AboutSystemInfo, AppSettings, ModuleLog, ModuleManifest, ModuleStatus, NexusUpdateCheck, UpdateInfo, UserProfile } from '../main/types';
 import { DEFAULT_SETTINGS } from '../main/types';
@@ -290,6 +291,57 @@ function PulsePanel({ running, total, errors }: { running: number; total: number
  *
  * В других оформлениях узор скрыт: это отличительная черта «Графита».
  */
+/**
+ * Живой фон оформления «Багровое»: тлеющие угли.
+ *
+ * Виден только в этой теме, как пыль у «Графита». Уголёк всплывает снизу,
+ * мерцает по пути и гаснет у потолка; внизу дышит тёплое свечение — свет
+ * догорающего костра за кадром. Движение целиком на CSS (opacity и transform
+ * считает видеокарта), поэтому на отзывчивость программы фон не влияет.
+ *
+ * Позиции и темп задаются здесь без цветов: окраска живёт в стиле, где её
+ * видит система тем — как у пыли «Графита».
+ */
+const EMBERS = [
+  { x: 5, size: 3, dur: 19, delay: -2, drift: 14, fl: .75, fl2: .35, cls: '' },
+  { x: 11, size: 2, dur: 24, delay: -9, drift: -18, fl: .6, fl2: .3, cls: 'deep' },
+  { x: 16, size: 4, dur: 16, delay: -5, drift: 26, fl: .85, fl2: .45, cls: 'coal' },
+  { x: 23, size: 2, dur: 22, delay: -14, drift: -10, fl: .65, fl2: .25, cls: '' },
+  { x: 29, size: 3, dur: 18, delay: -1, drift: 20, fl: .8, fl2: .4, cls: 'deep' },
+  { x: 35, size: 2, dur: 26, delay: -17, drift: -26, fl: .6, fl2: .3, cls: '' },
+  { x: 42, size: 4, dur: 15, delay: -7, drift: 12, fl: .9, fl2: .5, cls: 'coal' },
+  { x: 48, size: 2, dur: 21, delay: -12, drift: 30, fl: .7, fl2: .3, cls: 'deep' },
+  { x: 55, size: 3, dur: 17, delay: -4, drift: -14, fl: .75, fl2: .35, cls: '' },
+  { x: 61, size: 2, dur: 25, delay: -19, drift: 18, fl: .6, fl2: .25, cls: '' },
+  { x: 68, size: 4, dur: 16, delay: -8, drift: -22, fl: .85, fl2: .45, cls: 'coal' },
+  { x: 74, size: 2, dur: 23, delay: -3, drift: 24, fl: .65, fl2: .3, cls: 'deep' },
+  { x: 81, size: 3, dur: 18, delay: -15, drift: -8, fl: .8, fl2: .4, cls: '' },
+  { x: 87, size: 2, dur: 24, delay: -6, drift: 16, fl: .6, fl2: .28, cls: 'deep' },
+  { x: 93, size: 4, dur: 15, delay: -11, drift: -30, fl: .9, fl2: .5, cls: 'coal' },
+  { x: 97, size: 2, dur: 20, delay: -20, drift: 10, fl: .7, fl2: .32, cls: '' },
+];
+
+function EmberWeb() {
+  return <div className="ember-web" aria-hidden="true">
+    <span className="ember-glow" />
+    <span className="ember-glow ember-glow-two" />
+    {EMBERS.map((ember, index) => <i
+      key={index}
+      className={`ember-mote ${ember.cls}`.trim()}
+      style={{
+        left: `${ember.x}%`,
+        width: `${ember.size}px`,
+        height: `${ember.size}px`,
+        animationDelay: `${ember.delay}s`,
+        animationDuration: `${ember.dur}s`,
+        '--ember-drift': `${ember.drift}px`,
+        '--ember-fl': String(ember.fl),
+        '--ember-fl2': String(ember.fl2),
+      } as CSSProperties}
+    />)}
+  </div>;
+}
+
 function NodeWeb() {
   // x, y — доля от размера окна; size — размер в пикселях; d — задержка,
   // чтобы частицы двигались вразнобой, а не пульсировали разом.
@@ -985,7 +1037,7 @@ function App() {
     }
   };
 
-  return <div className={`app-frame appearance-${settings.appearance} ${settings.motion === 'full' ? 'motion-force' : ''} ${settings.motion === 'reduced' ? 'motion-off' : ''}`}><WindowBar maximized={maximized} />{themeVeil > 0 && <span key={themeVeil} className="theme-fade-veil is-running" aria-hidden="true" />}<div className={`app-shell ${sidebarCollapsed ? 'is-sidebar-collapsed' : ''}`}><div className="ambient ambient-one" /><div className="ambient ambient-two" /><NodeWeb />
+  return <div className={`app-frame appearance-${settings.appearance} ${settings.motion === 'full' ? 'motion-force' : ''} ${settings.motion === 'reduced' ? 'motion-off' : ''}`}><WindowBar maximized={maximized} />{themeVeil > 0 && <span key={themeVeil} className="theme-fade-veil is-running" aria-hidden="true" />}<div className={`app-shell ${sidebarCollapsed ? 'is-sidebar-collapsed' : ''}`}><div className="ambient ambient-one" /><div className="ambient ambient-two" /><NodeWeb /><EmberWeb />
     <aside className="sidebar" ref={asideRef}>
       <span className="nav-glider" aria-hidden="true" style={{ height: `${navGlider.height}px`, transform: `translateY(${navGlider.top}px)` }} />
       <button type="button" className="sidebar-collapse-button" aria-label={sidebarCollapsed ? t('Развернуть боковую панель') : t('Свернуть боковую панель')} title={sidebarCollapsed ? t('Развернуть панель') : t('Свернуть панель')} aria-pressed={sidebarCollapsed} onClick={() => setSidebarCollapsed((value) => !value)}><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m14.5 6-6 6 6 6" /></svg></button>
