@@ -249,9 +249,68 @@ export class VpnManager extends EventEmitter {
       let start = 0;
       try { start = (await fs.stat(this.accessLogPath())).size; } catch { /* файла ещё нет */ }
       let seenIp = '';
-      // Один запрос с поимкой редиректов: 2ip.ru может уводить на https или
-      // другой адрес, и без этого тело ответа не приходит — внешний IP
-      // оставался неопределённым.
+      // Запрос как у браузера: HTTPS через CONNECT. Браузер ходит на 2ip.ru
+      // именно так, и если что-то перехватывает порт 443 (антивирус, чужой
+      // хук), пробник по HTTP этого не увидел бы.
+      const probeHttps = (): Promise<{ ip: string; failure: string | null }> => new Promise((resolve) => {
+        let settled = false;
+        const finish = (ip: string, failure: string | null) => {
+          if (settled) return;
+          settled = true;
+          try { raw.destroy(); } catch { /* уже закрыт */ }
+          resolve({ ip, failure });
+        };
+        const raw = new Socket();
+        raw.setTimeout(9000);
+        raw.once('error', () => finish('', 'нет соединения с прокси'));
+        raw.once('timeout', () => finish('', 'таймаут'));
+        raw.connect(httpPort, '127.0.0.1');
+        raw.once('connect', () => {
+          raw.write(`CONNECT ${target}:443 HTTP/1.1\r\nHost: ${target}:443\r\nUser-Agent: NEXUS-RouteProbe\r\n\r\n`);
+          let header = '';
+          let tls: TLSSocket | null = null;
+          const onRawData = (chunk: Buffer) => {
+            if (tls) return;
+            header += chunk.toString('latin1');
+            if (!header.includes('\r\n\r\n')) return;
+            raw.pause();
+            raw.removeListener('data', onRawData);
+            if (!/^HTTP\/1\.[01] 200/i.test(header)) {
+              const statusLine = header.split(/\r?\n/)[0] ?? 'нет статуса';
+              finish('', `прокси отказал в CONNECT (${statusLine})`);
+              return;
+            }
+            const leftover = header.slice(header.indexOf('\r\n\r\n') + 4);
+            if (leftover) raw.unshift(Buffer.from(leftover, 'latin1'));
+            tls = connectTls({ socket: raw, servername: target, rejectUnauthorized: false }, () => {
+              tls?.write(`GET / HTTP/1.1\r\nHost: ${target}\r\nUser-Agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0 Safari/537.36\r\nAccept: text/html\r\nConnection: close\r\n\r\n`);
+            });
+            tls.setTimeout(9000);
+            tls.once('timeout', () => finish('', 'таймаут TLS'));
+            tls.once('error', () => finish('', 'TLS не установился'));
+            let page = '';
+            tls.on('data', (chunk: Buffer) => {
+              page = (page + chunk.toString('utf8')).slice(0, 300_000);
+            });
+            tls.once('end', () => {
+              const ips = page.match(/\b(?:\d{1,3}\.){3}\d{1,3}\b/g) ?? [];
+              const publicIp = ips.find((ip) => !/^(127|10|192\.168|0)\./.test(ip));
+              finish(publicIp ?? '', publicIp ? null : 'страница не отдала IP');
+            });
+          };
+          raw.on('data', onRawData);
+        });
+      });
+      let httpsIp = '';
+      let httpsFailure: string | null = 'не выполнялся';
+      try {
+        const httpsProbe = await probeHttps();
+        httpsIp = httpsProbe.ip;
+        httpsFailure = httpsProbe.failure;
+      } catch {
+        httpsFailure = 'не удалось выполнить';
+      }
+      // HTTP-вариант остаётся: он показывает путь для обычного порта 80.
       const fetchViaProxy = (path: string, hops: number): Promise<{ body: string; next: string | null }> => new Promise((resolve, reject) => {
         const request = http.request({
           host: '127.0.0.1',
@@ -300,8 +359,9 @@ export class VpnManager extends EventEmitter {
         return;
       }
       const detour = /\[([^\]]+)\]/.exec(line)?.[1] ?? 'по умолчанию';
-      const ipNote = seenIp ? ` · внешний IP: ${seenIp}` : ' · внешний IP не определён (страница не отдала адрес)';
-      this.emitLog('info', `Проверка правила: ${target} → «${detour}»${ipNote}`);
+      const httpNote = seenIp ? `HTTP IP: ${seenIp}` : 'HTTP IP не определён';
+      const httpsNote = httpsIp ? `HTTPS IP: ${httpsIp}` : `HTTPS: ${httpsFailure ?? 'IP не определён'}`;
+      this.emitLog('info', `Проверка правила: ${target} → «${detour}» · ${httpNote} · ${httpsNote}`);
     } catch {
       this.emitLog('warn', `Проверка правила не удалась: ${target} недоступен`);
     }
