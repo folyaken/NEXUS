@@ -1,6 +1,7 @@
 import { EventEmitter } from 'node:events';
 import { copyFileSync, createWriteStream, existsSync, mkdirSync, rmSync, statSync } from 'node:fs';
 import { promises as fs } from 'node:fs';
+import http from 'node:http';
 import { createServer, Socket } from 'node:net';
 import { connect as connectTls, type TLSSocket } from 'node:tls';
 import path from 'node:path';
@@ -81,6 +82,7 @@ export class VpnManager extends EventEmitter {
   private generatedPath(): string { return path.join(this.configsDir(), 'generated_config.json'); }
   private singboxConfigPath(): string { return path.join(this.configsDir(), 'generated_singbox.json'); }
   private logPath(): string { return path.join(this.modulesDir, 'logs', 'vpn.log'); }
+  private accessLogPath(): string { return path.join(this.modulesDir, 'logs', 'vpn-access.log'); }
 
   hasXray(): boolean {
     return existsSync(this.xrayPath());
@@ -229,6 +231,53 @@ export class VpnManager extends EventEmitter {
     const alias = datFile.replace(/\.dat$/i, '');
     if (alias === datFile || existsSync(alias)) return;
     try { copyFileSync(datFile, alias); } catch { /* не критично */ }
+  }
+
+  /**
+   * Самопроверка правила на живом ядре.
+   *
+   * Запрос к 2ip.ru идёт через локальный HTTP-порт ядра, а затем читается
+   * журнал маршрутов ядра (vpn-access.log): строка вида
+   * `… accepted tcp:2ip.ru:80 [direct]` показывает настоящий выбранный путь.
+   * Раньше «работает правило или нет» проверяли только по поведению браузера,
+   * и молча не сработавшее правило искали вслепую.
+   */
+  private async probeRoutingRule(httpPort: number): Promise<void> {
+    const target = '2ip.ru';
+    try {
+      await new Promise((resolve) => setTimeout(resolve, 900));
+      let start = 0;
+      try { start = (await fs.stat(this.accessLogPath())).size; } catch { /* файла ещё нет */ }
+      await new Promise<void>((resolve, reject) => {
+        const request = http.request({
+          host: '127.0.0.1',
+          port: httpPort,
+          method: 'GET',
+          path: `http://${target}/`,
+          headers: { Host: target, 'User-Agent': 'NEXUS-RouteProbe' },
+          timeout: 8000,
+        }, (response) => {
+          response.resume();
+          response.on('end', () => resolve());
+          response.on('close', () => resolve());
+        });
+        request.on('error', () => reject(new Error('ядро не ответило')));
+        request.on('timeout', () => { request.destroy(); reject(new Error('таймаут')); });
+        request.end();
+      });
+      await new Promise((resolve) => setTimeout(resolve, 700));
+      const whole = await fs.readFile(this.accessLogPath(), 'utf8').catch(() => '');
+      const fresh = whole.slice(start);
+      const line = fresh.split(/\r?\n/).filter((item) => item.includes(target)).pop();
+      if (!line) {
+        this.emitLog('warn', `Проверка правила: ${target} не появился в журнале маршрутов ядра`);
+        return;
+      }
+      const detour = /\[([^\]]+)\]/.exec(line)?.[1] ?? 'по умолчанию';
+      this.emitLog('info', `Проверка правила: ${target} → «${detour}» (${line.trim()})`);
+    } catch {
+      this.emitLog('warn', `Проверка правила не удалась: ${target} недоступен`);
+    }
   }
 
   /** После падения с кодом 23 убираем битые копии наборов адресов. */
@@ -1003,6 +1052,14 @@ export class VpnManager extends EventEmitter {
     const config = useSingbox
       ? buildSingboxConfig(profile.params, port, mode, activeSplitApps, activeAppRouting, allowLan, dnsServers, routingRules)
       : buildXrayConfig(profile.params, port, mode, activeSplitApps, activeAppRouting, fragmentation, allowLan, dnsServers, usableRules);
+    // Журнал маршрутов ядра: каждая связь пишется строкой вида
+    // «from … accepted tcp:2ip.ru:80 [direct]». По нему самопроверка правила
+    // и диагностика узнают, каким путём ядро реально отправило домен —
+    // раньше это можно было увидеть только по поведению браузера.
+    if (!useSingbox) {
+      (config.log as Record<string, unknown>).access = this.accessLogPath();
+    }
+    try { rmSync(this.accessLogPath(), { force: true }); } catch { /* занят прошлым ядром — старые строки не мешают */ }
     const configFile = useSingbox ? this.singboxConfigPath() : this.generatedPath();
     await fs.mkdir(this.configsDir(), { recursive: true });
     await fs.writeFile(configFile, `${JSON.stringify(config, null, 2)}\n`, 'utf8');
@@ -1225,6 +1282,10 @@ export class VpnManager extends EventEmitter {
       ? continuedSessionAt
       : null;
     this.setState('connected', id, child.pid ?? null, undefined, validContinuedSessionAt);
+    // Самопроверка правила на живом ядре: запрос к 2ip.ru прогоняется через
+    // локальный прокси, а журнал маршрутов ядра показывает, каким путём он
+    // ушёл. Результат появляется в журнале NEXUS через пару секунд.
+    if (routingRules.length && !useSingbox) void this.probeRoutingRule(port + 1);
     const routeMode = activeAppRouting === 'include'
       ? `TUN · через VPN только ${activeSplitApps.length} прилож.`
       : activeAppRouting === 'exclude'

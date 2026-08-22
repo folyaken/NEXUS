@@ -66,6 +66,15 @@ assert.match(vpnManager, /Маршрутизация в конфиге/,
   'журнал обязан показывать, какие правила ушли в конфиг — иначе молча не сработавшее правило не найти');
 assert.match(vpnManager, /rulesInConfig\.some\(\(rule\) => \/\^geoip:ru\$\//,
   'правило geoip:ru обязано объясняться в журнале');
+// Самопроверка правила на живом ядре: запрос через локальный прокси + чтение
+// журнала маршрутов ядра (vpn-access.log). Молча не сработавшее правило
+// раньше искали только по поведению браузера.
+assert.match(vpnManager, /probeRoutingRule\(port \+ 1\)/);
+assert.match(vpnManager, /private async probeRoutingRule/);
+assert.match(vpnManager, /vpn-access\.log/);
+assert.match(vpnManager, /Проверка правила: \$\{target\}/);
+assert.match(vpnManager, /http\.request\(\{/);
+assert.match(vpnManager, /NEXUS-RouteProbe/);
 assert.match(vpnManager, /replacement \? \{ \.\.\.rule, value: replacement \} : null/);
 const ensureXray = fs.readFileSync(path.join(root, 'scripts', 'ensure-xray.cjs'), 'utf8');
 assert.match(ensureXray, /replace\(\/\\\.dat\$\/i, ''\)/, 'скрипт установки ядра тоже обязан класть копию без расширения');
