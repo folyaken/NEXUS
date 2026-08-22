@@ -18,7 +18,8 @@ assert.match(main, /Internet Settings' \| Select-Object ProxyEnable, ProxyServer
   'отчёт обязан показывать системный прокси из реестра');
 assert.match(main, /Get-NetAdapter.*Wintun\|TAP\|TUN/,
   'отчёт обязан показывать адаптеры туннелей');
-assert.match(main, /route print -4/, 'отчёт обязан показывать маршруты по умолчанию');
+assert.match(main, /Get-NetRoute -DestinationPrefix '0\.0\.0\.0\/0'/,
+  'отчёт обязан показывать маршруты по умолчанию с именами адаптеров');
 assert.match(main, /logs:append/, 'отчёт должен попадать в журнал NEXUS');
 assert.match(preload, /netDiagnose: \(\): Promise<boolean> => ipcRenderer\.invoke\('net:diagnose'\)/);
 assert.match(env, /netDiagnose\(\): Promise<boolean>;/);

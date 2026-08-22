@@ -1042,9 +1042,8 @@ function wireIpc(): void {
     emit(`— Системный прокси:\n${proxy || 'не задан'}`);
     const adapters = await run("Get-NetAdapter | Where-Object {$_.InterfaceDescription -match 'Wintun|TAP|TUN'} | Select-Object Name, InterfaceDescription, Status | Format-List");
     emit(`— Адаптеры туннелей:\n${adapters || 'не найдены'}`);
-    const routes = await run('route print -4');
-    const defaults = routes.split(/\r?\n/).filter((line) => line.includes('0.0.0.0')).slice(0, 12);
-    emit(`— Маршруты по умолчанию:\n${defaults.length ? defaults.join('\n') : 'не найдены'}`);
+    const routes = await run("Get-NetRoute -DestinationPrefix '0.0.0.0/0' | Select-Object ifIndex, InterfaceAlias, NextHop, RouteMetric | Format-List");
+    emit(`— Маршруты по умолчанию:\n${routes || 'не найдены'}`);
     return true;
   });
   ipcMain.handle('vpn:running-apps', () => listRunningApps());
