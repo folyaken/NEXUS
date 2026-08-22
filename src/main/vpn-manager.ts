@@ -248,6 +248,7 @@ export class VpnManager extends EventEmitter {
       await new Promise((resolve) => setTimeout(resolve, 900));
       let start = 0;
       try { start = (await fs.stat(this.accessLogPath())).size; } catch { /* файла ещё нет */ }
+      let seenIp = '';
       await new Promise<void>((resolve, reject) => {
         const request = http.request({
           host: '127.0.0.1',
@@ -257,8 +258,18 @@ export class VpnManager extends EventEmitter {
           headers: { Host: target, 'User-Agent': 'NEXUS-RouteProbe' },
           timeout: 8000,
         }, (response) => {
-          response.resume();
-          response.on('end', () => resolve());
+          const chunks: Buffer[] = [];
+          response.on('data', (chunk: Buffer) => chunks.push(chunk));
+          response.on('end', () => {
+            // 2ip.ru печатает внешний IP прямо в странице. Он и есть ответ на
+            // вопрос «какой IP видит интернет»: если наш прямой запрос ушёл
+            // через чужой перехватчик на машине — здесь окажется чужой адрес.
+            const body = Buffer.concat(chunks).toString('utf8').slice(0, 200_000);
+            const ips = body.match(/\b(?:\d{1,3}\.){3}\d{1,3}\b/g) ?? [];
+            const publicIp = ips.find((ip) => !/^(127|10|192\.168|0)\./.test(ip));
+            seenIp = publicIp ?? '';
+            resolve();
+          });
           response.on('close', () => resolve());
         });
         request.on('error', () => reject(new Error('ядро не ответило')));
@@ -274,7 +285,8 @@ export class VpnManager extends EventEmitter {
         return;
       }
       const detour = /\[([^\]]+)\]/.exec(line)?.[1] ?? 'по умолчанию';
-      this.emitLog('info', `Проверка правила: ${target} → «${detour}» (${line.trim()})`);
+      const ipNote = seenIp ? ` · внешний IP: ${seenIp}` : '';
+      this.emitLog('info', `Проверка правила: ${target} → «${detour}»${ipNote}`);
     } catch {
       this.emitLog('warn', `Проверка правила не удалась: ${target} недоступен`);
     }
