@@ -77,20 +77,23 @@ assert.match(vpnManager, /http\.request\(\{/);
 // Пробник читает внешний IP из ответа 2ip.ru: если трафик машины перехватывает
 // что-то стороннее (второй туннель, драйвер перехвата), это сразу видно —
 // «прямой» маршрут ядра покажет чужой адрес.
-assert.match(vpnManager, /HTTP IP: \$\{seenIp\}/);
+assert.match(vpnManager, /HTTP IP: \$\{httpIp\}/);
 assert.match(vpnManager, /response\.on\('data'/);
-assert.match(vpnManager, /publicIp = ips\.find/);
+assert.match(vpnManager, /pickPublicIp/);
 // Пробник идёт за редиректами: без этого 2ip.ru не отдавал тело ответа, и
 // внешний IP оставался неопределённым.
-assert.match(vpnManager, /fetchViaProxy/);
+assert.match(vpnManager, /probeViaPlainHttp/);
 assert.match(vpnManager, /response\.headers\.location/);
 assert.match(vpnManager, /Mozilla\/5\.0 \(Windows NT 10\.0/);
 // Второй пробник — ровно как браузер: HTTPS через CONNECT с TLS. Если порт
 // 443 перехватывает что-то стороннее, пробник по HTTP этого не увидел бы.
-assert.match(vpnManager, /probeHttps/);
-assert.match(vpnManager, /CONNECT \$\{target\}:443/);
-assert.match(vpnManager, /connectTls\(\{ socket: raw, servername: target/);
+assert.match(vpnManager, /probeViaConnect/);
+assert.match(vpnManager, /CONNECT \$\{hostname\}:443/);
+assert.match(vpnManager, /connectTls\(\{ socket: raw, servername: hostname/);
 assert.match(vpnManager, /HTTPS IP: \$\{httpsIp\}/);
+// Хост — с www: 2ip.ru редиректит на www.2ip.ru, и без этого страница не
+// отдавала IP.
+assert.match(vpnManager, /const target = 'www\.2ip\.ru'/);
 assert.match(vpnManager, /replacement \? \{ \.\.\.rule, value: replacement \} : null/);
 const ensureXray = fs.readFileSync(path.join(root, 'scripts', 'ensure-xray.cjs'), 'utf8');
 assert.match(ensureXray, /replace\(\/\\\.dat\$\/i, ''\)/, 'скрипт установки ядра тоже обязан класть копию без расширения');

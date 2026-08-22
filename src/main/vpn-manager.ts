@@ -243,128 +243,161 @@ export class VpnManager extends EventEmitter {
    * и молча не сработавшее правило искали вслепую.
    */
   private async probeRoutingRule(httpPort: number): Promise<void> {
-    const target = '2ip.ru';
+    const target = 'www.2ip.ru';
+    const UA = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0 Safari/537.36';
     try {
       await new Promise((resolve) => setTimeout(resolve, 900));
       let start = 0;
       try { start = (await fs.stat(this.accessLogPath())).size; } catch { /* файла ещё нет */ }
-      let seenIp = '';
-      // Запрос как у браузера: HTTPS через CONNECT. Браузер ходит на 2ip.ru
-      // именно так, и если что-то перехватывает порт 443 (антивирус, чужой
-      // хук), пробник по HTTP этого не увидел бы.
-      const probeHttps = (): Promise<{ ip: string; failure: string | null }> => new Promise((resolve) => {
-        let settled = false;
-        const finish = (ip: string, failure: string | null) => {
-          if (settled) return;
-          settled = true;
-          try { raw.destroy(); } catch { /* уже закрыт */ }
-          resolve({ ip, failure });
-        };
-        const raw = new Socket();
-        raw.setTimeout(9000);
-        raw.once('error', () => finish('', 'нет соединения с прокси'));
-        raw.once('timeout', () => finish('', 'таймаут'));
-        raw.connect(httpPort, '127.0.0.1');
-        raw.once('connect', () => {
-          raw.write(`CONNECT ${target}:443 HTTP/1.1\r\nHost: ${target}:443\r\nUser-Agent: NEXUS-RouteProbe\r\n\r\n`);
-          let header = '';
-          let tls: TLSSocket | null = null;
-          const onRawData = (chunk: Buffer) => {
-            if (tls) return;
-            header += chunk.toString('latin1');
-            if (!header.includes('\r\n\r\n')) return;
-            raw.pause();
-            raw.removeListener('data', onRawData);
-            if (!/^HTTP\/1\.[01] 200/i.test(header)) {
-              const statusLine = header.split(/\r?\n/)[0] ?? 'нет статуса';
-              finish('', `прокси отказал в CONNECT (${statusLine})`);
-              return;
-            }
-            const leftover = header.slice(header.indexOf('\r\n\r\n') + 4);
-            if (leftover) raw.unshift(Buffer.from(leftover, 'latin1'));
-            tls = connectTls({ socket: raw, servername: target, rejectUnauthorized: false }, () => {
-              tls?.write(`GET / HTTP/1.1\r\nHost: ${target}\r\nUser-Agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0 Safari/537.36\r\nAccept: text/html\r\nConnection: close\r\n\r\n`);
-            });
-            tls.setTimeout(9000);
-            tls.once('timeout', () => finish('', 'таймаут TLS'));
-            tls.once('error', () => finish('', 'TLS не установился'));
-            let page = '';
-            tls.on('data', (chunk: Buffer) => {
-              page = (page + chunk.toString('utf8')).slice(0, 300_000);
-            });
-            tls.once('end', () => {
-              const ips = page.match(/\b(?:\d{1,3}\.){3}\d{1,3}\b/g) ?? [];
-              const publicIp = ips.find((ip) => !/^(127|10|192\.168|0)\./.test(ip));
-              finish(publicIp ?? '', publicIp ? null : 'страница не отдала IP');
-            });
-          };
-          raw.on('data', onRawData);
-        });
-      });
-      let httpsIp = '';
-      let httpsFailure: string | null = 'не выполнялся';
-      try {
-        const httpsProbe = await probeHttps();
-        httpsIp = httpsProbe.ip;
-        httpsFailure = httpsProbe.failure;
-      } catch {
-        httpsFailure = 'не удалось выполнить';
-      }
-      // HTTP-вариант остаётся: он показывает путь для обычного порта 80.
-      const fetchViaProxy = (path: string, hops: number): Promise<{ body: string; next: string | null }> => new Promise((resolve, reject) => {
-        const request = http.request({
-          host: '127.0.0.1',
-          port: httpPort,
-          method: 'GET',
-          path,
-          headers: { Host: target, 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0 Safari/537.36' },
-          timeout: 8000,
-        }, (response) => {
-          const chunks: Buffer[] = [];
-          response.on('data', (chunk: Buffer) => chunks.push(chunk));
-          response.on('end', () => {
-            const body = Buffer.concat(chunks).toString('utf8').slice(0, 300_000);
-            const status = response.statusCode ?? 0;
-            const location = response.headers.location ?? null;
-            if (status >= 300 && status < 400 && location && hops < 3) {
-              resolve({ body: '', next: location.startsWith('http') ? location : `http://${target}${location}` });
-            } else {
-              resolve({ body, next: null });
-            }
-          });
-          response.on('close', () => resolve({ body: '', next: null }));
-        });
-        request.on('error', () => reject(new Error('ядро не ответило')));
-        request.on('timeout', () => { request.destroy(); reject(new Error('таймаут')); });
-        request.end();
-      });
-      let page = await fetchViaProxy(`http://${target}/`, 0);
-      while (page.next && page.next.startsWith('http://')) {
-        page = await fetchViaProxy(page.next, 1);
-      }
-      if (page.body) {
-        // 2ip.ru печатает внешний IP прямо в странице. Он и есть ответ на
-        // вопрос «какой IP видит интернет»: если наш прямой запрос ушёл
-        // через чужой перехватчик на машине — здесь окажется чужой адрес.
-        const ips = page.body.match(/\b(?:\d{1,3}\.){3}\d{1,3}\b/g) ?? [];
-        const publicIp = ips.find((ip) => !/^(127|10|192\.168|0)\./.test(ip));
-        seenIp = publicIp ?? '';
-      }
+      const httpIp = await this.probeViaPlainHttp(httpPort, target, UA);
+      const httpsIp = await this.probeViaConnect(httpPort, target, UA);
       await new Promise((resolve) => setTimeout(resolve, 700));
       const whole = await fs.readFile(this.accessLogPath(), 'utf8').catch(() => '');
       const fresh = whole.slice(start);
-      const line = fresh.split(/\r?\n/).filter((item) => item.includes(target)).pop();
+      const line = fresh.split(/\r?\n/).filter((item) => item.includes('2ip.ru')).pop();
       if (!line) {
         this.emitLog('warn', `Проверка правила: ${target} не появился в журнале маршрутов ядра`);
         return;
       }
       const detour = /\[([^\]]+)\]/.exec(line)?.[1] ?? 'по умолчанию';
-      const httpNote = seenIp ? `HTTP IP: ${seenIp}` : 'HTTP IP не определён';
-      const httpsNote = httpsIp ? `HTTPS IP: ${httpsIp}` : `HTTPS: ${httpsFailure ?? 'IP не определён'}`;
+      const httpNote = httpIp ? `HTTP IP: ${httpIp}` : 'HTTP IP не определён';
+      const httpsNote = httpsIp ? `HTTPS IP: ${httpsIp}` : 'HTTPS IP не определён';
       this.emitLog('info', `Проверка правила: ${target} → «${detour}» · ${httpNote} · ${httpsNote}`);
     } catch {
       this.emitLog('warn', `Проверка правила не удалась: ${target} недоступен`);
     }
+  }
+
+  /** Публичный IPv4 из текста страницы (без приватных и служебных адресов). */
+  private pickPublicIp(text: string): string {
+    const ips = text.match(/\b(?:\d{1,3}\.){3}\d{1,3}\b/g) ?? [];
+    return ips.find((ip) => !/^(127|10|192\.168|172\.(1[6-9]|2\d|3[01])|0)\./.test(ip)) ?? '';
+  }
+
+  /**
+   * Пробник через обычный HTTP-прокси (абсолютный URL).
+   *
+   * 2ip.ru редиректит на www и на https: без следования за переходами тело
+   * страницы не приходит, и внешний IP оставался неопределённым.
+   */
+  private probeViaPlainHttp(httpPort: number, target: string, ua: string): Promise<string> {
+    const self = this;
+    const step = (url: string, hops: number): Promise<string> => new Promise((resolve) => {
+      const hostname = new URL(url).hostname;
+      const request = http.request({
+        host: '127.0.0.1',
+        port: httpPort,
+        method: 'GET',
+        path: url,
+        headers: { Host: hostname, 'User-Agent': ua, Accept: 'text/html' },
+        timeout: 8000,
+      }, (response) => {
+        const chunks: Buffer[] = [];
+        response.on('data', (chunk: Buffer) => chunks.push(chunk));
+        response.on('end', () => {
+          const body = Buffer.concat(chunks).toString('utf8');
+          const status = response.statusCode ?? 0;
+          const location = response.headers.location ?? null;
+          if (status >= 300 && status < 400 && location && hops < 3) {
+            const next = location.startsWith('http') ? location : `http://${hostname}${location}`;
+            void step(next, hops + 1).then(resolve);
+            return;
+          }
+          resolve(self.pickPublicIp(body));
+        });
+        response.on('close', () => resolve(''));
+      });
+      request.on('error', () => resolve(''));
+      request.on('timeout', () => { request.destroy(); resolve(''); });
+      request.end();
+    });
+    return step(`http://${target}/`, 0);
+  }
+
+  /**
+   * Пробник ровно как браузер: HTTPS через CONNECT с TLS, с редиректами.
+   *
+   * Если порт 443 перехватывает что-то стороннее (антивирус, чужой хук),
+   * пробник по HTTP этого не увидел бы.
+   */
+  private probeViaConnect(httpPort: number, target: string, ua: string): Promise<string> {
+    const self = this;
+    const connectHost = (hostname: string, hops: number): Promise<{ ip: string; next: string | null; status: number }> => new Promise((resolve) => {
+      let settled = false;
+      let raw: Socket | null = null;
+      let tls: TLSSocket | null = null;
+      const finish = (value: { ip: string; next: string | null; status: number }) => {
+        if (settled) return;
+        settled = true;
+        try { tls?.destroy(); } catch { /* уже закрыт */ }
+        try { raw?.destroy(); } catch { /* уже закрыт */ }
+        resolve(value);
+      };
+      raw = new Socket();
+      raw.setTimeout(9000);
+      raw.once('error', () => finish({ ip: '', next: null, status: 0 }));
+      raw.once('timeout', () => finish({ ip: '', next: null, status: 0 }));
+      raw.connect(httpPort, '127.0.0.1');
+      raw.once('connect', () => {
+        raw?.write(`CONNECT ${hostname}:443 HTTP/1.1\r\nHost: ${hostname}:443\r\nUser-Agent: NEXUS-RouteProbe\r\n\r\n`);
+        let header = '';
+        const onRawData = (chunk: Buffer) => {
+          if (tls || !raw) return;
+          header += chunk.toString('latin1');
+          if (!header.includes('\r\n\r\n')) return;
+          raw.pause();
+          raw.removeListener('data', onRawData);
+          if (!/^HTTP\/1\.[01] 200/i.test(header)) {
+            finish({ ip: '', next: null, status: 0 });
+            return;
+          }
+          const leftover = header.slice(header.indexOf('\r\n\r\n') + 4);
+          if (leftover) raw.unshift(Buffer.from(leftover, 'latin1'));
+          tls = connectTls({ socket: raw, servername: hostname, rejectUnauthorized: false }, () => {
+            tls?.write(`GET / HTTP/1.1\r\nHost: ${hostname}\r\nUser-Agent: ${ua}\r\nAccept: text/html\r\nConnection: close\r\n\r\n`);
+          });
+          tls.setTimeout(9000);
+          tls.once('timeout', () => finish({ ip: '', next: null, status: 0 }));
+          tls.once('error', () => finish({ ip: '', next: null, status: 0 }));
+          let responseHead = '';
+          let page = '';
+          let headDone = false;
+          tls.on('data', (chunk: Buffer) => {
+            if (!headDone) {
+              responseHead = (responseHead + chunk.toString('latin1')).slice(0, 64 * 1024);
+              const splitAt = responseHead.indexOf('\r\n\r\n');
+              if (splitAt === -1) return;
+              const head = responseHead.slice(0, splitAt);
+              const rest = responseHead.slice(splitAt + 4);
+              headDone = true;
+              const statusMatch = /^HTTP\/1\.[01] (\d{3})/.exec(head);
+              const status = statusMatch ? Number(statusMatch[1]) : 0;
+              const location = /^location:\s*(.+)$/im.exec(head)?.[1]?.trim() ?? null;
+              if (rest) page = rest;
+              if (status >= 300 && status < 400 && location && hops < 3) {
+                let nextHost = hostname;
+                try {
+                  nextHost = location.startsWith('http') ? new URL(location).hostname : hostname;
+                } catch { /* оставляем hostname */ }
+                finish({ ip: '', next: nextHost, status });
+                return;
+              }
+              return;
+            }
+            page = (page + chunk.toString('utf8')).slice(0, 300_000);
+          });
+          tls.once('end', () => finish({ ip: self.pickPublicIp(page), next: null, status: 200 }));
+        };
+        raw.on('data', onRawData);
+      });
+    });
+    const walk = async (hostname: string, hops: number): Promise<string> => {
+      const result = await connectHost(hostname, hops);
+      if (result.ip) return result.ip;
+      if (result.next && result.next !== hostname && hops < 3) return walk(result.next, hops + 1);
+      return '';
+    };
+    return walk(target, 0);
   }
 
   /** После падения с кодом 23 убираем битые копии наборов адресов. */
