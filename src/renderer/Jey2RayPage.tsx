@@ -222,6 +222,21 @@ export function Jey2RayPage({
   /** Открытый выбор приложений и режим, который к ним применится. */
   const [pickerRouting, setPickerRouting] = useState<VpnAppRoutingMode | null>(null);
   const [diagnosticsOpen, setDiagnosticsOpen] = useState(false);
+  // «Проверить сеть»: прокси, адаптеры туннелей и маршруты уходят в журнал
+  // NEXUS одной кнопкой. По отчёту видно, кто перехватывает трафик, когда
+  // правило в ядре работает, а браузер показывает чужой IP.
+  const runNetworkReport = async () => {
+    if (!desktop || !window.nexus?.netDiagnose) {
+      onToast(t('Проверка сети доступна в установленной программе'));
+      return;
+    }
+    try {
+      await window.nexus.netDiagnose();
+      onToast(t('Отчёт сети записан в журнал'));
+    } catch {
+      onToast(t('Не удалось собрать отчёт сети'));
+    }
+  };
   const [profiles, setProfiles] = useState<VpnProfile[]>([]);
   const [runtime, setRuntime] = useState<VpnRuntime>(EMPTY_RUNTIME);
   const [busy, setBusy] = useState(false);
@@ -1393,6 +1408,11 @@ export function Jey2RayPage({
       <button type="button" className="diagnostics-entry" onClick={() => setDiagnosticsOpen(true)}>
         <span className="diagnostics-entry-icon"><svg viewBox="0 0 24 24" aria-hidden><path d="M4 13h3l2-6 4 11 2-5h5" /><circle cx="12" cy="12" r="9" /></svg></span>
         <span><strong>{t('Диагностика')}</strong><small>{t('Ядро, процесс и порты')}</small></span>
+        <b>→</b>
+      </button>
+      <button type="button" className="diagnostics-entry" onClick={() => void runNetworkReport()}>
+        <span className="diagnostics-entry-icon"><svg viewBox="0 0 24 24" aria-hidden><path d="M4 19h16M7 15v4m5-8v8m5-12v12" /></svg></span>
+        <span><strong>{t('Проверить сеть')}</strong><small>{t('Прокси, адаптеры и маршруты')}</small></span>
         <b>→</b>
       </button>
       <div className={`auto-connect-summary ${settings.autoConnectVpn ? 'is-on' : ''}`}><i /><span>{t('Автоподключение')} {settings.autoConnectVpn ? t('включено') : t('выключено')}</span></div>

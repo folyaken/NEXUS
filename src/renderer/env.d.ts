@@ -56,6 +56,8 @@ declare global {
       measureDnsProviders(): Promise<DnsCheckResult[]>;
       exportRoutingRules(): Promise<{ saved: boolean; path?: string }>;
       importRoutingRules(): Promise<{ added: number; skipped: number; error?: string }>;
+      /** Собирает отчёт о сети (прокси, адаптеры, маршруты) в журнал NEXUS. */
+      netDiagnose(): Promise<boolean>;
       listRunningApps(): Promise<RunningApp[]>;
       connectVpn(id: string): Promise<VpnRuntime>;
       disconnectVpn(): Promise<VpnRuntime>;

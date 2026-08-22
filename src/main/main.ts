@@ -1015,6 +1015,38 @@ function wireIpc(): void {
   ipcMain.handle('dns:measure-all', () => measureDnsProviders());
   ipcMain.handle('routing:export', () => saveRoutingRulesToFile());
   ipcMain.handle('routing:import', () => loadRoutingRulesFromFile());
+  // Диагностика «Проверить сеть»: собирает системный прокси, сетевые
+  // адаптеры туннелей и маршруты по умолчанию прямо в журнал. Раньше, когда
+  // правило в ядре работало, а браузер показывал чужой IP, понять «кто
+  // перехватывает трафик» можно было только гаданием — по этому отчёту видно
+  // и осиротевший TUN-адаптер, и второй прокси в системе.
+  ipcMain.handle('net:diagnose', async () => {
+    const emit = (message: string) => {
+      mainWindow?.webContents.send('logs:append', { id: 'jey2ray', level: 'info', message, timestamp: new Date().toISOString() });
+    };
+    emit('=== Проверка сети ===');
+    if (process.platform !== 'win32') {
+      emit('Проверка сети доступна только на Windows.');
+      return true;
+    }
+    const run = (command: string) => new Promise<string>((resolve) => {
+      execFile('powershell.exe', ['-NoProfile', '-NonInteractive', '-Command', command], {
+        timeout: 20_000,
+        windowsHide: true,
+      }, (error, stdout, stderr) => {
+        const text = `${stdout || ''}\n${stderr || ''}`.trim();
+        resolve(text || (error ? `ошибка: ${error.message}` : ''));
+      });
+    });
+    const proxy = await run("Get-ItemProperty 'HKCU:\\Software\\Microsoft\\Windows\\CurrentVersion\\Internet Settings' | Select-Object ProxyEnable, ProxyServer | Format-List");
+    emit(`— Системный прокси:\n${proxy || 'не задан'}`);
+    const adapters = await run("Get-NetAdapter | Where-Object {$_.InterfaceDescription -match 'Wintun|TAP|TUN'} | Select-Object Name, InterfaceDescription, Status | Format-List");
+    emit(`— Адаптеры туннелей:\n${adapters || 'не найдены'}`);
+    const routes = await run('route print -4');
+    const defaults = routes.split(/\r?\n/).filter((line) => line.includes('0.0.0.0')).slice(0, 12);
+    emit(`— Маршруты по умолчанию:\n${defaults.length ? defaults.join('\n') : 'не найдены'}`);
+    return true;
+  });
   ipcMain.handle('vpn:running-apps', () => listRunningApps());
   ipcMain.handle('vpn:connect', (_event, id: string) => connectVpnProfile(String(id ?? '')));
   ipcMain.handle('vpn:disconnect', () => vpn.disconnect());

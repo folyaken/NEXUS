@@ -249,33 +249,48 @@ export class VpnManager extends EventEmitter {
       let start = 0;
       try { start = (await fs.stat(this.accessLogPath())).size; } catch { /* файла ещё нет */ }
       let seenIp = '';
-      await new Promise<void>((resolve, reject) => {
+      // Один запрос с поимкой редиректов: 2ip.ru может уводить на https или
+      // другой адрес, и без этого тело ответа не приходит — внешний IP
+      // оставался неопределённым.
+      const fetchViaProxy = (path: string, hops: number): Promise<{ body: string; next: string | null }> => new Promise((resolve, reject) => {
         const request = http.request({
           host: '127.0.0.1',
           port: httpPort,
           method: 'GET',
-          path: `http://${target}/`,
-          headers: { Host: target, 'User-Agent': 'NEXUS-RouteProbe' },
+          path,
+          headers: { Host: target, 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0 Safari/537.36' },
           timeout: 8000,
         }, (response) => {
           const chunks: Buffer[] = [];
           response.on('data', (chunk: Buffer) => chunks.push(chunk));
           response.on('end', () => {
-            // 2ip.ru печатает внешний IP прямо в странице. Он и есть ответ на
-            // вопрос «какой IP видит интернет»: если наш прямой запрос ушёл
-            // через чужой перехватчик на машине — здесь окажется чужой адрес.
-            const body = Buffer.concat(chunks).toString('utf8').slice(0, 200_000);
-            const ips = body.match(/\b(?:\d{1,3}\.){3}\d{1,3}\b/g) ?? [];
-            const publicIp = ips.find((ip) => !/^(127|10|192\.168|0)\./.test(ip));
-            seenIp = publicIp ?? '';
-            resolve();
+            const body = Buffer.concat(chunks).toString('utf8').slice(0, 300_000);
+            const status = response.statusCode ?? 0;
+            const location = response.headers.location ?? null;
+            if (status >= 300 && status < 400 && location && hops < 3) {
+              resolve({ body: '', next: location.startsWith('http') ? location : `http://${target}${location}` });
+            } else {
+              resolve({ body, next: null });
+            }
           });
-          response.on('close', () => resolve());
+          response.on('close', () => resolve({ body: '', next: null }));
         });
         request.on('error', () => reject(new Error('ядро не ответило')));
         request.on('timeout', () => { request.destroy(); reject(new Error('таймаут')); });
         request.end();
       });
+      let page = await fetchViaProxy(`http://${target}/`, 0);
+      while (page.next && page.next.startsWith('http://')) {
+        page = await fetchViaProxy(page.next, 1);
+      }
+      if (page.body) {
+        // 2ip.ru печатает внешний IP прямо в странице. Он и есть ответ на
+        // вопрос «какой IP видит интернет»: если наш прямой запрос ушёл
+        // через чужой перехватчик на машине — здесь окажется чужой адрес.
+        const ips = page.body.match(/\b(?:\d{1,3}\.){3}\d{1,3}\b/g) ?? [];
+        const publicIp = ips.find((ip) => !/^(127|10|192\.168|0)\./.test(ip));
+        seenIp = publicIp ?? '';
+      }
       await new Promise((resolve) => setTimeout(resolve, 700));
       const whole = await fs.readFile(this.accessLogPath(), 'utf8').catch(() => '');
       const fresh = whole.slice(start);
@@ -285,7 +300,7 @@ export class VpnManager extends EventEmitter {
         return;
       }
       const detour = /\[([^\]]+)\]/.exec(line)?.[1] ?? 'по умолчанию';
-      const ipNote = seenIp ? ` · внешний IP: ${seenIp}` : '';
+      const ipNote = seenIp ? ` · внешний IP: ${seenIp}` : ' · внешний IP не определён (страница не отдала адрес)';
       this.emitLog('info', `Проверка правила: ${target} → «${detour}»${ipNote}`);
     } catch {
       this.emitLog('warn', `Проверка правила не удалась: ${target} недоступен`);

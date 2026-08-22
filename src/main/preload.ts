@@ -55,6 +55,7 @@ contextBridge.exposeInMainWorld('nexus', {
   measureDnsProviders: (): Promise<DnsCheckResult[]> => ipcRenderer.invoke('dns:measure-all'),
   exportRoutingRules: (): Promise<{ saved: boolean; path?: string }> => ipcRenderer.invoke('routing:export'),
   importRoutingRules: (): Promise<{ added: number; skipped: number; error?: string }> => ipcRenderer.invoke('routing:import'),
+  netDiagnose: (): Promise<boolean> => ipcRenderer.invoke('net:diagnose'),
   listRunningApps: (): Promise<RunningApp[]> => ipcRenderer.invoke('vpn:running-apps'),
   connectVpn: (id: string): Promise<VpnRuntime> => ipcRenderer.invoke('vpn:connect', id),
   disconnectVpn: (): Promise<VpnRuntime> => ipcRenderer.invoke('vpn:disconnect'),

@@ -74,13 +74,17 @@ assert.match(vpnManager, /private async probeRoutingRule/);
 assert.match(vpnManager, /vpn-access\.log/);
 assert.match(vpnManager, /Проверка правила: \$\{target\}/);
 assert.match(vpnManager, /http\.request\(\{/);
-assert.match(vpnManager, /NEXUS-RouteProbe/);
 // Пробник читает внешний IP из ответа 2ip.ru: если трафик машины перехватывает
 // что-то стороннее (второй туннель, драйвер перехвата), это сразу видно —
 // «прямой» маршрут ядра покажет чужой адрес.
 assert.match(vpnManager, /внешний IP: \$\{seenIp\}/);
 assert.match(vpnManager, /response\.on\('data'/);
 assert.match(vpnManager, /publicIp = ips\.find/);
+// Пробник идёт за редиректами: без этого 2ip.ru не отдавал тело ответа, и
+// внешний IP оставался неопределённым.
+assert.match(vpnManager, /fetchViaProxy/);
+assert.match(vpnManager, /response\.headers\.location/);
+assert.match(vpnManager, /Mozilla\/5\.0 \(Windows NT 10\.0/);
 assert.match(vpnManager, /replacement \? \{ \.\.\.rule, value: replacement \} : null/);
 const ensureXray = fs.readFileSync(path.join(root, 'scripts', 'ensure-xray.cjs'), 'utf8');
 assert.match(ensureXray, /replace\(\/\\\.dat\$\/i, ''\)/, 'скрипт установки ядра тоже обязан класть копию без расширения');
