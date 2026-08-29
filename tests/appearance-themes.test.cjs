@@ -4,7 +4,9 @@ const path = require('node:path');
 
 const root = path.resolve(__dirname, '..');
 const app = fs.readFileSync(path.join(root, 'src', 'renderer', 'App.tsx'), 'utf8');
-const styles = fs.readFileSync(path.join(root, 'src', 'renderer', 'styles.css'), 'utf8');
+// Переносы строк приводятся к LF: на Windows git может выдать CRLF, и сверка
+// сгенерированной темы с файлом ниже тогда ложно расходилась бы.
+const styles = fs.readFileSync(path.join(root, 'src', 'renderer', 'styles.css'), 'utf8').replace(/\r\n/g, '\n');
 const types = fs.readFileSync(path.join(root, 'src', 'main', 'types.ts'), 'utf8');
 const main = fs.readFileSync(path.join(root, 'src', 'main', 'main.ts'), 'utf8');
 const { DEFAULT_SETTINGS } = require(path.join(root, 'dist-electron', 'types.js'));
@@ -22,7 +24,7 @@ assert.match(main, /raw\.appearance === 'graphite' \|\| raw\.appearance === 'cri
 // экраны оставались наполовину сине-зелёными. Перекрашивать их руками — та же
 // ловушка, что с «Графитом»: новый экран забудут. Поэтому тема создаётся из
 // самого стиля, а тест сторожит, что созданное не разошлось с исходником.
-const crimson = fs.readFileSync(path.join(root, 'src', 'renderer', 'crimson.css'), 'utf8');
+const crimson = fs.readFileSync(path.join(root, 'src', 'renderer', 'crimson.css'), 'utf8').replace(/\r\n/g, '\n');
 const { buildBlock, parseRules, repaint } = require(path.join(root, 'scripts', 'crimson-theme.cjs'));
 
 assert.equal(crimson.trim(), buildBlock(styles).trim(),

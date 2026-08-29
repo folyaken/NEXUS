@@ -1,1 +1,21 @@
+# Переносы строк: текст всегда в LF.
+# На Windows git по умолчанию переводит LF в CRLF при извлечении, и тесты,
+# сверяющие стили с точными многострочными строками, падали на чистом клоне.
+* text=auto eol=lf
+
+# Двоичные файлы не трогаем.
+*.png binary
+*.gif binary
+*.jpg binary
+*.jpeg binary
+*.zip binary
+*.woff2 binary
+*.ico binary
+*.bmp binary
+*.exe binary
+*.dll binary
+*.dat binary
+*.blockmap binary
+
+# Плоский архив не попадает в npm-пакет.
 NEXUS.zip export-ignore

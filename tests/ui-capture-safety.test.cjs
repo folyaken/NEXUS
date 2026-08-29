@@ -7,8 +7,11 @@ const root = path.resolve(__dirname, '..');
 // Оформления «Графит» и «Багровое» создаются из основного стиля отдельными
 // файлами (см. scripts/make-*-theme.cjs). Проверки цвета обязаны видеть их
 // тоже, иначе тема считается «непокрашенной» просто потому, что лежит рядом.
-const baseStyles = fs.readFileSync(path.join(root, 'src', 'renderer', 'styles.css'), 'utf8');
-const graphiteStyles = fs.readFileSync(path.join(root, 'src', 'renderer', 'graphite.css'), 'utf8');
+// Переносы строк приводятся к LF: на Windows git может выдать CRLF, и точные
+// многострочные строки ниже тогда не находились бы.
+const toLf = (text) => text.replace(/\r\n/g, '\n');
+const baseStyles = toLf(fs.readFileSync(path.join(root, 'src', 'renderer', 'styles.css'), 'utf8'));
+const graphiteStyles = toLf(fs.readFileSync(path.join(root, 'src', 'renderer', 'graphite.css'), 'utf8'));
 const styles = `${baseStyles}\n${graphiteStyles}`;
 const packageJson = JSON.parse(fs.readFileSync(path.join(root, 'package.json'), 'utf8'));
 const gitignore = fs.readFileSync(path.join(root, '.gitignore'), 'utf8');
