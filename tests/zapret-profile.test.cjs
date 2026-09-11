@@ -7,6 +7,7 @@ const path = require('node:path');
 const root = path.resolve(__dirname, '..');
 const {
   buildZapretLaunch,
+  ensureZapretListFiles,
   ensureZapretUserLists,
   parseZapretProfile,
   readGameFilter,
@@ -129,6 +130,62 @@ void (async () => {
     assert.equal(await buildZapretLaunch(batchFile, releaseRoot, []), null);
 
     console.log('Zapret profile parsing checks passed.');
+  } finally {
+    await fsp.rm(temp, { recursive: true, force: true });
+  }
+})();
+
+void (async () => {
+  // --- Страховка списков перед запуском ядра --------------------------------
+  // Реальный кейс из журнала: winws падал с кодом 1 «cannot access ipset file
+  // …ipset-exclude-user.txt», потому что в GitHub ZIP этого файла нет (его
+  // штатно создаёт service.bat, который NEXUS не запускает).
+  const temp = await fsp.mkdtemp(path.join(os.tmpdir(), 'nexus-zapret-lists-'));
+  try {
+    const releaseRoot = path.join(temp, 'zapret-discord-youtube-1.10.1');
+    const binDirectory = path.join(releaseRoot, 'bin');
+    const listsDirectory = path.join(releaseRoot, 'lists');
+    await fsp.mkdir(binDirectory, { recursive: true });
+    await fsp.mkdir(listsDirectory, { recursive: true });
+    // В релизе есть только штатные списки — никаких *-user.txt.
+    await fsp.writeFile(path.join(listsDirectory, 'list-general.txt'), 'youtube.com\r\n');
+    await fsp.writeFile(path.join(listsDirectory, 'ipset-all.txt'), '142.250.0.0/15\r\n');
+
+    const launch = {
+      cwd: binDirectory,
+      args: [
+        `--hostlist=${path.join(listsDirectory, 'list-general.txt')}`,
+        `--hostlist=${path.join(listsDirectory, 'list-general-user.txt')}`,
+        `--hostlist-exclude=${path.join(listsDirectory, 'list-exclude-user.txt')}`,
+        `--ipset=${path.join(listsDirectory, 'ipset-all.txt')}`,
+        '--hostlist-domains=discord.media', // значение-не-файл не создаётся
+        '--hostlist=lists/relative-from-cwd.txt', // относительный путь — от cwd
+      ],
+    };
+
+    const created = await ensureZapretListFiles(launch.cwd, launch.args);
+    assert.ok(created.includes('list-general-user.txt'), 'создаётся list-general-user.txt');
+    assert.ok(created.includes('list-exclude-user.txt'), 'создаётся list-exclude-user.txt');
+    assert.ok(created.includes('relative-from-cwd.txt'), 'относительный путь считается от cwd ядра');
+    assert.equal(created.length, 3, `лишних файлов не создаётся: ${created.join(', ')}`);
+    for (const arg of launch.args) {
+      const match = /^(--hostlist-exclude|--hostlist|--ipset-exclude|--ipset)=(.+)$/i.exec(arg);
+      if (!match) continue;
+      const target = path.isAbsolute(match[2]) ? match[2] : path.resolve(launch.cwd, match[2]);
+      assert.ok(fs.existsSync(target), `после подготовки существует ${target}`);
+    }
+    // Существующие списки не трогаются.
+    assert.equal(await fsp.readFile(path.join(listsDirectory, 'ipset-all.txt'), 'utf8'), '142.250.0.0/15\r\n');
+    // Повторный запуск ничего не создаёт — механизм идемпотентен.
+    assert.deepEqual(await ensureZapretListFiles(launch.cwd, launch.args), []);
+    // UNC-пути не создаются молча.
+    assert.deepEqual(
+      await ensureZapretListFiles(launch.cwd, ['--ipset=\\\\server\\share\\block.txt']),
+      [],
+      'сетевые пути не преобразуются в локальные файлы',
+    );
+
+    console.log('Zapret list guard checks passed.');
   } finally {
     await fsp.rm(temp, { recursive: true, force: true });
   }

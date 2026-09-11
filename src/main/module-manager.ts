@@ -13,7 +13,7 @@ import { expandDpiHosts } from './dpi-companions';
 import { buildTgProxyArgs, normalizeTgProxyOptions, readTgProxyOptions } from './tg-proxy-options';
 import { readDpiHostlist, syncDpiHostlistInto } from './dpi-hostlist';
 import { tgWsProxyAssetCandidates } from './platform-assets';
-import { buildZapretLaunch, ensureZapretUserLists } from './zapret-profile';
+import { buildZapretLaunch, ensureZapretListFiles, ensureZapretUserLists } from './zapret-profile';
 import { listPidsByImage, waitForExit } from './process-watch';
 import { sanitizeDiagnosticText } from './vpn-diagnostics';
 
@@ -1209,6 +1209,39 @@ export class ModuleManager extends EventEmitter {
       ? `${signed} / 0x${unsigned.toString(16).toUpperCase().padStart(8, '0')}`
       : String(code);
     return `код ${codeLabel}, сигнал ${signal ?? '—'}`;
+  }
+
+  /**
+   * Последняя понятная причина падения из журнала модуля.
+   *
+   * Само ядро пишет причину в журнал («cannot access ipset file …»), но в
+   * интерфейс раньше уходил только общий текст «процесс завершился до
+   * подтверждения готовности (код 1 …)» — человеку приходилось идти в журнал
+   * и искать вручную. Здесь из журнала достаётся последняя строка с ошибкой,
+   * чтобы причина была видна сразу в сообщении.
+   */
+  private async lastLogReason(module: ModuleManifest): Promise<string | null> {
+    try {
+      const logPath = this.resolvePath(module.log_file);
+      const text = await fs.readFile(logPath, 'utf8');
+      const lines = text.split(/\r?\n/).map((line) => line.trim()).filter(Boolean);
+      for (let index = lines.length - 1; index >= 0; index -= 1) {
+        const line = lines[index];
+        if (/cannot|failed|invalid|denied|error|не найден|не удалось/i.test(line)) {
+          return sanitizeDiagnosticText(line).slice(0, 300);
+        }
+      }
+    } catch {
+      /* Журнала может не быть — тогда дописывать нечего, и это не ошибка. */
+    }
+    return null;
+  }
+
+  /** Добавляет к сообщению о падении причину из журнала, если её там ещё нет. */
+  private async messageWithLogReason(module: ModuleManifest, baseMessage: string): Promise<string> {
+    const reason = await this.lastLogReason(module);
+    if (!reason || baseMessage.includes(reason)) return baseMessage;
+    return `${baseMessage} Причина по журналу: ${reason}`;
   }
 
   private async emitUpstreamLogTail(module: ModuleManifest, level: 'info' | 'error'): Promise<void> {

@@ -204,6 +204,36 @@ export async function ensureZapretUserLists(releaseRoot: string): Promise<void> 
 }
 
 /**
+ * Создаёт файлы списков, на которые ссылается строка запуска ядра.
+ *
+ * Страховка перед запуском: профили Zapret ссылаются не только на списки из
+ * релиза, но и на пользовательские (`*-user.txt`), которых в GitHub ZIP нет —
+ * их штатно создаёт service.bat, который NEXUS не запускает. Если хоть одного
+ * файла не будет, winws завершится с кодом 1 («cannot access ipset file»), а
+ * человек увидит непонятное «процесс завершился до подтверждения готовности».
+ * Поэтому каждый упомянутый в аргументах список проверяется, и отсутствующий
+ * создаётся пустым: пустой список — валидный, ядро просто ничего не исключает.
+ *
+ * Возвращает имена созданных файлов — их удобно показать в журнале.
+ */
+export async function ensureZapretListFiles(cwd: string, args: readonly string[]): Promise<string[]> {
+  const created: string[] = [];
+  for (const arg of args) {
+    const match = /^(--hostlist-exclude|--hostlist|--ipset-exclude|--ipset)=(.+)$/i.exec(arg);
+    if (!match) continue;
+    const rawValue = match[2].trim().replace(/^"+|"+$/g, '');
+    // UNC-пути и сетевые диски не создаются молча: это уже не наша файловая система.
+    if (!rawValue || rawValue.startsWith('\\\\')) continue;
+    const target = path.isAbsolute(rawValue) ? path.normalize(rawValue) : path.resolve(cwd, rawValue);
+    if (existsSync(target)) continue;
+    await fs.mkdir(path.dirname(target), { recursive: true });
+    await fs.writeFile(target, '# список создан NEXUS: профиль ссылается на файл, которого нет в релизе\r\n', 'utf8');
+    created.push(path.basename(target));
+  }
+  return created;
+}
+
+/**
  * Готовит запуск ядра по выбранному профилю.
  *
  * Экспертные параметры дописываются в конец: Zapret применяет последнее
