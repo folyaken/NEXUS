@@ -34,6 +34,7 @@
     "channel": "node scripts/update-channel.cjs",
     "channel:set": "node scripts/update-channel.cjs set",
     "release:win": "node scripts/build-release.cjs",
+    "release:publish": "node scripts/publish-release.cjs",
     "post": "node scripts/release-post.cjs",
     "snapshot": "node scripts/make-clean-snapshot.cjs",
     "theme:crimson": "node scripts/make-crimson-theme.cjs",
