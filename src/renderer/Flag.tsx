@@ -2,7 +2,7 @@ import type { ReactNode } from 'react';
 
 function Svg({ children, view = '28 20' }: { children: ReactNode; view?: string }) {
   return (
-    <svg className="happ-flag-svg" viewBox={`0 0 ${view}`} preserveAspectRatio="none" aria-hidden>
+    <svg className="server-flag-svg" viewBox={`0 0 ${view}`} preserveAspectRatio="none" aria-hidden>
       {children}
     </svg>
   );
@@ -72,5 +72,5 @@ export function Flag({ code }: { code?: string }) {
   if (iso === 'kz') {
     return <Svg><rect width="28" height="20" fill="#00AFCA" /><circle cx="14" cy="10" r="4" fill="#FEC50C" /></Svg>;
   }
-  return <span className="happ-flag-fallback">{(code || '·').slice(0, 2).toUpperCase()}</span>;
+  return <span className="server-flag-fallback">{(code || '·').slice(0, 2).toUpperCase()}</span>;
 }

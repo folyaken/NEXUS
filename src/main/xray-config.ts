@@ -1,4 +1,8 @@
-import type { VpnLinkParams } from './types';
+import { inboundListenAddress } from './lan-share';
+import { xrayDnsSection } from './dns-servers';
+import { xrayRoutingRules, type RoutingRule } from './routing-rules';
+import { xrayProcessSelectors } from './split-tunnel';
+import type { VpnAppRoutingMode, VpnLinkParams, VpnSplitApp } from './types';
 
 function vlessFlow(params: VpnLinkParams): string {
   const network = (params.network || 'tcp').toLowerCase();
@@ -48,6 +52,12 @@ function streamSettings(params: VpnLinkParams): Record<string, unknown> {
   }
 
   return stream;
+}
+
+function supportsTlsHelloFragmentation(params: VpnLinkParams): boolean {
+  const network = (params.network || 'tcp').toLowerCase();
+  const security = (params.security || 'none').toLowerCase();
+  return network === 'tcp' && (security === 'tls' || security === 'xtls' || security === 'reality');
 }
 
 function outbound(params: VpnLinkParams): Record<string, unknown> {
@@ -136,18 +146,29 @@ function outbound(params: VpnLinkParams): Record<string, unknown> {
   };
 }
 
-export function buildXrayConfig(params: VpnLinkParams, inboundPort: number, mode: 'proxy' | 'tun' = 'proxy'): Record<string, unknown> {
+export function buildXrayConfig(
+  params: VpnLinkParams,
+  inboundPort: number,
+  mode: 'proxy' | 'tun' = 'proxy',
+  splitApps: VpnSplitApp[] = [],
+  appRouting: VpnAppRoutingMode = 'include',
+  fragmentation = true,
+  allowLan = false,
+  dnsServers: string[] = [],
+  routingRules: RoutingRule[] = [],
+): Record<string, unknown> {
+  const listen = inboundListenAddress(allowLan);
   const inbounds: Record<string, unknown>[] = [{
     tag: 'socks-in',
     port: inboundPort,
-    listen: '127.0.0.1',
+    listen,
     protocol: 'socks',
     settings: { auth: 'noauth', udp: true },
     sniffing: { enabled: true, destOverride: ['http', 'tls', 'quic'] },
   }, {
     tag: 'http-in',
     port: inboundPort + 1,
-    listen: '127.0.0.1',
+    listen,
     protocol: 'http',
     settings: { allowTransparent: false },
   }];
@@ -156,22 +177,78 @@ export function buildXrayConfig(params: VpnLinkParams, inboundPort: number, mode
       tag: 'tun-in',
       protocol: 'tun',
       settings: {
+        name: 'nexus',
+        desc: 'NEXUS',
         mtu: 1500,
-        name: 'jey2ray',
-        stack: 'gvisor',
-        autoRoute: true,
-        strictRoute: true,
+        gateway: ['172.19.0.1/30', 'fdfe:dcba:9876::1/126'],
+        autoSystemRoutingTable: ['0.0.0.0/0', '::/0'],
+        autoOutboundsInterface: 'auto',
       },
       sniffing: { enabled: true, destOverride: ['http', 'tls', 'quic'] },
     });
   }
+
+  const process = mode === 'tun' && appRouting !== 'system' ? xrayProcessSelectors(splitApps) : [];
+  const selectedOutbound = appRouting === 'exclude' ? 'direct' : 'proxy';
+  const fallbackOutbound = appRouting === 'exclude' ? 'proxy' : 'direct';
+  // Правила пользователя идут первыми: ядро применяет первое совпавшее, то
+  // есть положение в списке и есть приоритет. Правила по программам работают
+  // только в режиме TUN, поэтому добавляются после — иначе они перехватывали бы
+  // весь трафик туннеля и правила по доменам никогда бы не сработали.
+  const userRules = xrayRoutingRules(routingRules);
+  const splitRules = process.length ? [
+    { type: 'field', process: ['self/', 'xray/'], outboundTag: 'direct' },
+    { type: 'field', inboundTag: ['tun-in'], process, outboundTag: selectedOutbound },
+    { type: 'field', inboundTag: ['tun-in'], outboundTag: fallbackOutbound },
+  ] : [];
+  const allRules = [...userRules, ...splitRules];
+  const routing = allRules.length ? {
+    // IPIfNonMatch нужен для правил по адресам: без него домен не проверяется
+    // против geoip-наборов, и правило «российские адреса» не срабатывает.
+    domainStrategy: userRules.length ? 'IPIfNonMatch' : 'AsIs',
+    rules: allRules,
+  } : undefined;
+
+  const proxyOutbound: Record<string, unknown> = { tag: 'proxy', ...outbound(params) };
+  const fragmentTlsHello = fragmentation && supportsTlsHelloFragmentation(params);
+  if (fragmentTlsHello) {
+    const proxyStream = proxyOutbound.streamSettings as Record<string, unknown>;
+    proxyOutbound.streamSettings = {
+      ...proxyStream,
+      sockopt: {
+        ...(proxyStream.sockopt as Record<string, unknown> | undefined),
+        dialerProxy: 'fragment',
+      },
+    };
+  }
+  const outbounds: Record<string, unknown>[] = [proxyOutbound];
+  if (fragmentTlsHello) {
+    outbounds.push({
+      tag: 'fragment',
+      protocol: 'freedom',
+      settings: {
+        fragment: {
+          packets: 'tlshello',
+          length: '50-100',
+          interval: '10-20',
+        },
+      },
+    });
+  }
+  outbounds.push(
+    { tag: 'direct', protocol: 'freedom', settings: {} },
+    { tag: 'block', protocol: 'blackhole', settings: {} },
+  );
+
+  // Секция DNS добавляется только когда выбран свой справочник. Без неё ядро
+  // работает через системный, как и раньше.
+  const dns = xrayDnsSection(dnsServers);
+
   return {
     log: { loglevel: 'warning' },
+    ...(dns ? { dns } : {}),
     inbounds,
-    outbounds: [
-      { tag: 'proxy', ...outbound(params) },
-      { tag: 'direct', protocol: 'freedom', settings: {} },
-      { tag: 'block', protocol: 'blackhole', settings: {} },
-    ],
+    outbounds,
+    ...(routing ? { routing } : {}),
   };
 }

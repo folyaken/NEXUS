@@ -1,0 +1,39 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-labelledby="title desc">
+  <title id="title">NEXUS</title>
+  <desc id="desc">Angular N and infinity symbol in emerald and violet</desc>
+  <defs>
+    <linearGradient id="tile" x1="78" y1="42" x2="430" y2="466" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#17251f"/>
+      <stop offset="0.52" stop-color="#0d1718"/>
+      <stop offset="1" stop-color="#151126"/>
+    </linearGradient>
+    <linearGradient id="edge" x1="88" y1="64" x2="430" y2="444" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#35584c"/>
+      <stop offset="0.5" stop-color="#203b36"/>
+      <stop offset="1" stop-color="#3b2b55"/>
+    </linearGradient>
+    <linearGradient id="ribbon" x1="106" y1="156" x2="404" y2="361" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#50dd8c"/>
+      <stop offset="0.48" stop-color="#8bf2b0"/>
+      <stop offset="1" stop-color="#39bf7b"/>
+    </linearGradient>
+    <linearGradient id="violet" x1="130" y1="150" x2="380" y2="370" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#b49cff"/>
+      <stop offset="1" stop-color="#7658e8"/>
+    </linearGradient>
+    <filter id="tile-shadow" x="-30%" y="-30%" width="160%" height="170%">
+      <feDropShadow dx="0" dy="22" stdDeviation="22" flood-color="#020605" flood-opacity=".72"/>
+    </filter>
+    <filter id="symbol-glow" x="-25%" y="-35%" width="150%" height="170%">
+      <feDropShadow dx="0" dy="7" stdDeviation="8" flood-color="#050908" flood-opacity=".7"/>
+      <feDropShadow dx="0" dy="0" stdDeviation="5" flood-color="#64e99d" flood-opacity=".18"/>
+    </filter>
+  </defs>
+  <rect x="42" y="42" width="428" height="428" rx="112" fill="#080e0f" filter="url(#tile-shadow)"/>
+  <rect x="48" y="48" width="416" height="416" rx="106" fill="url(#tile)" stroke="url(#edge)" stroke-width="4"/>
+  <path d="M107 301V218l60-61 89 99 89-99 60 61v83l-60 61-89-99-89 99-60-61Z" fill="none" stroke="url(#violet)" stroke-width="55" stroke-linecap="square" stroke-linejoin="bevel" opacity=".9" transform="translate(0 12)"/>
+  <path d="M107 301V218l60-61 89 99 89-99 60 61v83l-60 61-89-99-89 99-60-61Z" fill="none" stroke="url(#ribbon)" stroke-width="42" stroke-linecap="square" stroke-linejoin="bevel" filter="url(#symbol-glow)"/>
+  <path d="M115 218l52-52 89 99 89-99 52 52" fill="none" stroke="#d2f9df" stroke-width="5" stroke-linecap="square" stroke-linejoin="bevel" opacity=".48"/>
+  <circle cx="256" cy="256" r="18" fill="#8cf1b2" stroke="#c6f8d8" stroke-width="4"/>
+</svg>

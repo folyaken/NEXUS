@@ -1,11 +1,14 @@
 {
   "id": "exitlag-sdk",
   "name": "ExitLag SDK",
-  "description": "Профиль маршрутизации для игровых и realtime-соединений.",
+  "description": "Снижает пинг и убирает лаги в онлайн-играх.",
   "enabled": false,
   "development": true,
   "executable": "./bin/exitlag-sdk.exe",
-  "args": ["--profile", "balanced"],
+  "args": [
+    "--profile",
+    "balanced"
+  ],
   "status": "stopped",
   "category": "sdk",
   "icon": "✦",

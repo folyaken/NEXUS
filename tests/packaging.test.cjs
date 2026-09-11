@@ -1,0 +1,256 @@
+const assert = require('node:assert/strict');
+const fs = require('node:fs');
+const path = require('node:path');
+
+const root = path.resolve(__dirname, '..');
+const manifest = JSON.parse(fs.readFileSync(path.join(root, 'package.json'), 'utf8'));
+const build = manifest.build;
+const mainSource = fs.readFileSync(path.join(root, 'src', 'main', 'main.ts'), 'utf8');
+const managerSource = fs.readFileSync(path.join(root, 'src', 'main', 'module-manager.ts'), 'utf8');
+const vpnSource = fs.readFileSync(path.join(root, 'src', 'main', 'vpn-manager.ts'), 'utf8');
+
+// --- Блокер 1: ядра не должны попадать внутрь asar --------------------------
+// asar — read-only архив: операционная система не может запустить из него
+// исполняемый файл. Ядро, упакованное туда, просто не стартует.
+assert.ok(build.asar, 'asar остаётся включённым для исходников');
+const filesText = build.files.join('\n');
+assert.doesNotMatch(filesText, /^modules\/\*\*\/\*$/m, 'modules/**/* затягивает бинарники в asar');
+assert.ok(build.files.includes('modules/*.module.json'), 'манифесты модулей нужны в сборке');
+
+const binResource = build.extraResources.find((item) => item.from === 'modules/bin');
+assert.ok(binResource, 'ядра обязаны лежать вне asar, в extraResources');
+assert.equal(binResource.to, 'modules/bin', 'путь должен совпадать с тем, где их ищет VpnManager');
+
+// Код ищет ядро именно по этому пути — иначе вложение бессмысленно.
+assert.match(vpnSource, /path\.join\(process\.resourcesPath, 'modules', 'bin', name\)/);
+
+// --- Блокер 3: личные данные не должны уезжать в установщик -----------------
+// modules/configs/vpn содержит профили с ключами и UUID, modules/logs — журналы.
+for (const secret of ['modules/configs', 'modules/logs', 'modules/vpn']) {
+  assert.ok(
+    !build.files.some((pattern) => pattern.startsWith(secret) && !pattern.startsWith('!')),
+    `${secret} не должен попадать в сборку: там личные данные пользователя`,
+  );
+}
+// Явного включения configs/logs быть не может, но проверяем и фильтр бинарников.
+assert.ok(
+  binResource.filter.some((item) => item.startsWith('!')),
+  'журналы рядом с ядрами тоже исключаются',
+);
+
+// Рядом с ядрами со временем появляются личные файлы: секрет TG WS Proxy в
+// TgWsProxy_data и списки сайтов пользователя (*-user.txt). Они лежат внутри
+// modules/bin, то есть попали бы в установщик и уехали бы всем, кому передадут
+// программу. Исключаются поимённо.
+for (const personal of ['**/TgWsProxy_data/**', '**/*-user.txt']) {
+  assert.ok(
+    binResource.filter.includes(`!${personal}`),
+    `личные файлы ${personal} не должны попадать в установщик`,
+  );
+}
+
+// Вложенные ядра переносятся в рабочий каталог, иначе приложение скачает их заново.
+assert.match(mainSource, /async function adoptBundledBinaries/, 'нужен перенос вложенных ядер');
+assert.match(mainSource, /force: false/, 'скачанное обновление не должно откатываться вложенным файлом');
+assert.match(mainSource, /await adoptBundledBinaries\(userModulesDir\)/);
+
+// --- Блокер 2: права администратора -----------------------------------------
+const { elevationMessage, moduleNeedsElevation, tunElevationMessage } = require(path.join(root, 'dist-electron', 'elevation.js'));
+
+// Zapret работает через драйвер WinDivert — без прав он не стартует.
+assert.equal(moduleNeedsElevation('zapret'), true);
+assert.equal(moduleNeedsElevation('tg-ws-proxy'), false, 'локальному прокси права не нужны');
+assert.equal(moduleNeedsElevation('dns-guard'), false);
+
+// Сообщения обязаны объяснять действие, а не только факт отказа.
+assert.match(elevationMessage('Обход DPI'), /Обход DPI/);
+// Сообщение должно подсказывать действие, а не только называть проблему.
+assert.match(elevationMessage('Обход DPI'), /ярлык/i);
+assert.match(elevationMessage('Обход DPI'), /прав администратора/i);
+assert.match(tunElevationMessage(), /TUN/);
+assert.match(tunElevationMessage(), /PROXY/, 'у пользователя должен быть рабочий обходной путь');
+
+// Проверка выполняется ДО запуска процесса: иначе ядро падает с невнятной ошибкой.
+assert.match(managerSource, /if \(moduleNeedsElevation\(id\) && !\(await isElevated\(\)\)\)/);
+assert.match(vpnSource, /if \(mode === 'tun' && !\(await isElevated\(\)\)\)/);
+
+// Zapret и TUN без администратора не работают вообще, поэтому приложение
+// запрашивает повышение через манифест exe: заставлять человека каждый раз
+// перезапускать программу вручную бессмысленно.
+assert.equal(build.win.requestedExecutionLevel, 'requireAdministrator',
+  'приложение должно запрашивать права само');
+
+// signAndEditExecutable: false отключил бы resedit целиком — вместе с ним
+// перестал бы применяться и requestedExecutionLevel, то есть запрос прав молча
+// не попал бы в манифест. По умолчанию флаг true, поэтому его просто нет.
+assert.notEqual(build.win.signAndEditExecutable, false,
+  'этот флаг отключает правку манифеста и обнуляет запрос прав');
+// signExecutable появился только в electron-builder 26+: на версии 25.1.8 он
+// валит сборку с «unknown property». Подпись и так не выполняется без сертификата.
+assert.ok(!('signExecutable' in build.win),
+  'signExecutable не поддерживается установленной версией electron-builder');
+
+// Без сертификата electron-builder всё равно тянет и распаковывает winCodeSign.
+// В архиве лежат символические ссылки для macOS, и Windows без прав на их
+// создание выдаёт поток ошибок «Cannot create symbolic link … libcrypto.dylib»
+// на каждый .exe. Собственная функция подписи убирает загрузку пакета целиком.
+// Путь обязан начинаться с ./ — иначе require.resolve() принимает его за имя
+// пакета, не находит, и electron-builder молча идёт обычным путём: качает
+// winCodeSign и падает на символических ссылках macOS. Установщик при этом
+// не создаётся, а в release остаётся только win-unpacked.
+// Поле переехало в signtoolOptions: в electron-builder 25 старое win.sign
+// объявлено устаревшим и печатает предупреждение при каждой сборке.
+assert.match(build.win.signtoolOptions.sign, /^\.\//, 'путь к заглушке должен быть относительным (./)');
+assert.ok(fs.existsSync(path.join(root, 'build', 'no-sign.cjs')), 'файл заглушки должен существовать');
+assert.ok(build.files.includes('build/no-sign.cjs'), 'заглушка обязана попадать в сборку');
+
+const noSign = require(path.join(root, 'build', 'no-sign.cjs'));
+assert.equal(typeof noSign.default, 'function', 'electron-builder ожидает экспорт default');
+
+// Проверка тем же кодом, которым пользуется сборщик: если заглушка не
+// загрузится, подпись пойдёт через signtool со всеми последствиями.
+const { resolveFunction } = require(path.join(root, 'node_modules', 'app-builder-lib', 'out', 'util', 'resolve.js'));
+void resolveFunction('commonjs', build.win.signtoolOptions.sign, 'sign').then((resolved) => {
+  assert.equal(typeof resolved, 'function', 'electron-builder должен загрузить заглушку подписи');
+});
+
+// Ключевое: заглушка отключает только подпись. Правка ресурсов обязана
+// остаться — именно она записывает requestedExecutionLevel в манифест, без
+// которого Zapret и TUN не получат прав администратора.
+assert.notEqual(build.win.signAndEditExecutable, false,
+  'этот флаг отключил бы и правку манифеста вместе с запросом прав');
+
+// Конфигурация проверяется настоящей схемой electron-builder, а не на глаз:
+// неизвестное свойство обнаруживается здесь, а не при сборке установщика.
+const scheme = require(path.join(root, 'node_modules', 'app-builder-lib', 'scheme.json'));
+const { validateConfiguration } = require(path.join(root, 'node_modules', 'app-builder-lib', 'out', 'util', 'config', 'config.js'));
+assert.doesNotThrow(
+  () => validateConfiguration(JSON.parse(JSON.stringify(build)), scheme, { warn() {} }),
+  'конфигурация сборки должна соответствовать схеме установленной версии',
+);
+
+// Установка для всех пользователей: программа и так ставится с повышением.
+assert.equal(build.nsis.perMachine, true);
+assert.equal(build.nsis.allowElevation, true);
+
+// Страховка на случай portable-сборки и запуска из среды разработки:
+// там манифест может не примениться, и причину отказа нужно объяснить.
+assert.match(managerSource, /moduleNeedsElevation\(id\) && !\(await isElevated\(\)\)/);
+
+console.log('Packaging and elevation checks passed.');
+
+// --- Запуск профилей Zapret --------------------------------------------------
+// Профили не принимают аргументы: строку запуска winws.exe они собирают сами.
+// Передача параметров в `call` заставляла cmd выполнять их как команды —
+// пользователь видел «'--filter-udp' is not recognized as an internal or
+// external command», и модуль падал с кодом 1.
+assert.doesNotMatch(managerSource, /call "\$\{batchFile\}"\$\{suffix\}/,
+  'аргументы нельзя дописывать в вызов профиля');
+assert.match(managerSource, /NEXUS_EXTRA_ARGS/,
+  'экспертные параметры передаются переменной окружения');
+
+// Профиль использует ^ для переноса строк: на одиночном LF команда рвётся.
+assert.match(managerSource, /lines\.join\('\\r\\n'\)/, 'runner обязан использовать CRLF');
+
+// Основной путь запуска — прямой: строка читается из профиля и передаётся ядру
+// массивом аргументов, минуя командный интерпретатор. Так перенос строки через
+// `^` перестаёт что-либо значить, а вместе с ним исчезает и причина ошибки.
+assert.match(managerSource, /buildZapretLaunch\(batchFile, releaseRoot/,
+  'профиль обязан разбираться до запуска');
+assert.match(managerSource, /directWorkerLaunch = true/,
+  'при прямом запуске созданный процесс и есть рабочий');
+assert.match(managerSource, /ensureZapretUserLists\(releaseRoot\)/,
+  'пользовательские списки Zapret создаются приложением, раз service.bat не запускается');
+
+// --- Самостоятельное повышение прав ------------------------------------------
+// Манифест exe запрашивает права, но у portable-сборки он применяется не всегда,
+// а ярлык мог быть создан вручную. Без запасного пути пользователю приходилось
+// каждый раз вызывать «Запуск от имени администратора» самому.
+const elevationSource = fs.readFileSync(path.join(root, 'src', 'main', 'elevation.ts'), 'utf8');
+assert.match(elevationSource, /export function relaunchElevated/);
+assert.match(elevationSource, /-Verb RunAs/, 'повышение выполняется через UAC');
+assert.match(elevationSource, /detached: true/, 'новый процесс должен пережить закрытие текущего');
+assert.match(elevationSource, /child\.unref\(\)/);
+
+// Путь уходит в PowerShell: без экранирования апостроф позволил бы подставить
+// произвольную команду.
+assert.match(elevationSource, /replace\(\/'\/g, "''"\)/, 'аргументы обязаны экранироваться');
+
+// Перезапуск только для установленной версии: в разработке он мешал бы работе.
+assert.match(mainSource, /if \(app\.isPackaged && process\.platform === 'win32' && !\(await isElevated\(\)\)\)/);
+assert.match(mainSource, /relaunchElevated\(process\.execPath, process\.argv\.slice\(1\)\)/);
+// Отказ пользователя от повышения не должен закрывать приложение.
+assert.match(mainSource, /Повышение не удалось/);
+
+// --- Кеш winCodeSign готовится до сборки ------------------------------------
+// Пакет winCodeSign содержит библиотеки macOS в виде символических ссылок.
+// Windows создаёт их только с правами администратора, поэтому распаковка
+// обрывалась, electron-builder повторял попытку и установщик не создавался —
+// в release оставался только win-unpacked.
+const prepareScript = path.join(root, 'scripts', 'prepare-wincodesign.cjs');
+assert.ok(fs.existsSync(prepareScript), 'нужен скрипт подготовки кеша');
+
+const prepareSource = fs.readFileSync(prepareScript, 'utf8');
+assert.match(prepareSource, /-x!darwin/, 'компоненты macOS обязаны исключаться при распаковке');
+// Ключ -snld не поддерживается сборками 7-Zip из node_modules: с ним
+// распаковка падает на разборе аргументов.
+assert.doesNotMatch(prepareSource, /'-snld'/, 'неподдерживаемый ключ ломает распаковку');
+
+// Скрипт вспомогательный: его сбой не должен останавливать сборку.
+assert.match(prepareSource, /Сборка продолжится/, 'ошибки подготовки подавляются');
+// Повторные запуски не должны качать пакет заново.
+assert.match(prepareSource, /уже подготовлен/, 'готовый кеш переиспользуется');
+
+// Подготовка обязана выполняться раньше electron-builder.
+const packageWin = manifest.scripts['package:win'];
+assert.match(packageWin, /prepare-wincodesign\.cjs/, 'сборка должна готовить кеш');
+assert.ok(
+  packageWin.indexOf('prepare-wincodesign.cjs') < packageWin.indexOf('electron-builder'),
+  'кеш готовится до запуска сборщика, иначе он скачает пакет сам',
+);
+
+// --- Настройки, из-за которых падал makensis (сборка 1.2.1) -------------------
+// Сборка обрывалась на makensis с ERR_ELECTRON_BUILDER_CANNOT_EXECUTE, а в
+// выводе не было ничего, кроме сотни строк «Command line defined». Причины
+// оказались в конфигурации, поэтому они закреплены проверками.
+
+// Описание уходит в APP_DESCRIPTION и в свойства .exe. NSIS читает определения
+// в кодировке системы, а не UTF-8: кириллица превращалась в «◆◆◆◆◆◆◆◆» —
+// это было видно прямо в выводе сборки.
+assert.match(manifest.description, /^[\x20-\x7e]*$/, 'в description не должно быть кириллицы: NSIS её ломает');
+
+// Поле win.sign устарело в electron-builder 25. Пока оно только предупреждает,
+// но когда перестанет читаться, заглушка подписи не подключится и сборка
+// начнёт качать winCodeSign с ошибками про символические ссылки.
+assert.ok(!Object.prototype.hasOwnProperty.call(build.win, 'sign'),
+  'win.sign устарел — используйте win.signtoolOptions.sign');
+assert.equal(build.win.signtoolOptions.sign, './build/no-sign.cjs');
+assert.ok(fs.existsSync(path.join(root, 'build', 'no-sign.cjs')), 'заглушка подписи обязана существовать');
+
+// Предупреждения NSIS по умолчанию считаются ошибками (ключ -WX): одно
+// безобидное замечание останавливает сборку, а причину в выводе не видно.
+assert.equal(build.nsis.warningsAsErrors, false, 'предупреждения NSIS не должны рушить выпуск');
+
+// Проверка настроек выполняется до запуска electron-builder: разобрать вывод
+// makensis почти невозможно, а эти ошибки видны заранее.
+const releaseScript = fs.readFileSync(path.join(root, 'scripts', 'build-release.cjs'), 'utf8');
+assert.match(releaseScript, /check-build-config\.cjs/, 'проверка настроек обязана идти до сборки');
+assert.match(manifest.scripts['package:win'], /check-build-config\.cjs/);
+assert.ok(fs.existsSync(path.join(root, 'scripts', 'check-build-config.cjs')));
+
+// Вывод сборки сохраняется в файл: причина падения уезжает за край окна консоли.
+assert.match(releaseScript, /build-log\.txt/, 'полный вывод сборки обязан сохраняться в файл');
+assert.match(releaseScript, /function runBuilder/);
+
+// --- Лишние цели сборки ---------------------------------------------------------
+// Кроме установщика собиралась ещё portable-версия. В релизы она ни разу не
+// выкладывалась, а место в папке release занимала наравне с установщиком: за
+// десяток версий там скопилось больше гигабайта файлов с похожими именами,
+// среди которых легко перепутать свежий и старый.
+const winTargets = build.win.target.map((item) => (typeof item === 'string' ? item : item.target));
+assert.deepEqual(winTargets, ['nsis'], 'собирается только установщик — portable не публикуется');
+
+// Папка release очищается перед сборкой: electron-builder прежние файлы не
+// удаляет, и они накапливаются от версии к версии.
+const releaseScriptSource = fs.readFileSync(path.join(root, 'scripts', 'build-release.cjs'), 'utf8');
+assert.match(releaseScriptSource, /fs\.rmSync\(releaseOutput/, 'папка release обязана очищаться перед сборкой');

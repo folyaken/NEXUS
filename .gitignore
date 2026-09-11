@@ -33,9 +33,23 @@ Thumbs.db
 *.swp
 
 # archives and installers (keep source only)
+# Патч-архивы собираются через `npm run patch`. В корне они не накапливаются:
+# для скачивания публикуется только текущий патч в patches/.
+/NEXUS-patch-*.zip
 *.rar
 *.7z
 *.exe
 *.AppImage
 *.dmg
 *.apk
+
+# Личный адрес канала обновлений: у каждого свой
+update-channel.json
+
+# Картинки установщика рисуются скриптом make-installer-art.cjs при сборке.
+# В репозитории им делать нечего: это производные файлы на 175 КБ, которые
+# менялись бы при каждой правке оформления.
+/build/installer-*.bmp
+
+# Снимок для переноса в чистый репозиторий: собирается командой npm run snapshot.
+/clean-snapshot/

@@ -1,5 +1,8 @@
 import { contextBridge, ipcRenderer } from 'electron';
-import type { AppSettings, ModuleLog, ModuleManifest, UpdateInfo, UserProfile, VpnProfile, VpnRuntime } from './types';
+import type { CommunityLink } from './community';
+import type { DnsCheckResult } from './dns-check';
+import type { AboutSystemInfo, AppSettings, DpiExpertOptions, DpiHostlistResult, ModuleStatusReport, TgProxyOptions, ModuleLog, ModuleManifest, NexusUpdateCheck, UpdateInfo, UserProfile, VpnDiagnostics, VpnLatencySample, VpnProfile, VpnRuntime, VpnSplitApp } from './types';
+import type { RunningApp } from './running-apps';
 
 contextBridge.exposeInMainWorld('nexus', {
   getModules: (): Promise<ModuleManifest[]> => ipcRenderer.invoke('modules:list'),
@@ -7,26 +10,59 @@ contextBridge.exposeInMainWorld('nexus', {
   startModule: (id: string): Promise<ModuleManifest> => ipcRenderer.invoke('modules:start', id),
   stopModule: (id: string): Promise<ModuleManifest> => ipcRenderer.invoke('modules:stop', id),
   setModuleStrategy: (id: string, strategy: string): Promise<ModuleManifest> => ipcRenderer.invoke('modules:set-strategy', id, strategy),
+  setModuleExtraArgs: (id: string, options: DpiExpertOptions): Promise<ModuleManifest> => ipcRenderer.invoke('modules:set-extra-args', id, options),
+  setTgProxyOptions: (id: string, options: TgProxyOptions): Promise<ModuleManifest> => ipcRenderer.invoke('modules:set-tg-options', id, options),
+  checkModuleStatus: (id: string): Promise<ModuleStatusReport> => ipcRenderer.invoke('modules:check-status', id),
+  refreshModuleStrategies: (id: string): Promise<ModuleManifest> => ipcRenderer.invoke('modules:refresh-strategies', id),
+  isElevated: (): Promise<boolean> => ipcRenderer.invoke('runtime:is-elevated'),
+  getDpiHosts: (): Promise<string[]> => ipcRenderer.invoke('dpi:list-hosts'),
+  addDpiHost: (host: string): Promise<DpiHostlistResult> => ipcRenderer.invoke('dpi:add-host', host),
+  removeDpiHost: (host: string): Promise<DpiHostlistResult> => ipcRenderer.invoke('dpi:remove-host', host),
   getLogs: (id?: string): Promise<ModuleLog[]> => ipcRenderer.invoke('logs:list', id),
+  openLogsFolder: (): Promise<string | null> => ipcRenderer.invoke('logs:open-folder'),
   getUpdates: (): Promise<UpdateInfo[]> => ipcRenderer.invoke('updates:list'),
   syncUpdates: (): Promise<UpdateInfo[]> => ipcRenderer.invoke('updates:sync'),
   getProfile: (): Promise<UserProfile> => ipcRenderer.invoke('profile:get'),
   saveProfile: (name: string): Promise<UserProfile> => ipcRenderer.invoke('profile:save', name),
+  getAboutInfo: (): Promise<AboutSystemInfo> => ipcRenderer.invoke('about:get-info'),
+  getCommunityLinks: (): Promise<CommunityLink[]> => ipcRenderer.invoke('community:links'),
+  openCommunityLink: (url: string): Promise<boolean> => ipcRenderer.invoke('community:open', url),
+  checkNexusUpdate: (): Promise<NexusUpdateCheck> => ipcRenderer.invoke('about:check-update'),
+  downloadNexusUpdate: (): Promise<NexusUpdateCheck> => ipcRenderer.invoke('about:download-update'),
+  installNexusUpdate: (): Promise<NexusUpdateCheck> => ipcRenderer.invoke('about:install-update'),
+  getNexusUpdateState: (): Promise<NexusUpdateCheck> => ipcRenderer.invoke('about:update-state'),
+  onNexusUpdateChanged: (callback: (state: NexusUpdateCheck) => void) => {
+    const listener = (_event: Electron.IpcRendererEvent, state: NexusUpdateCheck) => callback(state);
+    ipcRenderer.on('about:update-changed', listener);
+    return () => ipcRenderer.removeListener('about:update-changed', listener);
+  },
   getSettings: (): Promise<AppSettings> => ipcRenderer.invoke('settings:get'),
   saveSettings: (settings: AppSettings): Promise<AppSettings> => ipcRenderer.invoke('settings:save', settings),
   getLastScan: (): Promise<string | null> => ipcRenderer.invoke('runtime:last-scan'),
   minimizeWindow: (): Promise<void> => ipcRenderer.invoke('window:minimize'),
-  toggleFullscreen: (): Promise<boolean> => ipcRenderer.invoke('window:toggle-fullscreen'),
-  isFullscreen: (): Promise<boolean> => ipcRenderer.invoke('window:is-fullscreen'),
+  toggleMaximize: (): Promise<boolean> => ipcRenderer.invoke('window:toggle-maximize'),
+  isMaximized: (): Promise<boolean> => ipcRenderer.invoke('window:is-maximized'),
   closeWindow: (): Promise<void> => ipcRenderer.invoke('window:close'),
   getVpn: (): Promise<{ profiles: VpnProfile[]; runtime: VpnRuntime }> => ipcRenderer.invoke('vpn:list'),
+  getVpnDiagnostics: (profileId?: string | null): Promise<VpnDiagnostics> => ipcRenderer.invoke('vpn:diagnostics', profileId ?? null),
   importVpn: (link: string, name?: string): Promise<VpnProfile[]> => ipcRenderer.invoke('vpn:import', link, name),
-  refreshVpn: (): Promise<number> => ipcRenderer.invoke('vpn:refresh'),
+  refreshVpn: (url?: string): Promise<number> => ipcRenderer.invoke('vpn:refresh', url),
   removeVpn: (id: string): Promise<void> => ipcRenderer.invoke('vpn:remove', id),
+  removeVpnSubscription: (url: string): Promise<void> => ipcRenderer.invoke('vpn:remove-subscription', url),
+  pickVpnApps: (): Promise<VpnSplitApp[]> => ipcRenderer.invoke('vpn:pick-apps'),
+  checkDns: (server: string): Promise<DnsCheckResult> => ipcRenderer.invoke('dns:check', server),
+  checkCurrentDns: (): Promise<DnsCheckResult | null> => ipcRenderer.invoke('dns:check-current'),
+  measureDnsProviders: (): Promise<DnsCheckResult[]> => ipcRenderer.invoke('dns:measure-all'),
+  exportRoutingRules: (): Promise<{ saved: boolean; path?: string }> => ipcRenderer.invoke('routing:export'),
+  importRoutingRules: (): Promise<{ added: number; skipped: number; error?: string }> => ipcRenderer.invoke('routing:import'),
+  netDiagnose: (): Promise<boolean> => ipcRenderer.invoke('net:diagnose'),
+  listRunningApps: (): Promise<RunningApp[]> => ipcRenderer.invoke('vpn:running-apps'),
   connectVpn: (id: string): Promise<VpnRuntime> => ipcRenderer.invoke('vpn:connect', id),
   disconnectVpn: (): Promise<VpnRuntime> => ipcRenderer.invoke('vpn:disconnect'),
+  switchVpnMode: (mode: 'proxy' | 'tun'): Promise<VpnRuntime> => ipcRenderer.invoke('vpn:switch-mode', mode),
   ensureVpnCore: (): Promise<void> => ipcRenderer.invoke('vpn:ensure-core'),
   pingVpn: (): Promise<VpnProfile[]> => ipcRenderer.invoke('vpn:ping'),
+  sampleVpnLatency: (): Promise<VpnLatencySample | null> => ipcRenderer.invoke('vpn:latency-sample'),
   onVpnChanged: (callback: (snapshot: { profiles: VpnProfile[]; runtime: VpnRuntime }) => void) => {
     const listener = (_event: Electron.IpcRendererEvent, snapshot: { profiles: VpnProfile[]; runtime: VpnRuntime }) => callback(snapshot);
     ipcRenderer.on('vpn:changed', listener);
@@ -47,10 +83,10 @@ contextBridge.exposeInMainWorld('nexus', {
     ipcRenderer.on('updates:changed', listener);
     return () => ipcRenderer.removeListener('updates:changed', listener);
   },
-  onFullscreen: (callback: (value: boolean) => void) => {
+  onMaximized: (callback: (value: boolean) => void) => {
     const listener = (_event: Electron.IpcRendererEvent, value: boolean) => callback(value);
-    ipcRenderer.on('window:fullscreen', listener);
-    return () => ipcRenderer.removeListener('window:fullscreen', listener);
+    ipcRenderer.on('window:maximized', listener);
+    return () => ipcRenderer.removeListener('window:maximized', listener);
   },
   onScan: (callback: (stamp: string) => void) => {
     const listener = (_event: Electron.IpcRendererEvent, stamp: string) => callback(stamp);

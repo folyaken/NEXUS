@@ -1,10 +1,13 @@
 {
   "id": "zapret",
   "name": "Обход DPI",
-  "description": "Профиль для Zapret: YouTube, Discord и другие сервисы.",
+  "description": "Открывает YouTube, Discord и другие сайты без VPN.",
   "enabled": false,
   "executable": "./bin/winws.exe",
-  "args": ["--wf-tcp=80,443", "--hostlist=lists/list-general.txt"],
+  "args": [
+    "--wf-tcp=80,443",
+    "--hostlist=lists/list-general.txt"
+  ],
   "status": "stopped",
   "category": "dpi",
   "icon": "🛡️",

@@ -5,35 +5,62 @@ import { promises as fs, createReadStream } from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { Readable } from 'node:stream';
-import extract from 'extract-zip';
+import { pipeline } from 'node:stream/promises';
+import { Open } from 'unzipper';
 import type { ModuleManifest, UpdateInfo, UpdateStatus } from './types';
 import { ModuleManager } from './module-manager';
+import { tgWsProxyAssetCandidates, xrayAssetCandidates } from './platform-assets';
+import { buildTgProxyArgs, readTgProxyOptions } from './tg-proxy-options';
 
 type GithubRelease = {
   tag_name: string;
   name: string;
   html_url: string;
-  assets: { name: string; browser_download_url: string; size: number }[];
+  assets: { name: string; browser_download_url: string; size: number; digest?: string | null }[];
 };
 
 type UpdateTarget = {
   id: string;
   name: string;
   repo: string;
+  releaseTag?: string;
+  assetKind: 'zip' | 'executable';
   selectAsset: (assets: GithubRelease['assets']) => GithubRelease['assets'][number] | undefined;
-  install: (assetPath: string, version: string) => Promise<string>;
+  install: (assetPath: string, version: string, assetName: string) => Promise<string>;
 };
 
 type VersionRecord = { version: string; asset: string; sha256: string; installedAt: string };
 
 const GITHUB_API = 'https://api.github.com/repos';
+// v26.3.27 is the latest stable release, but lacks Windows TUN auto-routing.
+// This reviewed release supports the routing schema used by Split Tunneling.
+export const XRAY_TUN_RELEASE = 'v26.7.28';
+// Official GitHub release metadata for the pinned fallback. It remains
+// verifiable even when the GitHub API is temporarily unavailable.
+const XRAY_TUN_ASSETS: Record<string, { size: number; sha256: string }> = {
+  'Xray-linux-64.zip': { size: 21164807, sha256: '8195d909f1109b8f3d99eefe401a3c451d7bf4af71f24d3815420f77e5dd2a40' },
+  'Xray-windows-32.zip': { size: 20544832, sha256: 'e10308e5abcf375eee1bb044fcdfcd885dbefdac4212888b7e37e8bbea724d7b' },
+  'Xray-windows-64.zip': { size: 20987981, sha256: 'c7172078fca4711bcd92a4774dcd1822544579c58816197575c47533317fd8d1' },
+  'Xray-windows-arm64-v8a.zip': { size: 19341449, sha256: '2d61646f79fdc6724e68a41eb235f6a7253cfac2809caa736ad065f6c10e14a2' },
+};
+const MAX_DOWNLOAD_REDIRECTS = 5;
+/** Сколько ждать новых байт, прежде чем признать зеркало зависшим. */
+const STALL_TIMEOUT_MS = 20_000;
+const REDIRECT_STATUS_CODES = new Set([301, 302, 303, 307, 308]);
+const TRUSTED_MIRROR_HOSTS = new Set(['ghproxy.net', 'mirror.ghproxy.com']);
 
 export class GithubUpdater extends EventEmitter {
   private readonly updates = new Map<string, UpdateInfo>();
+  private readonly syncInFlight = new Map<string, Promise<void>>();
+  private readonly ensureInFlight = new Map<string, Promise<void>>();
   private readonly versionsFile: string;
   private versions: Record<string, VersionRecord> = {};
 
-  constructor(private readonly modulesDir: string, private readonly manager: ModuleManager) {
+  constructor(
+    private readonly modulesDir: string,
+    private readonly manager: ModuleManager,
+    private readonly isExternallyRunning: (id: string) => boolean = () => false,
+  ) {
     super();
     this.versionsFile = path.join(modulesDir, '.nexus-versions.json');
     this.loadVersionRecords();
@@ -51,7 +78,20 @@ export class GithubUpdater extends EventEmitter {
     return this.list();
   }
 
-  async ensure(id: string): Promise<void> {
+  ensure(id: string): Promise<void> {
+    const active = this.ensureInFlight.get(id);
+    if (active) return active;
+
+    const task = this.ensureTarget(id);
+    this.ensureInFlight.set(id, task);
+    task.then(
+      () => this.ensureInFlight.delete(id),
+      () => this.ensureInFlight.delete(id),
+    );
+    return task;
+  }
+
+  private async ensureTarget(id: string): Promise<void> {
     const target = this.targets.find((item) => item.id === id);
     if (!target) throw new Error(`Нет цели обновления: ${id}`);
     if (this.moduleExecutableExists(id)) return;
@@ -59,7 +99,7 @@ export class GithubUpdater extends EventEmitter {
     if (this.moduleExecutableExists(id)) return;
     if (id === 'jey2ray') await this.installXrayFromMirrors();
     if (!this.moduleExecutableExists(id)) {
-      throw new Error(this.updates.get(id)?.error || 'Не удалось скачать Xray-core. Проверь интернет / GitHub, затем «Скачать Xray».');
+      throw new Error(this.updates.get(id)?.error || `Не удалось скачать ${target.name}. Проверьте подключение к интернету и повторите попытку.`);
     }
   }
 
@@ -70,6 +110,7 @@ export class GithubUpdater extends EventEmitter {
       id: 'zapret',
       name: 'Обход DPI',
       repo: 'Flowseal/zapret-discord-youtube',
+      assetKind: 'zip',
       selectAsset: (assets) => process.platform === 'win32' ? assets.find((asset) => asset.name.endsWith('.zip') && asset.name.includes('zapret-discord-youtube')) : undefined,
       install: (assetPath, version) => this.installZapret(assetPath, version),
     });
@@ -77,25 +118,26 @@ export class GithubUpdater extends EventEmitter {
       id: 'tg-ws-proxy',
       name: 'TG WS Proxy',
       repo: 'Flowseal/tg-ws-proxy',
+      assetKind: 'executable',
       selectAsset: (assets) => {
-        if (process.platform === 'win32') return assets.find((asset) => asset.name === 'TgWsProxy_windows.exe');
-        if (process.platform === 'linux' && os.arch() === 'x64') return assets.find((asset) => asset.name === 'TgWsProxy_linux_amd64');
+        for (const candidate of tgWsProxyAssetCandidates()) {
+          const asset = assets.find((item) => item.name === candidate);
+          if (asset) return asset;
+        }
         return undefined;
       },
-      install: (assetPath, version) => this.installDirect(assetPath, version),
+      install: (assetPath, version, assetName) => this.installDirect(assetPath, version, assetName),
     });
     this.targets.push({
       id: 'jey2ray',
       name: 'Jey2Ray / Xray-core',
       repo: 'XTLS/Xray-core',
+      releaseTag: XRAY_TUN_RELEASE,
+      assetKind: 'zip',
       selectAsset: (assets) => {
-        if (process.platform === 'win32') {
-          return assets.find((asset) => asset.name === 'Xray-windows-64.zip')
-            || assets.find((asset) => /windows-64\.zip$/i.test(asset.name) && !/arm/i.test(asset.name));
-        }
-        if (process.platform === 'linux' && os.arch() === 'x64') {
-          return assets.find((asset) => asset.name === 'Xray-linux-64.zip')
-            || assets.find((asset) => /linux-64\.zip$/i.test(asset.name) && !/arm/i.test(asset.name));
+        for (const candidate of xrayAssetCandidates()) {
+          const asset = assets.find((item) => item.name === candidate);
+          if (asset) return asset;
         }
         return undefined;
       },
@@ -106,47 +148,84 @@ export class GithubUpdater extends EventEmitter {
     }
   }
 
-  private async syncOne(target: UpdateTarget): Promise<void> {
+  private syncOne(target: UpdateTarget): Promise<void> {
+    const active = this.syncInFlight.get(target.id);
+    if (active) return active;
+
+    const task = this.performSync(target);
+    this.syncInFlight.set(target.id, task);
+    task.then(
+      () => this.syncInFlight.delete(target.id),
+      () => this.syncInFlight.delete(target.id),
+    );
+    return task;
+  }
+
+  private async performSync(target: UpdateTarget): Promise<void> {
     this.setStatus(target, 'checking');
+    let temporaryDirectory: string | undefined;
+    let releaseUpdateLock: (() => void) | undefined;
     try {
-      const release = await this.fetchRelease(target.repo);
+      if (this.isExternallyRunning(target.id) || await this.manager.hasRunningProcess(target.id)) {
+        throw new Error(target.id === 'jey2ray' ? 'Отключите VPN перед обновлением Xray-core' : 'Остановите модуль перед обновлением');
+      }
+      releaseUpdateLock = this.manager.beginUpdate(target.id);
+      const release = await this.fetchRelease(target.repo, target.releaseTag);
       const asset = target.selectAsset(release.assets);
       if (!asset) {
-        this.setStatus(target, 'unsupported', { latestVersion: release.tag_name, error: `Для ${process.platform}/${os.arch()} нет подходящего GitHub asset` });
+        this.setStatus(target, 'unsupported', { latestVersion: release.tag_name, error: `Для ${process.platform}/${os.arch()} нет подходящего файла релиза` });
         return;
       }
       const installed = this.versions[target.id];
       const executableExists = this.moduleExecutableExists(target.id);
-      if (installed?.version === release.tag_name && executableExists) {
+      if (installed?.version === release.tag_name && installed.asset === asset.name && executableExists) {
         this.setStatus(target, 'up-to-date', { latestVersion: release.tag_name, installedVersion: installed.version, asset: asset.name });
         return;
       }
-      if (this.manager.isRunning(target.id)) throw new Error('Остановите модуль перед обновлением');
-
-      this.setStatus(target, 'downloading', { latestVersion: release.tag_name, asset: asset.name });
-      const tempDir = path.join(this.modulesDir, '.cache');
-      await fs.mkdir(tempDir, { recursive: true });
-      const tempPath = path.join(tempDir, `${target.id}-${release.tag_name.replace(/[^a-z0-9._-]/gi, '_')}-${asset.name}`);
-      await this.downloadAsset(asset.browser_download_url, tempPath, target.repo);
-      await this.assertZip(tempPath);
-      const hash = await this.sha256(tempPath);
-      const executable = await target.install(tempPath, release.tag_name);
+      // Счётчики обнуляются явно: иначе в полосе прогресса остаются байты от
+      // предыдущей загрузки и процент стартует с постороннего значения.
+      this.setStatus(target, 'downloading', {
+        latestVersion: release.tag_name,
+        asset: asset.name,
+        downloadedBytes: 0,
+        totalBytes: asset.size || undefined,
+      });
+      temporaryDirectory = await fs.mkdtemp(path.join(os.tmpdir(), 'nexus-updater-'));
+      const safeAssetName = path.basename(asset.name).replace(/[^a-z0-9._-]/gi, '_');
+      const temporaryAsset = path.join(temporaryDirectory, safeAssetName);
+      await this.downloadReleaseAsset(asset, temporaryAsset, target);
+      const hash = await this.sha256(temporaryAsset);
+      const publishedDigest = asset.digest?.trim();
+      const digestMatch = publishedDigest?.match(/^sha256:([a-f0-9]{64})$/i);
+      if (publishedDigest && !digestMatch) {
+        throw new Error(`GitHub опубликовал неподдерживаемый формат контрольной суммы для ${asset.name}`);
+      }
+      const expectedDigest = digestMatch?.[1].toLowerCase();
+      if (expectedDigest && hash.toLowerCase() !== expectedDigest) {
+        throw new Error(`Контрольная сумма GitHub asset ${asset.name} не совпала`);
+      }
+      if (this.isExternallyRunning(target.id) || await this.manager.hasRunningProcess(target.id)) {
+        throw new Error(target.id === 'jey2ray' ? 'VPN был включён во время загрузки. Отключите VPN и повторите обновление.' : 'Модуль был запущен во время загрузки');
+      }
+      const executable = await target.install(temporaryAsset, release.tag_name, asset.name);
       this.versions[target.id] = { version: release.tag_name, asset: asset.name, sha256: hash, installedAt: new Date().toISOString() };
       await this.saveVersionRecords();
       await this.manager.reload();
       this.setStatus(target, 'installed', { latestVersion: release.tag_name, installedVersion: release.tag_name, asset: asset.name, executable, sha256: hash });
-      await fs.rm(tempPath, { force: true });
     } catch (error) {
-      const message = error instanceof Error ? error.message : 'Неизвестная ошибка GitHub updater';
-      this.setStatus(target, 'error', { error: message });
+      this.setStatus(target, 'error', { error: this.userFacingError(error) });
+    } finally {
+      releaseUpdateLock?.();
+      if (temporaryDirectory) await fs.rm(temporaryDirectory, { recursive: true, force: true }).catch(() => undefined);
     }
   }
 
-  private async fetchRelease(repo: string): Promise<GithubRelease> {
+  private async fetchRelease(repo: string, releaseTag?: string): Promise<GithubRelease> {
     let lastError: Error | null = null;
+    const endpoint = releaseTag ? `releases/tags/${encodeURIComponent(releaseTag)}` : 'releases/latest';
     for (let attempt = 1; attempt <= 3; attempt += 1) {
       try {
-        const response = await fetch(`${GITHUB_API}/${repo}/releases/latest`, {
+        const response = await fetch(`${GITHUB_API}/${repo}/${endpoint}`, {
           headers: { Accept: 'application/vnd.github+json', 'User-Agent': 'NEXUS-Network-Control-Plane' },
         });
         if (response.status === 403) throw new Error('GitHub API: лимит запросов (HTTP 403). Повторите позже.');
@@ -160,140 +239,463 @@ export class GithubUpdater extends EventEmitter {
     throw lastError ?? new Error('GitHub API недоступен');
   }
 
-  private async downloadAsset(url: string, destination: string, repo: string): Promise<void> {
-    const parsed = new URL(url);
-    const owner = repo.split('/')[0];
-    const allowedHost = parsed.hostname === 'github.com' || parsed.hostname.endsWith('githubusercontent.com') || parsed.hostname.includes('ghproxy');
-    if (parsed.protocol !== 'https:' || !allowedHost) {
-      throw new Error(`Загрузка заблокирована: ${parsed.hostname} (${repo})`);
+  private validateDownloadUrl(rawUrl: string | URL, repo: string, allowGithubAssetHost: boolean): URL {
+    let parsed: URL;
+    try {
+      parsed = new URL(rawUrl.toString());
+    } catch {
+      throw new Error(`Загрузка заблокирована: некорректный URL (${repo})`);
     }
-    if (parsed.hostname === 'github.com' && owner && !parsed.pathname.includes(`/${owner}/`)) {
-      throw new Error(`Загрузка заблокирована: asset не принадлежит https://github.com/${owner}`);
+
+    const hostname = parsed.hostname.toLowerCase();
+    if (parsed.protocol !== 'https:' || parsed.username || parsed.password) {
+      throw new Error(`Загрузка заблокирована: недоверенный адрес ${hostname || 'unknown'} (${repo})`);
     }
-    const response = await fetch(url, { headers: { 'User-Agent': 'NEXUS-Network-Control-Plane' }, redirect: 'follow' });
-    if (!response.ok || !response.body) throw new Error(`GitHub asset: HTTP ${response.status}`);
-    const totalBytes = Number(response.headers.get('content-length') ?? 0);
-    let downloadedBytes = 0;
-    const target = this.targets.find((item) => item.repo === repo);
-    await new Promise<void>((resolve, reject) => {
-      const output = createWriteStream(destination, { flags: 'w' });
-      output.once('finish', resolve);
-      output.once('error', reject);
-      const input = Readable.fromWeb(response.body as Parameters<typeof Readable.fromWeb>[0]);
-      input.on('data', (chunk: Buffer) => {
-        downloadedBytes += chunk.length;
-        if (target) this.setStatus(target, 'downloading', { downloadedBytes, totalBytes: totalBytes || undefined, asset: path.basename(destination) });
-      });
-      input.once('error', reject).pipe(output);
-    });
+
+    const repoPrefix = `/${repo}/`.toLowerCase();
+    if (hostname === 'github.com') {
+      if (!parsed.pathname.toLowerCase().startsWith(repoPrefix)) {
+        throw new Error(`Загрузка заблокирована: asset не принадлежит https://github.com/${repo}`);
+      }
+      return parsed;
+    }
+
+    if (TRUSTED_MIRROR_HOSTS.has(hostname)) {
+      const mirrorTarget = parsed.pathname.slice(1).toLowerCase();
+      if (!mirrorTarget.startsWith(`https://github.com${repoPrefix}`)) {
+        throw new Error(`Загрузка заблокирована: зеркало ${hostname} запрашивает другой репозиторий`);
+      }
+      return parsed;
+    }
+
+    const githubAssetHost = hostname === 'githubusercontent.com' || hostname.endsWith('.githubusercontent.com');
+    if (allowGithubAssetHost && githubAssetHost) return parsed;
+
+    throw new Error(`Загрузка заблокирована: недоверенный домен ${hostname || 'unknown'} (${repo})`);
   }
 
-  private async assertZip(filePath: string): Promise<void> {
-    const stat = await fs.stat(filePath);
-    if (stat.size < 800_000) {
-      throw new Error(`Скачался мусор (${Math.round(stat.size / 1024)} КБ), а не Xray ZIP. GitHub недоступен или отдал HTML.`);
+  private async downloadReleaseAsset(
+    asset: GithubRelease['assets'][number],
+    destination: string,
+    target: UpdateTarget,
+  ): Promise<void> {
+    const urls = [
+      asset.browser_download_url,
+      `https://ghproxy.net/${asset.browser_download_url}`,
+      `https://mirror.ghproxy.com/${asset.browser_download_url}`,
+    ];
+    // Опубликованная GitHub контрольная сумма проверяется здесь, внутри перебора
+    // зеркал. Раньше проверка стояла после цикла: подменённый или обрезанный ответ
+    // зеркала принимался как успешная загрузка и валил всё обновление ошибкой
+    // «Контрольная сумма GitHub asset … не совпала», хотя оставались рабочие источники.
+    const publishedDigest = asset.digest?.trim();
+    const digestMatch = publishedDigest?.match(/^sha256:([a-f0-9]{64})$/i);
+    if (publishedDigest && !digestMatch) {
+      throw new Error(`GitHub опубликовал неподдерживаемый формат контрольной суммы для ${asset.name}`);
     }
+    const expectedDigest = digestMatch?.[1].toLowerCase();
+
+    const failures: Error[] = [];
+    for (const url of urls) {
+      try {
+        await this.downloadAsset(url, destination, target.repo);
+        await this.assertAsset(destination, target.assetKind, asset.size, asset.name);
+        if (expectedDigest) {
+          const hash = (await this.sha256(destination)).toLowerCase();
+          if (hash !== expectedDigest) {
+            throw new Error(`Контрольная сумма GitHub asset ${asset.name} не совпала`);
+          }
+        }
+        return;
+      } catch (error) {
+        failures.push(error instanceof Error ? error : new Error(String(error)));
+      }
+    }
+
+    // Показывается самая содержательная причина, а не ошибка последнего зеркала.
+    // Раньше файл мог полностью скачаться с GitHub и не пройти проверку, после чего
+    // недоступные в РФ зеркала добавляли «fetch failed» — и пользователь видел
+    // «Проверьте подключение к интернету», хотя интернет работал, а настоящая
+    // причина была в первом источнике.
+    // Проблемы целостности важнее транспортных: если файл дошёл, но не сошлась
+    // контрольная сумма или сигнатура, пользователю нужно увидеть именно это.
+    const isIntegrityFailure = (message: string) => /Контрольная сумма|не является|скачан не полностью|слишком мал/i.test(message);
+    const isTransportFailure = (message: string) => /fetch failed|network error|socket hang up|ENOTFOUND|ECONNREFUSED|ETIMEDOUT|EAI_AGAIN|не отвечает|HTTP \d{3}/i.test(message);
+    throw failures.find((error) => isIntegrityFailure(error.message))
+      ?? failures.find((error) => !isTransportFailure(error.message))
+      ?? failures[0]
+      ?? new Error('Не удалось скачать GitHub asset');
+  }
+
+  private async downloadAsset(url: string, destination: string, repo: string): Promise<void> {
+    await fs.rm(destination, { force: true }).catch(() => undefined);
+    try {
+      let currentUrl = url;
+      for (let redirectCount = 0; ; redirectCount += 1) {
+        const parsed = this.validateDownloadUrl(currentUrl, repo, redirectCount > 0);
+        const response = await fetch(parsed, {
+          headers: { 'User-Agent': 'NEXUS-Network-Control-Plane' },
+          redirect: 'manual',
+        });
+
+        if (REDIRECT_STATUS_CODES.has(response.status)) {
+          const location = response.headers.get('location');
+          await response.body?.cancel().catch(() => undefined);
+          if (!location) throw new Error(`GitHub asset: перенаправление HTTP ${response.status} без адреса`);
+          if (redirectCount >= MAX_DOWNLOAD_REDIRECTS) {
+            throw new Error(`GitHub asset: превышен лимит перенаправлений (${MAX_DOWNLOAD_REDIRECTS})`);
+          }
+          let redirected: URL;
+          try {
+            redirected = new URL(location, parsed);
+          } catch {
+            throw new Error('GitHub asset: получен некорректный адрес перенаправления');
+          }
+          this.validateDownloadUrl(redirected, repo, true);
+          currentUrl = redirected.toString();
+          continue;
+        }
+
+        this.validateDownloadUrl(response.url || parsed, repo, redirectCount > 0);
+        if (!response.ok || !response.body) {
+          await response.body?.cancel().catch(() => undefined);
+          throw new Error(`GitHub asset: HTTP ${response.status}`);
+        }
+
+        const totalBytes = Number(response.headers.get('content-length') ?? 0);
+        let downloadedBytes = 0;
+        const target = this.targets.find((item) => item.repo === repo);
+        const input = Readable.fromWeb(response.body as Parameters<typeof Readable.fromWeb>[0]);
+        // Прогресс отправляется не чаще раза в 200 мс и только при заметном
+        // сдвиге. Раньше событие уходило на КАЖДЫЙ чанк (тысячи IPC-сообщений в
+        // секунду на 20-мегабайтном архиве): renderer захлёбывался ререндерами,
+        // интерфейс замирал, а индикатор застревал на первых процентах.
+        let lastEmitAt = 0;
+        let lastEmittedBytes = 0;
+        const emitProgress = (force: boolean) => {
+          if (!target) return;
+          const now = Date.now();
+          const grewEnough = totalBytes > 0
+            ? downloadedBytes - lastEmittedBytes >= totalBytes / 100
+            : downloadedBytes - lastEmittedBytes >= 512 * 1024;
+          if (!force && (now - lastEmitAt < 200 || !grewEnough)) return;
+          lastEmitAt = now;
+          lastEmittedBytes = downloadedBytes;
+          this.setStatus(target, 'downloading', {
+            downloadedBytes,
+            totalBytes: totalBytes || undefined,
+            asset: path.basename(destination),
+          });
+        };
+        // Сторож простоя: зеркало, которое приняло соединение и «замолчало»,
+        // иначе держит обновление бесконечно, а индикатор стоит на первых
+        // процентах. Через STALL_TIMEOUT_MS без новых байт источник бракуется
+        // и перебор переходит к следующему зеркалу.
+        let stallTimer: NodeJS.Timeout | undefined;
+        const armStallTimer = () => {
+          clearTimeout(stallTimer);
+          stallTimer = setTimeout(() => {
+            input.destroy(new Error(`GitHub asset: источник не отвечает ${STALL_TIMEOUT_MS / 1000} с`));
+          }, STALL_TIMEOUT_MS);
+          stallTimer.unref?.();
+        };
+        input.on('data', (chunk: Buffer) => {
+          downloadedBytes += chunk.length;
+          armStallTimer();
+          emitProgress(false);
+        });
+        armStallTimer();
+        try {
+          await pipeline(input, createWriteStream(destination, { flags: 'w' }));
+        } finally {
+          clearTimeout(stallTimer);
+        }
+        emitProgress(true);
+        return;
+      }
+    } catch (error) {
+      await fs.rm(destination, { force: true }).catch(() => undefined);
+      throw error;
+    }
+  }
+
+  private async assertAsset(filePath: string, kind: UpdateTarget['assetKind'], expectedSize: number, assetName: string): Promise<void> {
+    const stat = await fs.stat(filePath);
+    if (stat.size < 1024) {
+      throw new Error(`GitHub asset ${assetName} слишком мал (${stat.size} байт)`);
+    }
+    if (expectedSize > 0 && stat.size !== expectedSize) {
+      throw new Error(`GitHub asset ${assetName} скачан не полностью: ${stat.size} из ${expectedSize} байт`);
+    }
+
     const handle = await fs.open(filePath, 'r');
-    const buf = Buffer.alloc(2);
-    await handle.read(buf, 0, 2, 0);
-    await handle.close();
-    if (buf[0] !== 0x50 || buf[1] !== 0x4b) {
-      throw new Error('Файл не ZIP (нет сигнатуры PK). Повтори «Скачать Xray».');
+    const signature = Buffer.alloc(4);
+    try {
+      await handle.read(signature, 0, signature.length, 0);
+    } finally {
+      await handle.close();
+    }
+
+    if (kind === 'zip') {
+      if (signature[0] !== 0x50 || signature[1] !== 0x4b) {
+        throw new Error(`GitHub asset ${assetName} не является ZIP-архивом (нет сигнатуры PK)`);
+      }
+      return;
+    }
+
+    const validExecutable = process.platform === 'win32'
+      ? signature[0] === 0x4d && signature[1] === 0x5a
+      : signature[0] === 0x7f && signature[1] === 0x45 && signature[2] === 0x4c && signature[3] === 0x46;
+    if (!validExecutable) {
+      const format = process.platform === 'win32' ? 'Windows EXE' : 'Linux ELF';
+      throw new Error(`GitHub asset ${assetName} не является исполняемым файлом ${format}`);
     }
   }
 
   private async installXrayFromMirrors(): Promise<void> {
-    const file = process.platform === 'win32' ? 'Xray-windows-64.zip' : 'Xray-linux-64.zip';
+    const file = xrayAssetCandidates()[0];
+    if (!file) throw new Error(`Для ${process.platform}/${os.arch()} нет совместимой сборки Xray-core`);
+    const expectedAsset = XRAY_TUN_ASSETS[file];
+    if (!expectedAsset) throw new Error(`Нет проверочной суммы для сборки Xray-core ${file}`);
+    if (this.isExternallyRunning('jey2ray')) throw new Error('Отключите VPN перед установкой Xray-core');
+    const releasePath = `releases/download/${XRAY_TUN_RELEASE}`;
     const mirrors = [
-      `https://github.com/XTLS/Xray-core/releases/latest/download/${file}`,
-      `https://ghproxy.net/https://github.com/XTLS/Xray-core/releases/latest/download/${file}`,
-      `https://mirror.ghproxy.com/https://github.com/XTLS/Xray-core/releases/latest/download/${file}`,
+      `https://github.com/XTLS/Xray-core/${releasePath}/${file}`,
+      `https://ghproxy.net/https://github.com/XTLS/Xray-core/${releasePath}/${file}`,
+      `https://mirror.ghproxy.com/https://github.com/XTLS/Xray-core/${releasePath}/${file}`,
     ];
     const jey = this.targets.find((item) => item.id === 'jey2ray');
-    const tempPath = path.join(this.modulesDir, '.cache', file);
-    await fs.mkdir(path.dirname(tempPath), { recursive: true });
+    const temporaryDirectory = await fs.mkdtemp(path.join(os.tmpdir(), 'nexus-xray-download-'));
+    const temporaryAsset = path.join(temporaryDirectory, file);
+    let releaseUpdateLock: (() => void) | undefined;
     let lastError = 'Не удалось скачать Xray ни с одного зеркала';
-    for (const url of mirrors) {
-      try {
-        if (jey) this.setStatus(jey, 'downloading', { asset: file });
-        await this.downloadAsset(url, tempPath, 'XTLS/Xray-core');
-        await this.installXray(tempPath, 'latest');
-        await fs.rm(tempPath, { force: true });
-        return;
-      } catch (error) {
-        lastError = error instanceof Error ? error.message : lastError;
+    try {
+      releaseUpdateLock = this.manager.beginUpdate('jey2ray');
+      let downloaded = false;
+      for (const url of mirrors) {
+        try {
+          if (jey) this.setStatus(jey, 'downloading', { asset: file });
+          await this.downloadAsset(url, temporaryAsset, 'XTLS/Xray-core');
+          await this.assertAsset(temporaryAsset, 'zip', expectedAsset.size, file);
+          const downloadedHash = await this.sha256(temporaryAsset);
+          if (downloadedHash.toLowerCase() !== expectedAsset.sha256) {
+            throw new Error(`Контрольная сумма GitHub asset ${file} не совпала`);
+          }
+          downloaded = true;
+          break;
+        } catch (error) {
+          lastError = this.userFacingError(error);
+        }
       }
+      if (!downloaded) throw new Error(lastError);
+      if (this.isExternallyRunning('jey2ray')) {
+        throw new Error('VPN был включён во время загрузки. Отключите VPN и повторите обновление.');
+      }
+      const hash = await this.sha256(temporaryAsset);
+      const executable = await this.installXray(temporaryAsset, XRAY_TUN_RELEASE);
+      this.versions.jey2ray = {
+        version: XRAY_TUN_RELEASE,
+        asset: file,
+        sha256: hash,
+        installedAt: new Date().toISOString(),
+      };
+      await this.saveVersionRecords();
+      await this.manager.reload();
+      if (jey) this.setStatus(jey, 'installed', {
+        latestVersion: XRAY_TUN_RELEASE,
+        installedVersion: XRAY_TUN_RELEASE,
+        asset: file,
+        executable,
+        sha256: hash,
+        error: undefined,
+      });
+    } finally {
+      releaseUpdateLock?.();
+      await fs.rm(temporaryDirectory, { recursive: true, force: true }).catch(() => undefined);
     }
-    throw new Error(lastError);
   }
 
   private async installXray(assetPath: string, version: string): Promise<string> {
-    const extractRoot = path.join(this.modulesDir, '.cache', 'xray-extract');
-    await fs.rm(extractRoot, { recursive: true, force: true });
-    await fs.mkdir(extractRoot, { recursive: true });
-    await extract(assetPath, { dir: extractRoot });
-    const binaryName = process.platform === 'win32' ? 'xray.exe' : 'xray';
-    const found = await this.findFile(extractRoot, binaryName);
-    if (!found) throw new Error(`В ZIP Xray-core не найден ${binaryName}`);
-    const destination = path.join(this.modulesDir, 'bin', binaryName);
+    const extractRoot = await fs.mkdtemp(path.join(os.tmpdir(), 'nexus-xray-extract-'));
+    try {
+      await (await Open.file(assetPath)).extract({ path: extractRoot });
+      const binaryName = process.platform === 'win32' ? 'xray.exe' : 'xray';
+      const found = await this.findFile(extractRoot, binaryName);
+      if (!found) throw new Error(`В ZIP Xray-core не найден ${binaryName}`);
+      const destination = path.join(this.modulesDir, 'bin', binaryName);
+      await fs.mkdir(path.dirname(destination), { recursive: true });
+      await this.atomicReplaceFile(found, destination, process.platform === 'win32' ? undefined : 0o755);
+      const geoip = await this.findFile(extractRoot, 'geoip.dat');
+      const geosite = await this.findFile(extractRoot, 'geosite.dat');
+      if (geoip) {
+        const dest = path.join(this.modulesDir, 'bin', 'geoip.dat');
+        await this.atomicReplaceFile(geoip, dest);
+        // Копия без расширения: старые ядра Xray (26.1.13–26.1.17) искали
+        // `geoip` без `.dat` и падали с кодом 23. Новым ядрам не мешает.
+        await fs.copyFile(dest, dest.replace(/\.dat$/i, '')).catch(() => undefined);
+      }
+      if (geosite) {
+        const dest = path.join(this.modulesDir, 'bin', 'geosite.dat');
+        await this.atomicReplaceFile(geosite, dest);
+        await fs.copyFile(dest, dest.replace(/\.dat$/i, '')).catch(() => undefined);
+      }
+      await this.updateManifest('jey2ray', {
+        executable: `./bin/${binaryName}`,
+        working_dir: './bin',
+        args: ['-config', './configs/vpn/generated_config.json'],
+        installed_version: version,
+        development: false,
+      });
+      return `./bin/${binaryName}`;
+    } finally {
+      await fs.rm(extractRoot, { recursive: true, force: true }).catch(() => undefined);
+    }
+  }
+
+  private async installDirect(assetPath: string, version: string, assetName: string): Promise<string> {
+    const filename = path.basename(assetName);
+    if (!tgWsProxyAssetCandidates().includes(filename)) throw new Error(`Неподходящий файл TG WS Proxy: ${filename}`);
+    const destination = path.join(this.modulesDir, 'bin', filename);
     await fs.mkdir(path.dirname(destination), { recursive: true });
-    await fs.copyFile(found, destination);
-    if (process.platform !== 'win32') await fs.chmod(destination, 0o755);
-    const geoip = await this.findFile(extractRoot, 'geoip.dat');
-    const geosite = await this.findFile(extractRoot, 'geosite.dat');
-    if (geoip) await fs.copyFile(geoip, path.join(this.modulesDir, 'bin', 'geoip.dat'));
-    if (geosite) await fs.copyFile(geosite, path.join(this.modulesDir, 'bin', 'geosite.dat'));
-    await this.updateManifest('jey2ray', {
-      executable: `./bin/${binaryName}`,
+    await this.atomicReplaceFile(assetPath, destination, process.platform === 'win32' ? undefined : 0o755);
+    // Порт и режим выбирает пользователь, поэтому обновление ядра их сохраняет:
+    // иначе каждая новая версия сбрасывала бы настройки на значения по умолчанию.
+    const tgOptions = readTgProxyOptions(this.manager.list().find((item) => item.id === 'tg-ws-proxy'));
+    await this.updateManifest('tg-ws-proxy', {
+      executable: `./bin/${filename}`,
+      args: buildTgProxyArgs(tgOptions),
       working_dir: './bin',
-      args: ['-config', './configs/vpn/generated_config.json'],
+      launch_mode: 'executable',
+      worker_name: filename,
+      healthcheck: { type: 'tcp', host: '127.0.0.1', port: tgOptions.port, timeout_ms: 15000 },
+      upstream_log_file: './bin/TgWsProxy_data/proxy.log',
       installed_version: version,
       development: false,
     });
-    await fs.rm(extractRoot, { recursive: true, force: true });
-    return `./bin/${binaryName}`;
-  }
-
-  private async installDirect(assetPath: string, version: string): Promise<string> {
-    const isWindows = process.platform === 'win32';
-    const filename = isWindows ? 'TgWsProxy_windows.exe' : 'TgWsProxy_linux_amd64';
-    const destination = path.join(this.modulesDir, 'bin', filename);
-    await fs.mkdir(path.dirname(destination), { recursive: true });
-    await fs.copyFile(assetPath, destination);
-    if (!isWindows) await fs.chmod(destination, 0o755);
-    await this.updateManifest('tg-ws-proxy', { executable: `./bin/${filename}`, installed_version: version });
     return `./bin/${filename}`;
   }
 
   private async installZapret(assetPath: string, version: string): Promise<string> {
-    const installRoot = path.join(this.modulesDir, 'bin', 'zapret');
-    await fs.rm(installRoot, { recursive: true, force: true });
-    await fs.mkdir(installRoot, { recursive: true });
-    await extract(assetPath, { dir: installRoot });
-    const executablePath = await this.findFile(installRoot, 'winws.exe');
-    if (!executablePath) throw new Error('В GitHub ZIP не найден winws.exe');
-    const relativeExecutable = `./${path.relative(this.modulesDir, executablePath).split(path.sep).join('/')}`;
-    const executableDir = path.dirname(executablePath);
-    const releaseRoot = path.basename(executableDir).toLowerCase() === 'bin' ? path.dirname(executableDir) : installRoot;
-    const relativeWorkingDir = `./${path.relative(this.modulesDir, releaseRoot).split(path.sep).join('/')}`;
-    const strategies: Record<string, string> = {};
-    for (const strategy of ['general (ALT10)', 'general (ALT11)', 'general (ALT12)']) {
-      const strategyPath = await this.findFile(installRoot, `${strategy}.bat`);
-      if (strategyPath) strategies[strategy] = `./${path.relative(this.modulesDir, strategyPath).split(path.sep).join('/')}`;
+    const binDirectory = path.join(this.modulesDir, 'bin');
+    const installRoot = path.join(binDirectory, 'zapret');
+    const stagingRoot = path.join(binDirectory, `.zapret-installing-${process.pid}-${Date.now()}`);
+    const backupRoot = path.join(binDirectory, `.zapret-backup-${process.pid}-${Date.now()}`);
+    await fs.mkdir(binDirectory, { recursive: true });
+    await fs.rm(stagingRoot, { recursive: true, force: true });
+    await fs.mkdir(stagingRoot, { recursive: true });
+    let previousMoved = false;
+    let swapped = false;
+    let committed = false;
+    try {
+      await (await Open.file(assetPath)).extract({ path: stagingRoot });
+      const stagedExecutable = await this.findFile(stagingRoot, 'winws.exe');
+      if (!stagedExecutable) throw new Error('В GitHub ZIP не найден winws.exe');
+      // Берутся все профили релиза, а не три захардкоженных: Zapret регулярно
+      // добавляет стратегии под конкретные сервисы, и раньше они были недоступны.
+      const stagedStrategies: Record<string, string> = {};
+      for (const strategyPath of await this.findBatchProfiles(stagingRoot)) {
+        stagedStrategies[path.basename(strategyPath, '.bat')] = path.relative(stagingRoot, strategyPath);
+      }
+      if (!Object.keys(stagedStrategies).length) {
+        throw new Error('В GitHub ZIP не найдены профили запуска (.bat)');
+      }
+
+      await fs.rm(backupRoot, { recursive: true, force: true });
+      if (existsSync(installRoot)) {
+        await fs.rename(installRoot, backupRoot);
+        previousMoved = true;
+      }
+      await fs.rename(stagingRoot, installRoot);
+      swapped = true;
+
+      const executablePath = path.join(installRoot, path.relative(stagingRoot, stagedExecutable));
+      const relativeExecutable = `./${path.relative(this.modulesDir, executablePath).split(path.sep).join('/')}`;
+      const executableDir = path.dirname(executablePath);
+      const releaseRoot = path.basename(executableDir).toLowerCase() === 'bin' ? path.dirname(executableDir) : installRoot;
+      const relativeWorkingDir = `./${path.relative(this.modulesDir, releaseRoot).split(path.sep).join('/')}`;
+      const strategies: Record<string, string> = {};
+      for (const [strategy, relativePath] of Object.entries(stagedStrategies)) {
+        strategies[strategy] = `./${path.relative(this.modulesDir, path.join(installRoot, relativePath)).split(path.sep).join('/')}`;
+      }
+      await this.updateManifest('zapret', {
+        executable: relativeExecutable,
+        working_dir: relativeWorkingDir,
+        launch_mode: 'batch',
+        strategy: strategies['general (ALT10)'] ? 'general (ALT10)' : Object.keys(strategies)[0],
+        strategies,
+        args: ['--wf-tcp=80,443', '--hostlist=lists/list-general.txt'],
+        installed_version: version,
+      });
+      committed = true;
+      await fs.rm(backupRoot, { recursive: true, force: true }).catch(() => undefined);
+      return relativeExecutable;
+    } catch (error) {
+      if (swapped) await fs.rm(installRoot, { recursive: true, force: true }).catch(() => undefined);
+      if (previousMoved && existsSync(backupRoot)) {
+        await fs.rename(backupRoot, installRoot).catch(() => undefined);
+      }
+      throw error;
+    } finally {
+      await fs.rm(stagingRoot, { recursive: true, force: true }).catch(() => undefined);
+      if (committed || !previousMoved) await fs.rm(backupRoot, { recursive: true, force: true }).catch(() => undefined);
     }
-    if (!strategies['general (ALT10)'] && !strategies['general (ALT11)'] && !strategies['general (ALT12)']) {
-      throw new Error('В GitHub ZIP не найдены general (ALT10/ALT11/ALT12).bat');
+  }
+
+  private userFacingError(error: unknown): string {
+    const candidate = error as NodeJS.ErrnoException;
+    const message = error instanceof Error ? error.message : 'Неизвестная ошибка обновления';
+    const code = candidate?.code?.toUpperCase();
+    if (code === 'EPERM' || code === 'EACCES' || code === 'EBUSY' || /\b(?:EPERM|EACCES|EBUSY)\b/i.test(message)) {
+      return 'Windows временно заблокировал файл обновления. Закройте лишние экземпляры NEXUS и повторите попытку.';
     }
-    await this.updateManifest('zapret', {
-      executable: relativeExecutable,
-      working_dir: relativeWorkingDir,
-      launch_mode: 'batch',
-      strategy: strategies['general (ALT10)'] ? 'general (ALT10)' : Object.keys(strategies)[0],
-      strategies,
-      args: ['--wf-tcp=80,443', '--hostlist=lists/list-general.txt'],
-      installed_version: version,
-    });
-    return relativeExecutable;
+    if (code === 'ENOSPC' || /\bENOSPC\b/i.test(message)) {
+      return 'Недостаточно свободного места для обновления. Освободите место на системном диске и повторите попытку.';
+    }
+    if (/fetch failed|network error|socket hang up|ENOTFOUND|ECONNREFUSED|ETIMEDOUT|EAI_AGAIN/i.test(message)) {
+      return 'GitHub и запасные зеркала недоступны. Это бывает при блокировке GitHub провайдером — включите VPN в Jey2Ray и повторите попытку.';
+    }
+    if (/не отвечает \d+ с/i.test(message)) {
+      return 'Источник обновления перестал отдавать данные. Повторите попытку или включите VPN в Jey2Ray.';
+    }
+    return message;
+  }
+
+  private async atomicReplaceFile(source: string, destination: string, mode?: number): Promise<void> {
+    const suffix = `${process.pid}-${Date.now()}-${Math.random().toString(16).slice(2)}`;
+    const staged = `${destination}.nexus-new-${suffix}`;
+    const backup = `${destination}.nexus-backup-${suffix}`;
+    let hadPrevious = false;
+    let previousMoved = false;
+    let replacementVerified = false;
+    try {
+      await fs.mkdir(path.dirname(destination), { recursive: true });
+      hadPrevious = existsSync(destination);
+      await fs.copyFile(source, staged);
+      if (mode !== undefined) await fs.chmod(staged, mode);
+      const [sourceStat, stagedStat] = await Promise.all([fs.stat(source), fs.stat(staged)]);
+      if (sourceStat.size !== stagedStat.size) throw new Error(`Файл ${path.basename(destination)} скопирован не полностью`);
+      if (existsSync(destination)) {
+        await fs.rename(destination, backup);
+        previousMoved = true;
+      }
+      await fs.rename(staged, destination);
+      const installedStat = await fs.stat(destination);
+      if (installedStat.size !== sourceStat.size) throw new Error(`Файл ${path.basename(destination)} установлен не полностью`);
+      replacementVerified = true;
+      await fs.rm(backup, { force: true }).catch(() => undefined);
+    } catch (error) {
+      await fs.rm(staged, { force: true }).catch(() => undefined);
+      if (!replacementVerified) {
+        // If Windows refused to move a locked old file, leave that file intact.
+        // Remove destination only after the old file was moved successfully, or
+        // when there was no previous installation to preserve.
+        if (previousMoved || !hadPrevious) await fs.rm(destination, { force: true }).catch(() => undefined);
+        if (previousMoved && existsSync(backup)) await fs.rename(backup, destination).catch(() => undefined);
+      }
+      throw error;
+    } finally {
+      if (replacementVerified) await fs.rm(backup, { force: true }).catch(() => undefined);
+    }
   }
 
   private async updateManifest(id: string, patch: Record<string, unknown>): Promise<void> {
@@ -311,6 +713,38 @@ export class GithubUpdater extends EventEmitter {
     }
     const current = existsSync(manifestPath) ? JSON.parse(await fs.readFile(manifestPath, 'utf8')) as Record<string, unknown> : { id, name: id, enabled: false, args: [], status: 'stopped', pid: null, category: 'other', icon: '◈', log_file: `./logs/${id}.log` };
     await fs.writeFile(manifestPath, `${JSON.stringify({ ...current, ...patch }, null, 2)}\n`, 'utf8');
+  }
+
+  /**
+   * Профили запуска Zapret, найденные в распакованном релизе.
+   *
+   * Служебные скрипты (установка службы, диагностика, остановка) отбрасываются:
+   * в списке профилей должны быть только стратегии обхода.
+   */
+  private async findBatchProfiles(root: string): Promise<string[]> {
+    const found: string[] = [];
+    const skip = /^(?:service|check_?updates?|cleanup|diagnos|install|remove|uninstall|stop|kill|update|preset|blockcheck)/i;
+
+    const walk = async (directory: string, depth: number): Promise<void> => {
+      if (depth > 4 || found.length >= 64) return;
+      let entries;
+      try {
+        entries = await fs.readdir(directory, { withFileTypes: true });
+      } catch {
+        return;
+      }
+      for (const entry of entries.sort((left, right) => left.name.localeCompare(right.name, 'ru'))) {
+        const candidate = path.join(directory, entry.name);
+        if (entry.isDirectory()) {
+          await walk(candidate, depth + 1);
+        } else if (entry.isFile() && entry.name.toLowerCase().endsWith('.bat') && !skip.test(entry.name)) {
+          found.push(candidate);
+        }
+      }
+    };
+
+    await walk(root, 0);
+    return found;
   }
 
   private async findFile(root: string, filename: string): Promise<string | null> {

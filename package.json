@@ -1,30 +1,57 @@
 {
   "name": "nexus-network-tools",
-  "version": "1.0.0",
+  "version": "1.6.20",
+  "patchLevel": 120,
   "private": true,
-  "description": "NEXUS — локальная Electron-обёртка для сетевых инструментов",
+  "description": "NEXUS - network tools for Windows",
+  "license": "SEE LICENSE IN LICENSE",
+  "author": "NEXUS",
   "main": "dist-electron/main.js",
   "scripts": {
-    "dev": "node scripts/ensure-xray.cjs && node scripts/ensure-singbox.cjs && npm run build:main && concurrently -k \"vite --host 0.0.0.0\" \"wait-on http://localhost:5173 && electron .\"",
+    "dev": "node scripts/ensure-xray.cjs && node scripts/ensure-singbox.cjs && node scripts/ensure-wintun.cjs && npm run build:main && concurrently -k \"vite --host 0.0.0.0\" \"wait-on http://localhost:5173 && electron .\"",
     "start": "npm run start:standalone",
     "start:standalone": "node scripts/ensure-xray.cjs && node scripts/ensure-singbox.cjs && npm run build && node scripts/launch-standalone.cjs",
-    "package:win": "node scripts/ensure-xray.cjs && node scripts/ensure-singbox.cjs && npm run build && electron-builder --win --x64",
+    "package:win": "node scripts/check-build-config.cjs && node scripts/make-installer-art.cjs && node scripts/ensure-xray.cjs && node scripts/ensure-singbox.cjs && node scripts/ensure-wintun.cjs && node scripts/prepare-wincodesign.cjs && node scripts/prepare-license.cjs && npm run build && electron-builder --win --x64",
     "postinstall": "node scripts/ensure-xray.cjs && node scripts/ensure-singbox.cjs",
     "dev:web": "vite --host 0.0.0.0",
-    "build": "npm run build:main && vite build",
+    "build": "npm run theme:crimson && npm run theme:graphite && npm run build:main && vite build",
     "build:main": "tsc -p tsconfig.main.json",
+    "test:split-tunnel": "npm run build:main && node tests/split-tunnel-config.test.cjs",
+    "test:subscription-security": "npm run build:main && node tests/subscription-security.test.cjs",
+    "test:parser-security": "npm run build:main && node tests/parser-security.test.cjs",
+    "test:subscription-refresh": "npm run build:main && node tests/subscription-refresh.test.cjs",
+    "test:subscription-management": "npm run build:main && node tests/subscription-management.test.cjs",
+    "test:vpn-diagnostics": "npm run build:main && node tests/vpn-diagnostics.test.cjs",
+    "test:vpn-latency": "npm run build:main && node tests/vpn-latency-sampling.test.cjs",
+    "test:vpn-live-mode": "npm run build:main && node tests/vpn-live-mode-session.test.cjs",
+    "test:modules": "npm run build:main && node tests/module-lifecycle-update.test.cjs",
+    "test:lan-share": "npm run build:main && node tests/lan-share.test.cjs",
+    "test": "npm run build:main && node scripts/run-tests.cjs",
+    "patch": "node scripts/pack-patch.cjs",
     "package": "npm run build && electron-builder",
-    "preview": "vite preview --host 0.0.0.0"
+    "preview": "vite preview --host 0.0.0.0",
+    "prepare:wincodesign": "node scripts/prepare-wincodesign.cjs",
+    "channel": "node scripts/update-channel.cjs",
+    "channel:set": "node scripts/update-channel.cjs set",
+    "release:win": "node scripts/build-release.cjs",
+    "post": "node scripts/release-post.cjs",
+    "snapshot": "node scripts/make-clean-snapshot.cjs",
+    "theme:crimson": "node scripts/make-crimson-theme.cjs",
+    "theme:graphite": "node scripts/make-graphite-theme.cjs"
   },
   "build": {
-    "appId": "ai.arena.nexus",
+    "appId": "com.folyaken.nexus",
     "productName": "NEXUS",
     "files": [
       "dist/**/*",
       "dist-electron/**/*",
-      "modules/**/*",
       "assets/**/*",
-      "package.json"
+      "package.json",
+      "modules/*.module.json",
+      "modules/README.md",
+      "LICENSE",
+      "THIRD-PARTY-NOTICES.md",
+      "build/no-sign.cjs"
     ],
     "extraResources": [
       {
@@ -32,7 +59,22 @@
         "to": "assets",
         "filter": [
           "nexus-tray.png",
-          "nexus.ico"
+          "nexus-app.png",
+          "nexus.ico",
+          "tray/**/*"
+        ]
+      },
+      {
+        "from": "modules/bin",
+        "to": "modules/bin",
+        "filter": [
+          "**/*",
+          "!**/*.log",
+          "!**/logs/**",
+          "!**/TgWsProxy_data/**",
+          "!**/*-user.txt",
+          "!**/.cache/**",
+          "!**/*.enabled"
         ]
       }
     ],
@@ -48,42 +90,63 @@
           "arch": [
             "x64"
           ]
-        },
-        {
-          "target": "portable",
-          "arch": [
-            "x64"
-          ]
         }
       ],
       "icon": "assets/nexus.ico",
-      "signAndEditExecutable": false
+      "requestedExecutionLevel": "requireAdministrator",
+      "signtoolOptions": {
+        "sign": "./build/no-sign.cjs"
+      }
     },
     "nsis": {
       "oneClick": false,
+      "artifactName": "NEXUS-Setup-${version}.${ext}",
       "allowToChangeInstallationDirectory": true,
       "createDesktopShortcut": true,
-      "createStartMenuShortcut": true
+      "createStartMenuShortcut": true,
+      "perMachine": true,
+      "allowElevation": true,
+      "license": "build/license.txt",
+      "language": "1049",
+      "multiLanguageInstaller": false,
+      "installerLanguages": [
+        "ru_RU"
+      ],
+      "unicode": true,
+      "warningsAsErrors": false,
+      "installerIcon": "assets/nexus.ico",
+      "uninstallerIcon": "assets/nexus.ico",
+      "installerHeaderIcon": "assets/nexus.ico",
+      "installerSidebar": "build/installer-sidebar.bmp",
+      "uninstallerSidebar": "build/installer-sidebar.bmp",
+      "installerHeader": "build/installer-header.bmp",
+      "runAfterFinish": true,
+      "include": "build/installer.nsh",
+      "deleteAppDataOnUninstall": false
     },
     "linux": {
       "target": "AppImage",
       "category": "Network"
-    }
+    },
+    "copyright": "Copyright (c) 2026 NEXUS"
   },
   "dependencies": {
     "@react-spring/web": "^9.7.4",
+    "electron-updater": "^6.8.9",
     "react": "^18.3.1",
-    "react-dom": "^18.3.1"
+    "react-dom": "^18.3.1",
+    "unzipper": "^0.12.5",
+    "yaml": "^2.9.0"
   },
   "devDependencies": {
     "@types/node": "^22.10.2",
     "@types/react": "^18.3.12",
     "@types/react-dom": "^18.3.1",
+    "@types/unzipper": "^0.10.11",
     "@vitejs/plugin-react": "^4.3.4",
     "concurrently": "^9.1.2",
     "electron": "^33.2.1",
     "electron-builder": "^25.1.8",
-    "extract-zip": "^2.0.1",
     "typescript": "^5.7.2",
     "vite": "^6.0.5",
     "wait-on": "^8.0.1"

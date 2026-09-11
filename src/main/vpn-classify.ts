@@ -31,8 +31,37 @@ const NAME_TO_ISO: Array<[RegExp, string]> = [
   [/estonia|tallinn|эстон/i, 'EE'], [/kazakhstan|алмат|астан|казах/i, 'KZ'], [/russia|москв|росси/i, 'RU'],
 ];
 
+/**
+ * Адрес внутри домашней или служебной сети.
+ *
+ * Такой «сервер» в подписке — это либо ошибка провайдера, либо попытка
+ * заставить приложение обратиться к устройству в сети пользователя (роутеру,
+ * камере, принтеру). Подключаться туда нельзя, поэтому запись помечается
+ * служебной и в список серверов не попадает.
+ */
+export function isPrivateNetworkAddress(value: string): boolean {
+  const host = value.trim().toLowerCase().replace(/^\[|\]$/g, '');
+  if (!host) return false;
+  if (host === 'localhost' || host.endsWith('.localhost') || host.endsWith('.local')) return true;
+  // IPv6: петля, локальные и уникальные локальные адреса.
+  if (host === '::' || host === '::1') return true;
+  if (/^f[cd][0-9a-f]{2}:/i.test(host) || /^fe80:/i.test(host)) return true;
+  const parts = host.split('.');
+  if (parts.length !== 4 || !parts.every((part) => /^\d{1,3}$/.test(part))) return false;
+  const [first, second] = parts.map(Number);
+  if (parts.some((part) => Number(part) > 255)) return false;
+  if (first === 10 || first === 127 || first === 0) return true;
+  if (first === 192 && second === 168) return true;
+  if (first === 172 && second >= 16 && second <= 31) return true;
+  // Служебные диапазоны: адрес без сети и общий адрес провайдера.
+  if (first === 169 && second === 254) return true;
+  if (first === 100 && second >= 64 && second <= 127) return true;
+  return false;
+}
+
 export function isServiceNode(profile: Pick<VpnProfile, 'name' | 'server' | 'port'>): boolean {
   if (SERVICE_HOSTS.has(profile.server.toLowerCase())) return true;
+  if (isPrivateNetworkAddress(profile.server)) return true;
   if (profile.port <= 1) return true;
   if (SERVICE_NAME.test(profile.name)) return true;
   return false;
@@ -45,6 +74,20 @@ export function countryByCode(code: string): { code: string; name: string; flag:
 
 export function looksLikeIp(value: string): boolean {
   return /^\d{1,3}(?:\.\d{1,3}){3}$/.test(value) || /^[0-9a-f:]+$/i.test(value);
+}
+
+/**
+ * Имя, которое ничего не говорит пользователю.
+ *
+ * Конфигурации в формате ядра Xray подписывают выходы служебными тегами:
+ * `proxy`, `proxy-13`, `outbound-2`, `vless-7`. Это метки для самого ядра, а в
+ * списке серверов они выглядят одинаково и не помогают выбрать сервер. Такие
+ * имена заменяются на страну и город — их приложение определяет само.
+ */
+export function looksLikeTechnicalName(value: string): boolean {
+  const text = value.trim();
+  if (!text) return true;
+  return /^(?:proxy|outbound|out|node|server|srv|tunnel|vless|vmess|trojan|ss|shadowsocks|hysteria2?|hy2|direct|default|remote)(?:[\s._-]*\d{0,4})?$/i.test(text);
 }
 
 export function looksLikeHost(value: string): boolean {
