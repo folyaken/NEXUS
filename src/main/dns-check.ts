@@ -27,6 +27,15 @@ export interface DnsCheckResult {
   error?: string;
 }
 
+/** Результат замера конкретного справочника из DNS_PROVIDERS.
+ *
+ *  Отличается от DnsCheckResult полем providerId: именно им интерфейс
+ *  обновляет настройку vpnDnsProvider при выборе «Самого быстрого». */
+export interface DnsProviderMeasureResult extends DnsCheckResult {
+  /** Идентификатор справочника из DNS_PROVIDERS. */
+  providerId: string;
+}
+
 /** Имя для проверки: короткое, есть всегда и не кэшируется агрессивно. */
 const PROBE_HOSTNAME = 'example.com';
 const TIMEOUT_MS = 2500;

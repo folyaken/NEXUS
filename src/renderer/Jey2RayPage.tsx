@@ -1093,7 +1093,7 @@ export function Jey2RayPage({
                 onClick={() => setRuleOutbound(value)}
               >{value === 'proxy' ? t('Через VPN') : value === 'direct' ? t('Напрямую') : t('Блокировать')}</button>)}
             </div>
-            <button type="button" className="ghost-action" disabled={!ruleDraft.trim()} onClick={addRoutingRule}>{t('Добавить')}</button>
+            <button type="button" className="ghost-action" disabled={!ruleDraft.trim()} onClick={() => addRoutingRule()}>{t('Добавить')}</button>
           </div>
 
           {/* Готовые наборы: перечислять тысячи адресов вручную бессмысленно,
