@@ -1,7 +1,7 @@
 import { app, BrowserWindow, clipboard, dialog, ipcMain, Menu, Notification, nativeImage, nativeTheme, shell, Tray } from 'electron';
 import path from 'node:path';
 import { createHash } from 'node:crypto';
-import { existsSync, mkdirSync, rmSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { promises as fs } from 'node:fs';
 import { execFile } from 'node:child_process';
 import os from 'node:os';
@@ -29,6 +29,24 @@ declare const __dirname: string;
 const gotLock = app.requestSingleInstanceLock();
 if (!gotLock) {
   app.quit();
+}
+
+/**
+ * Идентификатор приложения для Windows.
+ *
+ * Без него уведомления подписаны «electron.app.NEXUS» и рисуются без значка:
+ * Windows не понимает, какому установленному приложению принадлежит тост.
+ * Берём из package.json (секция build.appId) — ровно этот идентификатор
+ * ярлык установщика прописывает в меню «Пуск», и по нему Windows находит
+ * имя «NEXUS» и иконку программы. Один источник правды: поменять appId в
+ * конфигурации сборки — подпись уведомлений изменится сама.
+ */
+try {
+  const releaseManifest = JSON.parse(readFileSync(path.join(__dirname, '..', 'package.json'), 'utf8')) as { build?: { appId?: string } };
+  if (releaseManifest.build?.appId) app.setAppUserModelId(releaseManifest.build.appId);
+} catch {
+  // Нет доступа к манифесту (такое не встречается: он внутри asar) — тосты
+  // останутся с подписью по умолчанию, это не повод не запускаться.
 }
 
 /**

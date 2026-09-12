@@ -513,9 +513,18 @@ function StrategySelect({ options, value, disabled, onSelect }: {
     return () => document.removeEventListener('pointerdown', closeOnOutside, true);
   }, [open]);
 
+  // Активный пункт сбрасывается на выбранный профиль только при открытии
+  // списка и при смене самого выбора. Массив options пересоздаётся при каждом
+  // обновлении статусов модулей (раз в 1–2 секунды): если попадёт в
+  // зависимости, список будет дёргать прокрутку к выбранному профилю прямо
+  // во время просмотра — человек листает вниз, а его возвращает вверх.
   useEffect(() => {
-    if (open) setActiveIndex(Math.max(0, options.indexOf(value)));
-  }, [open, options, value]);
+    if (open) setActiveIndex((current) => {
+      const preferred = Math.max(0, options.indexOf(value));
+      // Держим курсор внутри списка, даже если набор профилей сузился.
+      return Math.min(preferred, options.length - 1);
+    });
+  }, [open, value]);
 
   // Выделенный пункт удерживается в зоне видимости при навигации с клавиатуры.
   useEffect(() => {
