@@ -96,6 +96,13 @@ function main() {
 
   const version = readVersion();
   const tag = args.tag ?? `v${version}`;
+  // Тег и версия обязаны совпадать: иначе релиз v1.6.22 наполнится файлами
+  // 1.6.23, и пользователи получат не ту версию по каналу обновлений.
+  if (args.tag && args.tag !== `v${version}`) {
+    console.error(`Тег ${args.tag} не совпадает с версией из package.json (v${version}).`);
+    console.error('Поднимите версию в package.json или исправьте тег.');
+    process.exit(1);
+  }
   const releaseDir = path.join(root, 'release');
   const setupExe = path.join(releaseDir, `NEXUS-Setup-${version}.exe`);
   const setupBlockmap = path.join(releaseDir, `NEXUS-Setup-${version}.exe.blockmap`);
@@ -145,11 +152,15 @@ function main() {
     return;
   }
 
-  try {
-    execFileSync('gh', ['auth', 'status'], { stdio: 'pipe' });
-  } catch {
-    console.error('gh не авторизован. Один раз выполните: gh auth login');
-    process.exit(1);
+  // В CI авторизация уже есть через секрет (GH_TOKEN), проверка не нужна —
+  // локально же она подсказывает человеку понятный первый шаг.
+  if (!process.env.GH_TOKEN) {
+    try {
+      execFileSync('gh', ['auth', 'status'], { stdio: 'pipe' });
+    } catch {
+      console.error('gh не авторизован. Один раз выполните: gh auth login');
+      process.exit(1);
+    }
   }
 
   const notesFile = args.notesFile ?? path.join(os.tmpdir(), `nexus-release-notes-${version}.txt`);
