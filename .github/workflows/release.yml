@@ -1,0 +1,47 @@
+name: Выпуск версии
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  release:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Зависимости
+        run: npm install --no-audit --no-fund
+
+      - name: Канал обновлений
+        run: npm run channel:set -- https://github.com/folyaken/NEXUS-releases/releases/latest/download/
+
+      - name: Сборка установщика
+        run: npm run release:win
+
+      - name: Публикация релиза
+        env:
+          GH_TOKEN: ${{ secrets.RELEASES_TOKEN }}
+        shell: pwsh
+        run: >
+          node scripts/publish-release.cjs --skip-build --repo folyaken/NEXUS-releases
+          ${{ startsWith(github.ref, 'refs/tags/') && format('--tag {0}', github.ref_name) || '' }}
+
+      - name: Журнал сборки при ошибке
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: build-log
+          path: release/build-log.txt
+          if-no-files-found: ignore
