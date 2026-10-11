@@ -22,6 +22,7 @@ import { VpnManager } from './vpn-manager';
 import { normalizeVpnSplitApps, resolveVpnAppRouting } from './split-tunnel';
 import { listRunningApps } from './running-apps';
 import { LAUNCH_AT_LOGIN_FLAG, legacyRunKeyCleanup, setLoginTask } from './launch-at-login';
+import { migrateLegacyUserData } from './legacy-migration';
 import { DEFAULT_SETTINGS, type AboutSystemInfo, type AppSettings, type ModuleLog, type NexusUpdateCheck, type UserProfile, type VpnSplitApp, type VpnStatus } from './types';
 
 declare const __dirname: string;
@@ -1124,6 +1125,15 @@ if (gotLock) {
   app.whenReady().then(async () => {
     nativeTheme.themeSource = 'dark';
     Menu.setApplicationMenu(null);
+    // Данные из забытой вложенной папки прошлых сборок переносятся ДО чтения
+    // настроек: подхваченные из старой копии настройки и профиль сразу
+    // попадают в работу, и пользователю не кажется, что программа «обнулилась».
+    try {
+      await migrateLegacyUserData(app.getPath('userData'));
+    } catch {
+      // Перенос — обслуживание, а не условие запуска: если что-то пошло не
+      // так, программа продолжает работать с тем, что есть.
+    }
     settings = await readSettings();
     const modulesDir = await resolveModulesDir();
     manager = new ModuleManager(modulesDir);
