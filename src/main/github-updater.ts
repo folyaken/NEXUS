@@ -628,6 +628,21 @@ export class GithubUpdater extends EventEmitter {
       });
       committed = true;
       await fs.rm(backupRoot, { recursive: true, force: true }).catch(() => undefined);
+      // Прошлые выпуски Zapret рядом с новым — источник «мешанины версий»:
+      // поисковые fallback-и находят старые профили, и ядро запускается из
+      // папки версии, которой больше нет в манифесте. Оставляем только
+      // установленную; чужие (не нашей структуры) папки не трогаем.
+      try {
+        for (const entry of await fs.readdir(installRoot, { withFileTypes: true })) {
+          if (!entry.isDirectory()) continue;
+          if (!/^zapret-discord-youtube-/i.test(entry.name)) continue;
+          const staleRoot = path.join(installRoot, entry.name);
+          if (path.resolve(staleRoot) === path.resolve(installRoot)) continue;
+          await fs.rm(staleRoot, { recursive: true, force: true }).catch(() => undefined);
+        }
+      } catch {
+        // Неубранный прошлый выпуск не мешает работе новой установки.
+      }
       return relativeExecutable;
     } catch (error) {
       if (swapped) await fs.rm(installRoot, { recursive: true, force: true }).catch(() => undefined);
