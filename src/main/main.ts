@@ -475,7 +475,8 @@ async function setTrayRouting(appRouting: 'system' | 'include' | 'exclude'): Pro
 }
 
 async function importVpnFromClipboard(): Promise<void> {
-  const input = clipboard.readText().trim();
+  // Electron 44: clipboard.readText() асинхронен.
+  const input = (await clipboard.readText()).trim();
   if (!input) throw new Error('Буфер обмена пуст');
   const imported = await vpn.importInput(input);
   if (!imported.length) throw new Error('В буфере нет поддерживаемой VPN-ссылки');

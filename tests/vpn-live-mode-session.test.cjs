@@ -358,7 +358,8 @@ assert.match(main, /const snapshot = vpn\.snapshot\(\)/, 'tray menu must be gene
 for (const trayLabel of ['Подключить VPN', 'Отключить VPN', 'Сменить сервер', 'Транспорт ·', 'Импортировать из буфера', 'Маршрутизация', 'Показать окно NEXUS', 'Выход']) {
   assert.ok(main.includes(trayLabel), `tray menu must provide “${trayLabel}”`);
 }
-assert.match(main, /clipboard\.readText\(\)\.trim\(\)/);
+// Electron 44: clipboard.readText() возвращает Promise — импорт обязан await-ить его.
+assert.match(main, /\(await clipboard\.readText\(\)\)\.trim\(\)/);
 assert.match(main, /profiles\.map\(\(profile\) => \(\{/);
 assert.match(main, /setTrayVpnMode\('proxy'\)/);
 assert.match(main, /setTrayVpnMode\('tun'\)/);
