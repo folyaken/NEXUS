@@ -18,6 +18,25 @@ const root = path.resolve(__dirname, '..');
 const manifest = JSON.parse(fs.readFileSync(path.join(root, 'package.json'), 'utf8'));
 const build = manifest.build ?? {};
 
+// Сборка из системной папки Windows — самый молчаливый способ потерять час:
+// админ-консоль открывается в System32, и если там оказалась копия проекта,
+// electron-builder собирает её, а makensis падает на неполных node_modules
+// с простынёй «Command line defined». Ловим это до начала сборки.
+const windowsRoot = process.env.SystemRoot || process.env.windir;
+if (windowsRoot && (root === windowsRoot || root.startsWith(windowsRoot + path.sep))) {
+  console.error('');
+  console.error('Сборка запущена из системной папки Windows (' + root + ').');
+  console.error('Так установка сломается: внутри System32 проекту не место.');
+  console.error('');
+  console.error('Откройте PowerShell БЕЗ прав администратора и перейдите в папку проекта:');
+  console.error('  cd <путь к папке с package.json>');
+  console.error('И только затем выполняйте: npm run release:win');
+  console.error('');
+  console.error('Права администратора сборке не нужны — они нужны только установщику при запуске.');
+  console.error('Если внутри System32 осталась копия проекта, удалите её (package.json, node_modules, dist, release, build).');
+  process.exit(1);
+}
+
 const problems = [];
 const notes = [];
 
