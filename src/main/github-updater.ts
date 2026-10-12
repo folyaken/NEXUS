@@ -589,6 +589,20 @@ export class GithubUpdater extends EventEmitter {
     let committed = false;
     try {
       await (await Open.file(assetPath)).extract({ path: stagingRoot });
+      // Релиз упакован с верхней папкой вида «zapret-discord-youtube-1.10.3».
+      // Разворачиваем её содержимое на уровень staging: иначе новая установка
+      // живёт в папке, неотличимой от прошлых выпусков, и очистка удаляет
+      // только что поставленные файлы (запуск падал «Стратегия не найдена»).
+      const topEntries = await fs.readdir(stagingRoot, { withFileTypes: true });
+      const topDirs = topEntries.filter((entry) => entry.isDirectory());
+      const topFiles = topEntries.filter((entry) => entry.isFile());
+      if (topDirs.length === 1 && !topFiles.length && /^zapret-discord-youtube-/i.test(topDirs[0].name)) {
+        const innerRoot = path.join(stagingRoot, topDirs[0].name);
+        for (const entry of await fs.readdir(innerRoot, { withFileTypes: true })) {
+          await fs.rename(path.join(innerRoot, entry.name), path.join(stagingRoot, entry.name)).catch(() => undefined);
+        }
+        await fs.rm(innerRoot, { recursive: true, force: true }).catch(() => undefined);
+      }
       const stagedExecutable = await this.findFile(stagingRoot, 'winws.exe');
       if (!stagedExecutable) throw new Error('В GitHub ZIP не найден winws.exe');
       // Берутся все профили релиза, а не три захардкоженных: Zapret регулярно
@@ -609,6 +623,10 @@ export class GithubUpdater extends EventEmitter {
       await fs.rename(stagingRoot, installRoot);
       swapped = true;
 
+      // Верхняя папка, в которой оказался winws.exe, — это свежая установка:
+      // очистка прошлых выпусков её не трогает даже на необычной раскладке ZIP.
+      const stagedRelative = path.dirname(path.relative(stagingRoot, stagedExecutable));
+      const freshTop = stagedRelative.split(path.sep)[0];
       const executablePath = path.join(installRoot, path.relative(stagingRoot, stagedExecutable));
       const relativeExecutable = `./${path.relative(this.modulesDir, executablePath).split(path.sep).join('/')}`;
       const executableDir = path.dirname(executablePath);
@@ -639,6 +657,7 @@ export class GithubUpdater extends EventEmitter {
           if (!/^zapret-discord-youtube-/i.test(entry.name)) continue;
           const staleRoot = path.join(installRoot, entry.name);
           if (path.resolve(staleRoot) === path.resolve(installRoot)) continue;
+          if (entry.name === freshTop) continue;
           await fs.rm(staleRoot, { recursive: true, force: true }).catch(() => undefined);
         }
       } catch {
