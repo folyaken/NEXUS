@@ -77,6 +77,11 @@ function runBuilder(args) {
 }
 
 function main() {
+  const version = JSON.parse(fs.readFileSync(path.join(root, 'package.json'), 'utf8')).version;
+  // Технические сборки (1.6.29-beta.N) не устанавливаются поверх стабильной:
+  // они собираются переносным exe и запускаются из любой папки. Релизы идут
+  // через NSIS, как раньше.
+  const isBeta = version.includes('-beta');
   const channel = readChannelUrl();
   if (!channel) {
     console.error('');
@@ -138,13 +143,24 @@ function main() {
 
   // `--publish never` означает «собрать файлы, но никуда не загружать»:
   // готовые файлы выкладываются вручную. Токен GitHub в сборке не участвует.
-  runBuilder(['electron-builder', '--win', '--x64', '--publish', 'never', ...builderPublishArgs()]);
+  runBuilder(isBeta
+    ? ['electron-builder', '--win', '--x64', '--publish', 'never', ...builderPublishArgs(), '-c.win.target=portable', '-c.artifactName=NEXUS-Portable-${version}.${ext}']
+    : ['electron-builder', '--win', '--x64', '--publish', 'never', ...builderPublishArgs()]);
 
   const releaseDir = path.join(root, 'release');
-  const version = JSON.parse(fs.readFileSync(path.join(root, 'package.json'), 'utf8')).version;
   // Имя без пробелов принципиально: GitHub заменяет пробелы в именах вложений
   // на точки, а latest.yml ссылается на исходное имя. Обновление тогда падает
   // с ошибкой «файл не найден», хотя внешне всё выложено правильно.
+  if (isBeta) {
+    const portable = `NEXUS-Portable-${version}.exe`;
+    const ok = fs.existsSync(path.join(releaseDir, portable));
+    console.log('');
+    console.log('Техническая сборка готова:', ok ? '✓' : '✗', portable);
+    if (!ok) process.exit(1);
+    console.log('Беты не публикуются: запустите файл и проверьте работу.');
+    console.log('Стабильная установка не затронута — у беты отдельная папка данных.');
+    return;
+  }
   const installer = `NEXUS-Setup-${version}.exe`;
   const required = [installer, 'latest.yml'];
   const blockmap = `${installer}.blockmap`;

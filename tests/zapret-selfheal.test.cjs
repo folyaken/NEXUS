@@ -29,7 +29,7 @@ assert.match(managerSource, /Нажмите «Запустить» ещё раз
 
 // --- Версия и журнал -------------------------------------------------------------
 const version = JSON.parse(fs.readFileSync(path.join(root, 'package.json'), 'utf8')).version;
-assert.equal(version, '1.6.29-beta.1', 'техническая версия сборки');
+assert.match(version, /^1\.6\.29-beta\.\d+$/, 'техническая версия сборки');
 const changelog = fs.readFileSync(path.join(root, 'CHANGELOG.md'), 'utf8');
 assert.match(changelog, /## 1\.6\.29 —/, 'в журнале есть раздел текущей версии');
 
