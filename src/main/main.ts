@@ -24,6 +24,7 @@ import { listRunningApps } from './running-apps';
 import { LAUNCH_AT_LOGIN_FLAG, legacyRunKeyCleanup, setLoginTask } from './launch-at-login';
 import { migrateLegacyUserData } from './legacy-migration';
 import { closeStaleCopies } from './copy-guard';
+import { healStubManifest, type ManifestLike } from './manifest-heal';
 import { DEFAULT_SETTINGS, type AboutSystemInfo, type AppSettings, type ModuleLog, type NexusUpdateCheck, type UserProfile, type VpnSplitApp, type VpnStatus } from './types';
 
 declare const __dirname: string;
@@ -793,8 +794,23 @@ async function resolveModulesDir(): Promise<string> {
     const entries = await fs.readdir(bundledModulesDir, { withFileTypes: true });
     for (const entry of entries) {
       if (!entry.isFile() || !entry.name.endsWith('.module.json')) continue;
+      const source = path.join(bundledModulesDir, entry.name);
       const destination = path.join(userModulesDir, entry.name);
-      if (!existsSync(destination)) await fs.copyFile(path.join(bundledModulesDir, entry.name), destination);
+      if (!existsSync(destination)) {
+        await fs.copyFile(source, destination);
+        continue;
+      }
+      // Огрызок манифеста (name = id, категория other) появляется, когда
+      // апдейтер создаёт файл раньше копирования штатного: модуль работает,
+      // но выглядит в реестре сырым id. Лечим из вложенного манифеста.
+      try {
+        const bundled = JSON.parse(await fs.readFile(source, 'utf8')) as ManifestLike;
+        const user = JSON.parse(await fs.readFile(destination, 'utf8')) as ManifestLike;
+        const healed = healStubManifest(user, bundled);
+        if (healed) await fs.writeFile(destination, `${JSON.stringify(healed, null, 2)}\n`, 'utf8');
+      } catch {
+        // Повреждённые файлы вслепую не переписываем.
+      }
     }
   }
 
