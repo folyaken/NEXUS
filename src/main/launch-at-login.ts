@@ -27,22 +27,45 @@ export const TASK_NAME = 'NEXUS Autostart';
 export const LAUNCH_AT_LOGIN_FLAG = '--launched-at-login';
 
 /**
- * Сравнение версий вида «1.6.25»: больше нуля — левая новее, меньше — правая.
+ * Сравнение версий вида «1.6.25» и технических сборок «1.6.29-beta.1»:
+ * больше нуля — левая новее, меньше — правая.
  *
  * Проверки на равенство недостаточно: когда на канале оказывалась более
  * старая версия (например, релиз перекатывали), программа предлагала
  * «обновиться» вниз — на сломанную сборку. Обновление предлагается только
- * когда версия на канале строго новее установленной.
+ * когда версия на канале строго новее установленной. Техническая сборка
+ * всегда новее последнего релиза, но старее своего релиза: как только
+ * «1.6.29» опубликован, бета «1.6.29-beta.1» получает предложение
+ * обновиться на него.
  */
 export function compareVersions(left: string, right: string): number {
-  const parts = (value: string): number[] =>
-    value.trim().split('.').map((part) => Number.parseInt(part, 10) || 0);
-  const leftParts = parts(left);
-  const rightParts = parts(right);
-  const length = Math.max(leftParts.length, rightParts.length);
+  const parse = (value: string): { core: number[]; pre: string[] } => {
+    const text = value.trim();
+    const dash = text.indexOf('-');
+    const core = (dash === -1 ? text : text.slice(0, dash)).split('.').map((part) => Number.parseInt(part, 10) || 0);
+    const pre = dash === -1 ? [] : text.slice(dash + 1).split('.');
+    return { core, pre };
+  };
+  const leftParsed = parse(left);
+  const rightParsed = parse(right);
+  const length = Math.max(leftParsed.core.length, rightParsed.core.length);
   for (let index = 0; index < length; index += 1) {
-    const diff = (leftParts[index] ?? 0) - (rightParts[index] ?? 0);
+    const diff = (leftParsed.core[index] ?? 0) - (rightParsed.core[index] ?? 0);
     if (diff !== 0) return diff > 0 ? 1 : -1;
+  }
+  // Релиз новее своей беты: после публикации «1.6.29» техническая
+  // «1.6.29-beta.1» обязана получить предложение обновиться.
+  if (!leftParsed.pre.length !== !rightParsed.pre.length) return leftParsed.pre.length ? -1 : 1;
+  for (let index = 0; index < Math.max(leftParsed.pre.length, rightParsed.pre.length); index += 1) {
+    const leftPart = leftParsed.pre[index];
+    const rightPart = rightParsed.pre[index];
+    if (leftPart === undefined) return -1;
+    if (rightPart === undefined) return 1;
+    const leftNumber = Number.parseInt(leftPart, 10);
+    const rightNumber = Number.parseInt(rightPart, 10);
+    const bothNumeric = !Number.isNaN(leftNumber) && !Number.isNaN(rightNumber);
+    if (bothNumeric && leftNumber !== rightNumber) return leftNumber > rightNumber ? 1 : -1;
+    if (!bothNumeric && leftPart !== rightPart) return leftPart > rightPart ? 1 : -1;
   }
   return 0;
 }

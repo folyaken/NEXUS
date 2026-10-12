@@ -42,6 +42,8 @@ function readVersion() {
  * меньше правил, тем меньше шансов, что пост не соберётся перед выпуском.
  */
 function readChangelogSection(version) {
+  // Технические сборки (1.6.29-beta.1) описываются разделом релиза (1.6.29).
+  version = String(version).split('-')[0];
   const filePath = path.join(root, 'CHANGELOG.md');
   if (!fs.existsSync(filePath)) return null;
   const lines = fs.readFileSync(filePath, 'utf8').split(/\r?\n/);

@@ -29,9 +29,9 @@ assert.match(managerSource, /Нажмите «Запустить» ещё раз
 
 // --- Версия и журнал -------------------------------------------------------------
 const version = JSON.parse(fs.readFileSync(path.join(root, 'package.json'), 'utf8')).version;
-assert.equal(version, '1.6.28', 'версия повышена: предыдущая локальная сборка должна отличаться');
+assert.equal(version, '1.6.29-beta.1', 'техническая версия сборки');
 const changelog = fs.readFileSync(path.join(root, 'CHANGELOG.md'), 'utf8');
-assert.match(changelog, /## 1\.6\.28 — 12\.10\.2026/, 'в журнале есть раздел новой версии');
+assert.match(changelog, /## 1\.6\.29 —/, 'в журнале есть раздел текущей версии');
 
 console.log('Zapret self-heal wiring checks passed.');
 
