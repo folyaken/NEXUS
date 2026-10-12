@@ -449,6 +449,14 @@ export class ModuleManager extends EventEmitter {
         args = direct.args;
         cwd = direct.cwd;
         directWorkerLaunch = true;
+        // Профиль может ссылаться на списки, которых нет в ZIP релиза: их
+        // штатно создаёт service.bat, который NEXUS не запускает. Без файлов
+        // winws завершится с кодом 1 сразу после старта («cannot access
+        // ipset file»), поэтому отсутствующие создаются до запуска.
+        const createdLists = await ensureZapretListFiles(direct.cwd, direct.args);
+        if (createdLists.length) {
+          this.emitLog(id, 'info', `Созданы отсутствующие списки Zapret: ${createdLists.join(', ')}`);
+        }
         this.emitLog(id, 'info', `Запуск стратегии ${strategy}: ${path.basename(direct.executable)} · параметров — ${direct.args.length}`);
       } else {
         // Запасной путь для профилей необычного вида: как раньше, через

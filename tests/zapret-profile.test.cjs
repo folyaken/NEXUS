@@ -190,3 +190,23 @@ void (async () => {
     await fsp.rm(temp, { recursive: true, force: true });
   }
 })();
+
+// --- Связка со стартом модуля ------------------------------------------------
+// Тест на саму функцию бессилен, если старт модуля про неё забыл. Из-за этого
+// однажды пострадал вызов ниже: функция была, тесты были зелёные, а «код 1»
+// у пользователей оставался. Проверяем исходник старта напрямую.
+const moduleManagerSource = require('node:fs').readFileSync(
+  path.join(root, 'src', 'main', 'module-manager.ts'),
+  'utf8',
+);
+assert.match(
+  moduleManagerSource,
+  /await ensureZapretListFiles\(direct\.cwd, direct\.args\)/,
+  'старт модуля обязан вызывать страховку списков перед запуском ядра',
+);
+assert.match(
+  moduleManagerSource,
+  /ensureZapretListFiles, ensureZapretUserLists/,
+  'обе страховки должны быть импортированы в module-manager',
+);
+console.log('Zapret launch wiring checks passed.');
