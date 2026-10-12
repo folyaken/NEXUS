@@ -26,6 +26,27 @@ export const TASK_NAME = 'NEXUS Autostart';
 /** Признак запуска планировщиком: по нему окно не показывается, программа уходит в трей. */
 export const LAUNCH_AT_LOGIN_FLAG = '--launched-at-login';
 
+/**
+ * Сравнение версий вида «1.6.25»: больше нуля — левая новее, меньше — правая.
+ *
+ * Проверки на равенство недостаточно: когда на канале оказывалась более
+ * старая версия (например, релиз перекатывали), программа предлагала
+ * «обновиться» вниз — на сломанную сборку. Обновление предлагается только
+ * когда версия на канале строго новее установленной.
+ */
+export function compareVersions(left: string, right: string): number {
+  const parts = (value: string): number[] =>
+    value.trim().split('.').map((part) => Number.parseInt(part, 10) || 0);
+  const leftParts = parts(left);
+  const rightParts = parts(right);
+  const length = Math.max(leftParts.length, rightParts.length);
+  for (let index = 0; index < length; index += 1) {
+    const diff = (leftParts[index] ?? 0) - (rightParts[index] ?? 0);
+    if (diff !== 0) return diff > 0 ? 1 : -1;
+  }
+  return 0;
+}
+
 const COMMAND_TIMEOUT_MS = 15_000;
 
 function schtasksPath(): string {

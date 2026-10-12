@@ -1,4 +1,5 @@
 import { EventEmitter } from 'node:events';
+import { compareVersions } from './launch-at-login';
 import { existsSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import type { NexusUpdateCheck, NexusUpdateStatus } from './types';
@@ -214,11 +215,16 @@ export class AppUpdater extends EventEmitter {
       const info = result?.updateInfo;
       const latestVersion = typeof info?.version === 'string' ? info.version : null;
 
-      if (!latestVersion || latestVersion === this.currentVersion) {
+      // Строгое сравнение: версия на канале обязана быть НОВЕЕ установленной.
+      // Равенство или более старая версия на канале (релиз перекатывали) —
+      // не повод предлагать «обновление» вниз.
+      if (!latestVersion || compareVersions(latestVersion, this.currentVersion) <= 0) {
         return this.setState('up-to-date', {
           latestVersion,
           canInstall: false,
-          message: `Установлена последняя версия ${this.currentVersion}.`,
+          message: compareVersions(latestVersion ?? '', this.currentVersion) < 0
+            ? `Установлена версия ${this.currentVersion} — она новее опубликованной.`
+            : `Установлена последняя версия ${this.currentVersion}.`,
         });
       }
 
