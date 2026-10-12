@@ -29,8 +29,19 @@ assert.match(managerSource, /Нажмите «Запустить» ещё раз
 
 // --- Версия и журнал -------------------------------------------------------------
 const version = JSON.parse(fs.readFileSync(path.join(root, 'package.json'), 'utf8')).version;
-assert.equal(version, '1.6.26', 'версия повышена: установленная 1.6.25 должна получить предложение обновиться');
+assert.equal(version, '1.6.27', 'версия повышена: предыдущая локальная сборка должна отличаться');
 const changelog = fs.readFileSync(path.join(root, 'CHANGELOG.md'), 'utf8');
-assert.match(changelog, /## 1\.6\.26 — 12\.10\.2026/, 'в журнале есть раздел новой версии');
+assert.match(changelog, /## 1\.6\.27 — 12\.10\.2026/, 'в журнале есть раздел новой версии');
 
 console.log('Zapret self-heal wiring checks passed.');
+
+// --- Докачка наблюдаема в журнале ---------------------------------------------
+// Ошибки обновлений были видны только в полосе на странице модулей: со
+// страницы журнала казалось, что программа молча ничего не делает.
+assert.match(mainSource, /reportedUpdateStatus/, 'статусы обновлений зеркалятся в журнал');
+assert.equal((mainSource.match(/logs:append/g) ?? []).length >= 3, true, 'лог-канал используется зеркалом и обработчиком запуска');
+assert.match(mainSource, /Файлы модуля отсутствуют — скачиваю с GitHub…/, 'старт докачки пишется в журнал');
+assert.match(mainSource, /Не удалось скачать: /, 'ошибка докачки пишется в журнал');
+assert.match(mainSource, /Загрузка завершена — повторяю запуск…/, 'повторный запуск пишется в журнал');
+
+console.log('Update log visibility checks passed.');

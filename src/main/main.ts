@@ -952,13 +952,23 @@ function wireIpc(): void {
   // модуль докачивается и старт повторяется — без отдельной кнопки обновления.
   ipcMain.handle('modules:start', async (_event, id: string) => {
     const moduleId = String(id ?? '');
+    const log = (level: ModuleLog['level'], text: string) => mainWindow?.webContents.send('logs:append', {
+      id: moduleId, level, message: text, timestamp: new Date().toISOString(),
+    } as ModuleLog);
     try {
       return await manager.start(moduleId);
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
       const tracked = updater.list().some((item) => item.id === moduleId);
       if (!tracked || !/не найден/.test(message)) throw error;
-      await updater.ensure(moduleId);
+      log('info', 'Файлы модуля отсутствуют — скачиваю с GitHub…');
+      try {
+        await updater.ensure(moduleId);
+      } catch (ensureError) {
+        log('error', `Не удалось скачать: ${ensureError instanceof Error ? ensureError.message : String(ensureError)}`);
+        throw ensureError;
+      }
+      log('info', 'Загрузка завершена — повторяю запуск…');
       return await manager.start(moduleId);
     }
   });
@@ -1142,6 +1152,29 @@ function wireIpc(): void {
   });
   manager.on('scan', (stamp: string) => mainWindow?.webContents.send('runtime:scan', stamp));
   updater.on('changed', (updates) => mainWindow?.webContents.send('updates:changed', updates));
+  // Докачка и обновления модулей обязаны оставлять след в журнале: раньше их
+  // ошибки были видны только в полосе на странице «Модули», и со страницы
+  // журнала казалось, что программа молча ничего не делает.
+  const reportedUpdateStatus = new Map<string, string>();
+  updater.on('changed', (updates) => {
+    for (const update of updates) {
+      if (update.status !== 'downloading' && update.status !== 'installed' && update.status !== 'error' && update.status !== 'unsupported') continue;
+      const signature = `${update.status}:${update.error ?? ''}`;
+      if (reportedUpdateStatus.get(update.id) === signature) continue;
+      reportedUpdateStatus.set(update.id, signature);
+      const message = update.status === 'downloading'
+        ? `Скачиваю ${update.name} ${update.latestVersion ?? ''}…`.replace(/\s+…$/, '…')
+        : update.status === 'installed'
+          ? `${update.name} ${update.latestVersion ?? ''} — установлено.`
+          : `${update.name}: ${update.error ?? 'нет подходящего файла релиза'}`;
+      mainWindow?.webContents.send('logs:append', {
+        id: update.id,
+        level: update.status === 'error' ? 'error' : 'info',
+        message,
+        timestamp: new Date().toISOString(),
+      } as ModuleLog);
+    }
+  });
   vpn.on('changed', (snapshot: ReturnType<VpnManager['snapshot']>) => {
     mainWindow?.webContents.send('vpn:changed', snapshot);
     setTrayVpnStatus(snapshot.runtime.status);
