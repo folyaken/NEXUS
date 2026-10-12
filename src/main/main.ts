@@ -23,6 +23,7 @@ import { normalizeVpnSplitApps, resolveVpnAppRouting } from './split-tunnel';
 import { listRunningApps } from './running-apps';
 import { LAUNCH_AT_LOGIN_FLAG, legacyRunKeyCleanup, setLoginTask } from './launch-at-login';
 import { migrateLegacyUserData } from './legacy-migration';
+import { closeStaleCopies } from './copy-guard';
 import { DEFAULT_SETTINGS, type AboutSystemInfo, type AppSettings, type ModuleLog, type NexusUpdateCheck, type UserProfile, type VpnSplitApp, type VpnStatus } from './types';
 
 declare const __dirname: string;
@@ -1136,6 +1137,16 @@ if (gotLock) {
       // так, программа продолжает работать с тем, что есть.
     }
     settings = await readSettings();
+    // Защита от параллельных копий: старые сборки, забытые на других дисках,
+    // поднимаются ярлыками и заданиями автозапуска и ломают работу сетевых
+    // ядер. Только у установленной программы; в разработке не применяется.
+    if (app.isPackaged && process.platform === 'win32') {
+      void closeStaleCopies(process.execPath).then((closed) => {
+        for (const stalePath of closed) {
+          notify('NEXUS', `Закрыта устаревшая копия NEXUS из ${stalePath}. Работает установленная версия.`);
+        }
+      });
+    }
     const modulesDir = await resolveModulesDir();
     manager = new ModuleManager(modulesDir);
     vpn = new VpnManager(modulesDir);
