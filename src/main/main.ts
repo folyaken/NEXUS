@@ -948,7 +948,20 @@ async function prepareForUpdateRestart(): Promise<void> {
 function wireIpc(): void {
   ipcMain.handle('modules:list', () => manager.list());
   ipcMain.handle('modules:reload', () => manager.reload());
-  ipcMain.handle('modules:start', (_event, id: string) => manager.start(id));
+  // Запуск должен справляться сам: если файлов ядра нет (Zapret не скачан),
+  // модуль докачивается и старт повторяется — без отдельной кнопки обновления.
+  ipcMain.handle('modules:start', async (_event, id: string) => {
+    const moduleId = String(id ?? '');
+    try {
+      return await manager.start(moduleId);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      const tracked = updater.list().some((item) => item.id === moduleId);
+      if (!tracked || !/не найден/.test(message)) throw error;
+      await updater.ensure(moduleId);
+      return await manager.start(moduleId);
+    }
+  });
   // Выключение переключателем — единственный случай, когда модуль забывается:
   // человек сам решил его не использовать, и возвращать его при следующем
   // запуске нельзя. Все остальные остановки (выход, «Отключить всё», перезапуск

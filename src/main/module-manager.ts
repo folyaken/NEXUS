@@ -427,7 +427,7 @@ export class ModuleManager extends EventEmitter {
       }
       const batchFile = strategyValue ? this.resolvePath(strategyValue) : '';
       if (!batchFile || !existsSync(batchFile)) {
-        const message = `Стратегия ${strategy}.bat не найдена. Нажмите «Проверить GitHub» и дождитесь загрузки Zapret.`;
+        const message = `Стратегия ${strategy}.bat не найдена. Нажмите «Запустить» ещё раз — Zapret скачается автоматически.`;
         this.failModule(module, message);
         throw new Error(message);
       }
@@ -487,7 +487,7 @@ export class ModuleManager extends EventEmitter {
       cwd = module.working_dir ? this.resolvePath(module.working_dir) : detectedBinRoot;
       this.emitLog(id, 'info', `Запуск: ${module.executable} ${module.args.join(' ')}`);
       if (!existsSync(executable)) {
-        const message = `Исполняемый файл не найден: ${executable}. Нажмите «Проверить GitHub» и дождитесь загрузки модуля.`;
+        const message = `Исполняемый файл не найден: ${executable}. Нажмите «Запустить» ещё раз — модуль скачается автоматически.`;
         this.failModule(module, message);
         throw new Error(message);
       }

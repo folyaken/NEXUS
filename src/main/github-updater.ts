@@ -94,11 +94,11 @@ export class GithubUpdater extends EventEmitter {
   private async ensureTarget(id: string): Promise<void> {
     const target = this.targets.find((item) => item.id === id);
     if (!target) throw new Error(`Нет цели обновления: ${id}`);
-    if (this.moduleExecutableExists(id)) return;
+    if (this.moduleReady(id)) return;
     await this.syncOne(target);
-    if (this.moduleExecutableExists(id)) return;
+    if (this.moduleReady(id)) return;
     if (id === 'jey2ray') await this.installXrayFromMirrors();
-    if (!this.moduleExecutableExists(id)) {
+    if (!this.moduleReady(id)) {
       throw new Error(this.updates.get(id)?.error || `Не удалось скачать ${target.name}. Проверьте подключение к интернету и повторите попытку.`);
     }
   }
@@ -177,8 +177,9 @@ export class GithubUpdater extends EventEmitter {
         return;
       }
       const installed = this.versions[target.id];
-      const executableExists = this.moduleExecutableExists(target.id);
-      if (installed?.version === release.tag_name && installed.asset === asset.name && executableExists) {
+      // «Уже установлен» требует не только исполняемый файл: без профилей
+      // запуска (.bat) Zapret всё равно не стартует, а загрузка не начиналась.
+      if (installed?.version === release.tag_name && installed.asset === asset.name && this.moduleReady(target.id)) {
         this.setStatus(target, 'up-to-date', { latestVersion: release.tag_name, installedVersion: installed.version, asset: asset.name });
         return;
       }
@@ -784,6 +785,25 @@ export class GithubUpdater extends EventEmitter {
     if (!module) return false;
     const executable = path.isAbsolute(module.executable) ? module.executable : path.resolve(this.modulesDir, module.executable.replace(/^\.\//, ''));
     return existsSync(executable);
+  }
+
+  /**
+   * Полная готовность модуля: исполняемый файл плюс, для batch-модулей
+   * (Zapret), профили запуска. Пропавшие .bat раньше не считались признаком
+   * «не установлен»: проверка говорила «уже актуален» и не докачивала.
+   */
+  private moduleReady(id: string): boolean {
+    if (!this.moduleExecutableExists(id)) return false;
+    const module = this.manager.list().find((item) => item.id === id);
+    if (!module || module.launch_mode !== 'batch') return true;
+    const values = Object.values(module.strategies ?? {});
+    if (!values.length) return false;
+    const selected = module.strategy ? module.strategies?.[module.strategy] : undefined;
+    return (selected ? [...values, selected] : values).every((value) => existsSync(this.modulePath(value)));
+  }
+
+  private modulePath(value: string): string {
+    return path.isAbsolute(value) ? value : path.resolve(this.modulesDir, value.replace(/^\.\//, ''));
   }
 
   private info(target: UpdateTarget, patch: Partial<UpdateInfo> = {}): UpdateInfo {
