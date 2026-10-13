@@ -17,7 +17,7 @@
 # Использование:  bash scripts/make-post-card-1.6.28.sh [путь-к-png]
 set -e
 
-OUT="${1:-brand/posts/card-1.6.28.png}"
+OUT="${1:-brand/posts/card-1.6.28-crimson.png}"
 # Скрипт работает в /tmp, поэтому путь вывода сразу переводим в абсолютный.
 case "$OUT" in
   /*) ;;
